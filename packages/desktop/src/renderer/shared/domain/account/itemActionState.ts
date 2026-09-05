@@ -43,10 +43,12 @@ export function isAccountItemActionPatchReflected(
     return location.kind === "equipped" && location.characterId === patch.character_id;
   }
   if (patch.kind === "postmaster-pull") {
-    return location.kind === "inventory" && location.characterId === patch.character_id;
+    return (location.kind === "inventory" || location.kind === "equipped")
+      && location.characterId === patch.character_id;
   }
   if (patch.target === "vault") return location.kind === "vault";
-  return location.kind === "inventory" && location.characterId === patch.character_id;
+  return (location.kind === "inventory" || location.kind === "equipped")
+    && location.characterId === patch.character_id;
 }
 
 function findAccountItem(

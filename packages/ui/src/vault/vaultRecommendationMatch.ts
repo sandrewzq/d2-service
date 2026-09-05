@@ -30,6 +30,20 @@ export type VaultRecommendationSummaryIndex = ReadonlyMap<
 
 export type VaultRecommendationResult = "matched" | "partial" | "not_matched" | "uncheckable" | "uncovered";
 
+export type VaultRecommendationSourceOption = {
+  sourceId: string;
+  sourceLabel: string;
+  shortLabel: string;
+  count: number;
+};
+
+export type VaultRecommendationManagedSourceOptionInput = {
+  source_key: string;
+  label: string;
+  configured: boolean;
+  state: "active" | "disabled" | "removed";
+};
+
 const sourceOrder = new Map([
   ["aegis", 0],
   ["lgpig", 1],
@@ -156,12 +170,89 @@ export function inferVaultRecommendationResult(
   return "not_matched";
 }
 
+export function inferVaultRecommendationResultForSource(
+  summaries: readonly VaultRecommendationSourceSummary[],
+  sourceId: string
+): VaultRecommendationResult {
+  const canonicalSourceId = canonicalVaultRecommendationSourceId(sourceId);
+  const summary = summaries.find((candidate) => (
+    canonicalVaultRecommendationSourceId(candidate.sourceId) === canonicalSourceId
+  ));
+  if (!summary) return "uncovered";
+  if (summary.state === "uncheckable") return "uncheckable";
+  if (summary.state === "full" || summary.state === "core") return "matched";
+  if (summary.state === "close" || summary.state === "weapon_only") return "partial";
+  if (summary.state === "key_missing" || summary.state === "not_matched") return "not_matched";
+  if (summary.matched > 0) return "partial";
+  return "not_matched";
+}
+
+export function buildVaultRecommendationSourceOptions(
+  summaryGroups: ReadonlyArray<readonly VaultRecommendationSourceSummary[]>,
+  managedSources: readonly VaultRecommendationManagedSourceOptionInput[] = []
+): VaultRecommendationSourceOption[] {
+  const options = new Map<string, VaultRecommendationSourceOption>();
+  const managedSourcesById = new Map(managedSources.map((source) => (
+    [canonicalVaultRecommendationSourceId(source.source_key), source] as const
+  )));
+  for (const source of managedSources) {
+    if (!source.configured || source.state !== "active") continue;
+    const sourceId = canonicalVaultRecommendationSourceId(source.source_key);
+    if (!sourceOrder.has(sourceId)) continue;
+    const sourceLabel = displayVaultRecommendationSourceLabel(sourceId, source.label);
+    options.set(sourceId, {
+      sourceId,
+      sourceLabel,
+      shortLabel: compactVaultRecommendationSourceLabel(sourceId, sourceLabel),
+      count: 0
+    });
+  }
+  for (const summaries of summaryGroups) {
+    const summariesBySource = new Map(summaries.map((summary) => (
+      [canonicalVaultRecommendationSourceId(summary.sourceId), summary] as const
+    )));
+    for (const summary of summariesBySource.values()) {
+      const sourceId = canonicalVaultRecommendationSourceId(summary.sourceId);
+      if (!sourceOrder.has(sourceId)) continue;
+      const managedSource = managedSourcesById.get(sourceId);
+      if (managedSource && (!managedSource.configured || managedSource.state !== "active")) continue;
+      const existing = options.get(sourceId);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        options.set(sourceId, {
+          sourceId,
+          sourceLabel: summary.sourceLabel,
+          shortLabel: summary.shortLabel,
+          count: 1
+        });
+      }
+    }
+  }
+  return [...options.values()].sort((left, right) => (
+    (sourceOrder.get(left.sourceId) ?? 99) - (sourceOrder.get(right.sourceId) ?? 99)
+    || left.sourceLabel.localeCompare(right.sourceLabel, "zh-Hans-CN")
+  ));
+}
+
+export function canonicalVaultRecommendationSourceId(sourceId: string): string {
+  return sourceId === "dim_voltron" ? "dim_wishlist" : sourceId;
+}
+
 export function vaultRecommendationResultLabel(result: VaultRecommendationResult): string {
   if (result === "matched") return "符合推荐";
   if (result === "partial") return "部分符合";
   if (result === "not_matched") return "未符合";
   if (result === "uncheckable") return "无法判断";
   return "无推荐";
+}
+
+export function vaultSourceRecommendationResultLabel(result: VaultRecommendationResult): string {
+  if (result === "matched") return "符合推荐";
+  if (result === "partial") return "部分符合";
+  if (result === "not_matched") return "未符合";
+  if (result === "uncheckable") return "无法判断";
+  return "未收录";
 }
 
 export function formatRecommendationPurposes(

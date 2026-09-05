@@ -2,6 +2,34 @@
 
 这个项目使用面向玩家的更新日志。这里优先记录”玩家能感知到什么变化”，而不是逐条展开内部实现细节。
 
+## 0.0.20 - 2026-09-06
+
+### 中文
+
+#### 改进
+
+- 仓库推荐筛选改为先选推荐来源、再选该来源的匹配结果，数量会随其他筛选条件联动，并减少大型仓库切换筛选时的重复计算。
+- 武器详情的推荐组合改为更紧凑的图标、Perk 名称和状态展示，同时保留本件拥有、跨版本候选、大师属性和完整推荐证据。
+
+#### 修复
+
+- 修复转移、装备和配装写入成功后，账号、仓库、配装与首页可能被相同或更旧的 Bungie Profile 回滚，导致装备一会出现、一会消失或与游戏不一致的问题。
+- 写入成功后会立即显示预计位置并持续展示待确认进度；实例暂时缺失或游戏数据尚未更新时保留当前结果，只有更新后的 Profile 明确冲突才撤销。
+- 修复后台已经确认单件装备，但完整同步尚未追上时又被旧快照覆盖的问题；逐实例确认现在会建立版本屏障，并在最终权威快照完成后统一收口。
+
+### English
+
+#### Improved
+
+- Changed Vault recommendation filters to select a source first and then that source's match result, with condition-aware counts and less repeated work in large inventories.
+- Made weapon-detail recommendation combinations more compact with perk icons, names, and states while preserving owned-roll, cross-version, masterwork, and full evidence details.
+
+#### Fixed
+
+- Fixed successful transfers, equips, and loadout writes being rolled back across Account, Vault, Loadouts, and Home by equal or older Bungie profiles, which could make items appear, disappear, or disagree with the game.
+- Successful writes now show their projected locations immediately and keep visible confirmation progress; temporarily missing items or unchanged game data no longer erase the projected result, and only a newer explicit conflict reverts it.
+- Fixed per-item confirmations being overwritten before the full account snapshot caught up by retaining a version barrier until the final authoritative refresh completes.
+
 ## 0.0.19 - 2026-09-05
 
 ### 中文

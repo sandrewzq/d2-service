@@ -111,7 +111,7 @@ describe("account entity store", () => {
     expect(character.inventory_groups[0]?.items.map((item) => item.instance_id)).toEqual(["equipped-item"]);
   });
 
-  it("权威刷新未反映装备时丢弃本地装备 patch", () => {
+  it("权威刷新未反映装备时保留写后预计位置", () => {
     replaceAccountSummary(accountSummary());
     applyCommittedAccountEntityPatches([{
       kind: "equip",
@@ -122,8 +122,8 @@ describe("account entity store", () => {
     replaceAccountSummary(accountSummary());
 
     const character = getAccountSummarySnapshot()!.characters[0]!;
-    expect(character.equipped_items.map((item) => item.instance_id)).toEqual(["equipped-item"]);
-    expect(character.inventory_items.map((item) => item.instance_id)).toContain("inventory-item");
+    expect(character.equipped_items.map((item) => item.instance_id)).toEqual(["inventory-item"]);
+    expect(character.inventory_items.map((item) => item.instance_id)).toContain("equipped-item");
   });
 
   it("无实例物品在同一位置按出现次序保留独立实体", () => {
@@ -140,7 +140,7 @@ describe("account entity store", () => {
     expect(getAccountItemEntityCount()).toBe(6);
   });
 
-  it("已提交写只等待真实 Profile，并阻止更旧快照覆盖确认结果", () => {
+  it("已提交写立即投影，并阻止更旧快照覆盖确认结果", () => {
     const initial = accountSummary();
     initial.profile_minted_at = "2026-09-05T00:00:00.000Z";
     replaceAccountSummary(initial);
@@ -150,7 +150,7 @@ describe("account entity store", () => {
       locked: true
     }]);
 
-    expect(getAccountItemEntity("vault-item")?.locked).toBe(false);
+    expect(getAccountItemEntity("vault-item")?.locked).toBe(true);
 
     const confirmed = accountSummary();
     confirmed.profile_minted_at = "2026-09-05T00:00:02.000Z";

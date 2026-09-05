@@ -1015,10 +1015,13 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
         const requestStartedAt = performance.now();
         try {
           const profile = await getAccountProfileComponents(components, "refresh");
-          const matchedCount = input.expected_patches
-            .filter((patch) => isAccountWriteVerificationPatchReflected(profile, patch))
-            .length;
+          const reflectedPatches = input.expected_patches
+            .filter((patch) => isAccountWriteVerificationPatchReflected(profile, patch));
+          const contradictedPatches = input.expected_patches
+            .filter((patch) => isAccountWriteVerificationPatchContradicted(profile, patch));
+          const matchedCount = reflectedPatches.length;
           const reflected = matchedCount === input.expected_patches.length;
+          const contradictedCount = contradictedPatches.length;
           const elapsedMs = performance.now() - startedAt;
 
           if (!isLatestOperation()) {
@@ -1055,7 +1058,14 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
 
           if (!reflected
             && attempt >= accountWriteVerificationWaits.length
-            && isProfileNewerThanBaseline(profile, input.baseline_profile_minted_at)) {
+            && isProfileNewerThanBaseline(profile, input.baseline_profile_minted_at)
+            && contradictedCount > 0) {
+            context.update({
+              phase: "mismatch",
+              profile_minted_at: normalizeProfileTimestamp(profile.responseMintedTimestamp),
+              verified_item_instance_ids: reflectedPatches.map((patch) => patch.item_instance_id),
+              mismatched_item_instance_ids: contradictedPatches.map((patch) => patch.item_instance_id)
+            });
             appendAccountWriteVerificationLog(
               config.data.data_dir,
               input,
@@ -1066,6 +1076,12 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
           }
 
           if (!reflected && attempt >= accountWriteVerificationWaits.length) {
+            context.update({
+              phase: "unconfirmed",
+              profile_minted_at: normalizeProfileTimestamp(profile.responseMintedTimestamp),
+              verified_item_instance_ids: reflectedPatches.map((patch) => patch.item_instance_id),
+              mismatched_item_instance_ids: []
+            });
             appendAccountWriteVerificationLog(
               config.data.data_dir,
               input,
@@ -1085,6 +1101,10 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
               }
             }
             context.update({
+              phase: "verified",
+              profile_minted_at: normalizeProfileTimestamp(profile.responseMintedTimestamp),
+              verified_item_instance_ids: reflectedPatches.map((patch) => patch.item_instance_id),
+              mismatched_item_instance_ids: [],
               attempt,
               progress_percent: 100,
               message: input.failed_count > 0
@@ -1131,6 +1151,7 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
             message: classified.message
           });
           if (!classified.retryable) {
+            context.update({ phase: "unavailable" });
             appendAccountWriteVerificationLog(
               config.data.data_dir,
               input,
@@ -1259,12 +1280,12 @@ function getAccountWriteVerificationComponents(
 ): number[] {
   const components = new Set<number>();
   for (const patch of patches) {
-    if (patch.kind === "equip") components.add(205);
-    if (patch.kind === "postmaster-pull") components.add(201);
-    if (patch.kind === "transfer") {
-      components.add(patch.target === "vault" ? 102 : 201);
-    }
-    if (patch.kind === "lock") {
+    // 必须同时读取所有可见位置，才能区分“实例暂时缺失”和“实例
+    // 明确位于其他位置”。这也允许目标角色随后把已转移物品装备上。
+    if (patch.kind === "equip"
+      || patch.kind === "postmaster-pull"
+      || patch.kind === "transfer"
+      || patch.kind === "lock") {
       components.add(102);
       components.add(201);
       components.add(205);
@@ -1292,13 +1313,17 @@ function isAccountWriteVerificationPatchReflected(
     );
   }
   if (patch.kind === "postmaster-pull") {
-    const item = profile.characterInventories?.data?.[patch.character_id]?.items
+    const inventoryItem = profile.characterInventories?.data?.[patch.character_id]?.items
       ?.find((candidate) => candidate.itemInstanceId === patch.item_instance_id);
-    return Boolean(
-      item
+    const equipped = hasProfileItem(
+      profile.characterEquipment?.data?.[patch.character_id]?.items,
+      patch.item_instance_id
+    );
+    return equipped || Boolean(
+      inventoryItem
       && (patch.source_bucket_hash === undefined
-        || item.bucketHash === undefined
-        || item.bucketHash !== patch.source_bucket_hash)
+        || inventoryItem.bucketHash === undefined
+        || inventoryItem.bucketHash !== patch.source_bucket_hash)
     );
   }
   if (patch.kind === "transfer") {
@@ -1307,10 +1332,28 @@ function isAccountWriteVerificationPatchReflected(
       : hasProfileItem(
           profile.characterInventories?.data?.[patch.character_id]?.items,
           patch.item_instance_id
+        ) || hasProfileItem(
+          profile.characterEquipment?.data?.[patch.character_id]?.items,
+          patch.item_instance_id
         );
   }
   const item = findProfileItem(profile, patch.item_instance_id);
   return item?.state === undefined ? false : ((item.state & 1) === 1) === patch.locked;
+}
+
+function isAccountWriteVerificationPatchContradicted(
+  profile: DestinyProfileResponse,
+  patch: AccountItemActionPatch
+): boolean {
+  if (isAccountWriteVerificationPatchReflected(profile, patch)) return false;
+  const item = findProfileItem(profile, patch.item_instance_id);
+  if (!item) {
+    // Bungie Profile 更新过程中可能暂时完全省略实例。缺失只代表尚不能
+    // 确认，不能作为撤销页面预计位置的明确反证。
+    return false;
+  }
+  if (patch.kind === "lock") return item.state !== undefined;
+  return true;
 }
 
 function hasProfileItem(

@@ -533,6 +533,7 @@ function renderShellStatusItem(item: AppShellLayoutProps["shellStatus"][number])
     `status-${status}`
   ].filter(Boolean).join(" ");
   const accessibilityLabel = `${item.label}：${item.value}`;
+  const ariaLive = item.active || (kind === "update" && priority !== "quiet") ? "polite" : undefined;
   const content = (
     <>
       <ShellStatusIcon priority={priority} status={status} statusKey={item.key} />
@@ -543,13 +544,13 @@ function renderShellStatusItem(item: AppShellLayoutProps["shellStatus"][number])
 
   if (item.onAction && item.actionLabel) {
     return (
-      <button className={className} type="button" title={item.actionLabel} aria-label={`${item.actionLabel}：${accessibilityLabel}`} aria-live={kind === "update" && priority !== "quiet" ? "polite" : undefined} data-kind={kind} data-priority={priority} data-ui-kind="shell-status-item" data-status={semanticStatus} onClick={item.onAction} key={item.key ?? item.label}>
+      <button className={className} type="button" title={item.actionLabel} aria-label={`${item.actionLabel}：${accessibilityLabel}`} aria-live={ariaLive} aria-busy={item.active || undefined} data-active={item.active ? "true" : undefined} data-kind={kind} data-priority={priority} data-ui-kind="shell-status-item" data-status={semanticStatus} onClick={item.onAction} key={item.key ?? item.label}>
         {content}
       </button>
     );
   }
 
-  return <span className={className} title={accessibilityLabel} aria-label={accessibilityLabel} aria-live={kind === "update" && priority !== "quiet" ? "polite" : undefined} data-kind={kind} data-priority={priority} data-ui-kind="shell-status-item" data-status={semanticStatus} key={item.key ?? item.label}>{content}</span>;
+  return <span className={className} title={accessibilityLabel} aria-label={accessibilityLabel} aria-live={ariaLive} aria-busy={item.active || undefined} data-active={item.active ? "true" : undefined} data-kind={kind} data-priority={priority} data-ui-kind="shell-status-item" data-status={semanticStatus} key={item.key ?? item.label}>{content}</span>;
 }
 
 function ShellStatusIcon(props: {

@@ -62,7 +62,10 @@ import {
   VaultRecommendationEvidencePanel,
   type VaultRecommendationSourceState
 } from "./VaultRecommendationEvidencePanel.js";
-import type { VaultWishlistActions } from "./VaultWishlistManager.js";
+import type {
+  VaultRecommendationManagedSource,
+  VaultWishlistActions
+} from "./VaultWishlistManager.js";
 import {
   VaultTargetRulesPanel,
   type VaultTargetRulesActions
@@ -72,11 +75,13 @@ import { useVaultBatchActions } from "./useVaultBatchActions.js";
 import { VaultOrganizePanel } from "./VaultOrganizePanel.js";
 import { getRovingFocusIndex } from "../interaction/rovingFocus.js";
 import {
+  buildVaultRecommendationSourceOptions,
   buildVaultRecommendationSummaryIndex,
+  canonicalVaultRecommendationSourceId,
   getVaultCommunityInstanceKey,
   hasPositiveRecommendationSummary,
-  inferVaultRecommendationResult,
-  vaultRecommendationResultLabel,
+  inferVaultRecommendationResultForSource,
+  vaultSourceRecommendationResultLabel,
   type VaultRecommendationResult,
   type VaultRecommendationSummaryIndex
 } from "./vaultRecommendationMatch.js";
@@ -104,8 +109,9 @@ const vaultRecommendationFilters: Array<{ key: VaultRecommendationFilter; label:
   { key: "partial", label: "部分符合" },
   { key: "not_matched", label: "未符合" },
   { key: "uncheckable", label: "无法判断" },
-  { key: "uncovered", label: "无推荐" }
+  { key: "uncovered", label: "未收录" }
 ];
+const emptyVaultRecommendationResultIndex: ReadonlyMap<string, VaultRecommendationResult> = new Map();
 
 const DormantVaultWorkspacePanel = memo(function DormantVaultWorkspacePanel(props: {
   active: boolean;
@@ -167,6 +173,7 @@ export function VaultPageContentView(props: {
   const [sortKey, setSortKey] = useState<VaultSortKey>("name");
   const [tagFilter, setTagFilter] = useState<VaultTagFilter>("all");
   const [signalFilters, setSignalFilters] = useState<VaultSignalFilter[]>([]);
+  const [recommendationSourceFilter, setRecommendationSourceFilter] = useState("");
   const [recommendationFilter, setRecommendationFilter] = useState<VaultRecommendationFilter>("all");
   const [lockFilter, setLockFilter] = useState<VaultLockFilter>("all");
   const [slotFilter, setSlotFilter] = useState<VaultSlotFilter>("all");
@@ -193,6 +200,7 @@ export function VaultPageContentView(props: {
   const [cleanupTargetCharacterId, setCleanupTargetCharacterId] = useState("");
   const [activeQuickAction, setActiveQuickAction] = useState<{ itemKey: string; action: VaultQuickAction } | null>(null);
   const [quickActionFocusRequest, setQuickActionFocusRequest] = useState<{ itemKey: string; requestId: number } | null>(null);
+  const [managedRecommendationSources, setManagedRecommendationSources] = useState<VaultRecommendationManagedSource[]>([]);
   const workspaceScrollPositionsRef = useRef<Record<VaultWorkspaceTab, number>>({
     filters: 0,
     recommendations: 0,
@@ -218,6 +226,24 @@ export function VaultPageContentView(props: {
     ),
     [props.communityInstanceMatch, props.items, props.wishlist]
   );
+
+  useEffect(() => {
+    const getRecommendationManagement = props.wishlistActions?.getRecommendationManagement;
+    if (!getRecommendationManagement) {
+      setManagedRecommendationSources([]);
+      return;
+    }
+    let active = true;
+    void getRecommendationManagement().then(
+      (snapshot) => {
+        if (active) setManagedRecommendationSources(snapshot.sources);
+      },
+      () => undefined
+    );
+    return () => {
+      active = false;
+    };
+  }, [props.communityInstanceMatch, props.recommendationSourceState?.recommendationScan.recommendation_revision, props.wishlistActions?.getRecommendationManagement]);
 
   useLayoutEffect(() => {
     if (typeof document === "undefined") return;
@@ -286,35 +312,78 @@ export function VaultPageContentView(props: {
     )),
     [filteredVaultItems, props.equipmentTargetStore, props.highlightedItemKeys, props.localTargetRules, props.wishlist, recommendationSummaryByInstance, signalFilters]
   );
+  const availableRecommendationSources = useMemo(() => buildVaultRecommendationSourceOptions(
+    props.items.filter((item) => item.group_key === "weapons").map((item) => (
+      recommendationSummaryByInstance.get(getVaultCommunityInstanceKey(item)) ?? []
+    )),
+    managedRecommendationSources
+  ), [managedRecommendationSources, props.items, recommendationSummaryByInstance]);
+  const recommendationSourceOptions = useMemo(() => {
+    const contextualCounts = new Map(buildVaultRecommendationSourceOptions(
+      signalFilteredItems.map((item) => (
+        recommendationSummaryByInstance.get(getVaultCommunityInstanceKey(item)) ?? []
+      ))
+    ).map((option) => [option.sourceId, option.count]));
+    return availableRecommendationSources.map((option) => ({
+      ...option,
+      count: contextualCounts.get(option.sourceId) ?? 0
+    }));
+  }, [availableRecommendationSources, recommendationSummaryByInstance, signalFilteredItems]);
+  const selectedRecommendationSource = recommendationSourceOptions.find((option) => (
+    option.sourceId === recommendationSourceFilter
+  ));
+
+  useEffect(() => {
+    if (!recommendationSourceFilter) return;
+    if (availableRecommendationSources.some((option) => option.sourceId === recommendationSourceFilter)) return;
+    setRecommendationSourceFilter("");
+    setRecommendationFilter("all");
+  }, [availableRecommendationSources, recommendationSourceFilter]);
+
   const recommendationResultByItemKey = useMemo(() => {
     const index = new Map<string, VaultRecommendationResult>();
-    for (const item of signalFilteredItems) {
-      const result = resolveVaultRecommendationResult(
+    if (!recommendationSourceFilter) return emptyVaultRecommendationResultIndex;
+    for (const item of props.items) {
+      if (item.group_key !== "weapons") continue;
+      const result = resolveVaultRecommendationResultForSource(
         item,
         recommendationSummaryByInstance,
+        recommendationSourceFilter,
         props.communityInstanceMatch,
         props.recommendationSourceState?.recommendationScan.phase === "complete"
       );
       if (result) index.set(getVaultSelectionItemKey(item), result);
     }
     return index;
-  }, [props.communityInstanceMatch, props.recommendationSourceState?.recommendationScan.phase, recommendationSummaryByInstance, signalFilteredItems]);
-  const recommendationFilterOptions = useMemo(() => vaultRecommendationFilters.map((option) => ({
-    ...option,
-    count: option.key === "all"
-      ? signalFilteredItems.length
-      : signalFilteredItems.reduce((count, item) => (
-        count + Number(recommendationResultByItemKey.get(getVaultSelectionItemKey(item)) === option.key)
-      ), 0)
-  })), [recommendationResultByItemKey, signalFilteredItems]);
+  }, [props.communityInstanceMatch, props.items, props.recommendationSourceState?.recommendationScan.phase, recommendationSourceFilter, recommendationSummaryByInstance]);
+  const recommendationFilterOptions = useMemo(() => {
+    const counts: Record<VaultRecommendationResult, number> = {
+      matched: 0,
+      partial: 0,
+      not_matched: 0,
+      uncheckable: 0,
+      uncovered: 0
+    };
+    for (const item of signalFilteredItems) {
+      const result = recommendationResultByItemKey.get(getVaultSelectionItemKey(item));
+      if (result) counts[result] += 1;
+    }
+    return vaultRecommendationFilters.map((option) => ({
+      ...option,
+      count: option.key === "all" ? signalFilteredItems.length : counts[option.key]
+    }));
+  }, [recommendationResultByItemKey, signalFilteredItems]);
   const filteredItems = useMemo(
-    () => recommendationFilter === "all"
+    () => !recommendationSourceFilter || recommendationFilter === "all"
       ? signalFilteredItems
       : signalFilteredItems.filter((item) => (
         recommendationResultByItemKey.get(getVaultSelectionItemKey(item)) === recommendationFilter
       )),
-    [recommendationFilter, recommendationResultByItemKey, signalFilteredItems]
+    [recommendationFilter, recommendationResultByItemKey, recommendationSourceFilter, signalFilteredItems]
   );
+  const activeRecommendationResultFilterIndex = recommendationSourceFilter && recommendationFilter !== "all"
+    ? recommendationResultByItemKey
+    : undefined;
   const selectedItems = useMemo(
     () => props.items.filter((item) => selectedKeys.has(getVaultSelectionItemKey(item))),
     [props.items, selectedKeys]
@@ -373,10 +442,10 @@ export function VaultPageContentView(props: {
   });
   const filteredSections = useMemo(() => buildVaultSections(filteredItems), [filteredItems]);
   const groups = useMemo(() => buildVaultGroups(props.items), [props.items]);
-  const slotFilters = useMemo(
-    () => buildVaultSlotFilters(filterVaultItems(props.items, {
+  const slotFilters = useMemo(() => {
+    const candidates = filterVaultItems(props.items, {
       group,
-      query: "",
+      query: deferredQuery,
       tag: tagFilter,
       lock: lockFilter,
       slot: "all",
@@ -394,17 +463,47 @@ export function VaultPageContentView(props: {
       tags: props.tags,
       wishlist: props.wishlist,
       localTargetRules: props.localTargetRules
-    })),
-    [ammoFilter, armorSetFilter, armorStatRules, classFilter, damageFilter, frameFilters, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, props.currentCharacterId, props.items, props.localTargetRules, props.tags, props.wishlist, rarityFilter, tagFilter]
-  );
-  const locationFilters = useMemo(
-    () => buildVaultLocationFilters(props.items, props.currentCharacterId),
-    [props.currentCharacterId, props.items]
-  );
-  const availableFrameFilters = useMemo(
-    () => buildVaultFrameFilters(filterVaultItems(props.items, {
+    }).filter((item) => matchesSignalFilters(item, signalFilters, props, recommendationSummaryByInstance))
+      .filter((item) => matchesVaultRecommendationResultFilter(
+        item,
+        activeRecommendationResultFilterIndex,
+        recommendationFilter
+      ));
+    return buildVaultSlotFilters(candidates);
+  }, [activeRecommendationResultFilterIndex, ammoFilter, armorSetFilter, armorStatRules, classFilter, damageFilter, deferredQuery, frameFilters, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, props.currentCharacterId, props.equipmentTargetStore, props.highlightedItemKeys, props.items, props.localTargetRules, props.tags, props.wishlist, rarityFilter, recommendationFilter, recommendationSummaryByInstance, signalFilters, tagFilter]);
+  const locationFilters = useMemo(() => {
+    const candidates = filterVaultItems(props.items, {
+      group: "weapons",
+      query: deferredQuery,
+      tag: tagFilter,
+      lock: lockFilter,
+      slot: slotFilter,
+      location: "all",
+      currentCharacterId: props.currentCharacterId,
+      ammo: ammoFilter,
+      itemType: itemTypeFilter,
+      rarity: rarityFilter,
+      gearTier: gearTierFilter,
+      classType: classFilter,
+      damageType: damageFilter,
+      armorSet: armorSetFilter,
+      armorStatRules,
+      frames: frameFilters,
+      tags: props.tags,
+      wishlist: props.wishlist,
+      localTargetRules: props.localTargetRules
+    }).filter((item) => matchesSignalFilters(item, signalFilters, props, recommendationSummaryByInstance))
+      .filter((item) => matchesVaultRecommendationResultFilter(
+        item,
+        activeRecommendationResultFilterIndex,
+        recommendationFilter
+      ));
+    return buildVaultLocationFilters(candidates, props.currentCharacterId);
+  }, [activeRecommendationResultFilterIndex, ammoFilter, armorSetFilter, armorStatRules, classFilter, damageFilter, deferredQuery, frameFilters, gearTierFilter, itemTypeFilter, lockFilter, props.currentCharacterId, props.equipmentTargetStore, props.highlightedItemKeys, props.items, props.localTargetRules, props.tags, props.wishlist, rarityFilter, recommendationFilter, recommendationSummaryByInstance, signalFilters, slotFilter, tagFilter]);
+  const availableFrameFilters = useMemo(() => {
+    const candidates = filterVaultItems(props.items, {
       group,
-      query: "",
+      query: deferredQuery,
       tag: tagFilter,
       lock: lockFilter,
       slot: slotFilter,
@@ -418,12 +517,18 @@ export function VaultPageContentView(props: {
       damageType: damageFilter,
       armorSet: armorSetFilter,
       armorStatRules,
+      frames: [],
       tags: props.tags,
       wishlist: props.wishlist,
       localTargetRules: props.localTargetRules
-    })),
-    [ammoFilter, armorSetFilter, armorStatRules, classFilter, damageFilter, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, props.currentCharacterId, props.items, props.localTargetRules, props.tags, props.wishlist, rarityFilter, slotFilter, tagFilter]
-  );
+    }).filter((item) => matchesSignalFilters(item, signalFilters, props, recommendationSummaryByInstance))
+      .filter((item) => matchesVaultRecommendationResultFilter(
+        item,
+        activeRecommendationResultFilterIndex,
+        recommendationFilter
+      ));
+    return buildVaultFrameFilters(candidates);
+  }, [activeRecommendationResultFilterIndex, ammoFilter, armorSetFilter, armorStatRules, classFilter, damageFilter, deferredQuery, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, props.currentCharacterId, props.equipmentTargetStore, props.highlightedItemKeys, props.items, props.localTargetRules, props.tags, props.wishlist, rarityFilter, recommendationFilter, recommendationSummaryByInstance, signalFilters, slotFilter, tagFilter]);
   const armorSetFilters = useMemo(
     () => buildVaultArmorSetFilters(props.armorSetCatalog, props.items),
     [props.armorSetCatalog, props.items]
@@ -441,14 +546,40 @@ export function VaultPageContentView(props: {
   }, [armorSetFilter, armorSetFilters, props.armorSetCatalogStatus]);
   const itemTypeFilters = useMemo(() => {
     const counts = new Map<string, number>();
-    props.items.filter((item) => item.group_key === "weapons" && item.item_type).forEach((item) => {
+    const candidates = filterVaultItems(props.items, {
+      group: "weapons",
+      query: deferredQuery,
+      tag: tagFilter,
+      lock: lockFilter,
+      slot: slotFilter,
+      location: locationFilter,
+      currentCharacterId: props.currentCharacterId,
+      ammo: ammoFilter,
+      itemType: "all",
+      rarity: rarityFilter,
+      gearTier: gearTierFilter,
+      classType: classFilter,
+      damageType: damageFilter,
+      armorSet: armorSetFilter,
+      armorStatRules,
+      frames: frameFilters,
+      tags: props.tags,
+      wishlist: props.wishlist,
+      localTargetRules: props.localTargetRules
+    }).filter((item) => matchesSignalFilters(item, signalFilters, props, recommendationSummaryByInstance))
+      .filter((item) => matchesVaultRecommendationResultFilter(
+        item,
+        activeRecommendationResultFilterIndex,
+        recommendationFilter
+      ));
+    candidates.filter((item) => item.item_type).forEach((item) => {
       const itemType = item.item_type ?? "";
       counts.set(itemType, (counts.get(itemType) ?? 0) + 1);
     });
     return [...counts.entries()]
       .map(([key, count]) => ({ key, label: key, count }))
       .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "zh-Hans-CN"));
-  }, [props.items]);
+  }, [activeRecommendationResultFilterIndex, ammoFilter, armorSetFilter, armorStatRules, classFilter, damageFilter, deferredQuery, frameFilters, gearTierFilter, locationFilter, lockFilter, props.currentCharacterId, props.equipmentTargetStore, props.highlightedItemKeys, props.items, props.localTargetRules, props.tags, props.wishlist, rarityFilter, recommendationFilter, recommendationSummaryByInstance, signalFilters, slotFilter, tagFilter]);
   const duplicateSummary = useMemo(
     () => hasVisitedDuplicateTab ? buildVaultDuplicateSummary(props.items, props.tags) : emptyDuplicateSummary,
     [hasVisitedDuplicateTab, props.items, props.tags]
@@ -487,10 +618,11 @@ export function VaultPageContentView(props: {
     lockFilter,
     tagFilter,
     signalFilters,
+    recommendationSourceLabel: selectedRecommendationSource?.sourceLabel,
     recommendationFilter,
     frameFilterCount: frameFilters.length,
     armorRuleCount: armorStatRules.length
-  }), [ammoFilter, armorSetFilter, armorSetLabel, armorStatRules.length, classFilter, damageFilter, frameFilters.length, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, query, rarityFilter, recommendationFilter, signalFilters, slotFilter, sortKey, tagFilter]);
+  }), [ammoFilter, armorSetFilter, armorSetLabel, armorStatRules.length, classFilter, damageFilter, frameFilters.length, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, query, rarityFilter, recommendationFilter, selectedRecommendationSource?.sourceLabel, signalFilters, slotFilter, sortKey, tagFilter]);
   const contextFacts = useMemo(() => buildVaultContextFacts({
     group,
     query,
@@ -516,10 +648,13 @@ export function VaultPageContentView(props: {
     props.onContextFactsChange?.([
       ...contextFacts,
       ...signalFilters.map((signal) => `保护与匹配：${signalLabel(signal)}`),
-      ...(recommendationFilter === "all" ? [] : [`推荐命中：${vaultRecommendationResultLabel(recommendationFilter)}`]),
+      ...(selectedRecommendationSource ? [`推荐来源：${selectedRecommendationSource.sourceLabel}`] : []),
+      ...(!selectedRecommendationSource || recommendationFilter === "all"
+        ? []
+        : [`该来源结果：${vaultSourceRecommendationResultLabel(recommendationFilter)}`]),
       `当前结果：${filteredItems.length} 件`
     ]);
-  }, [contextFacts, filteredItems.length, props.onContextFactsChange, recommendationFilter, signalFilters]);
+  }, [contextFacts, filteredItems.length, props.onContextFactsChange, recommendationFilter, selectedRecommendationSource, signalFilters]);
 
   function resetFilterState(
     resetQuery = true,
@@ -529,6 +664,7 @@ export function VaultPageContentView(props: {
     setSortKey("name");
     setTagFilter("all");
     setSignalFilters([]);
+    setRecommendationSourceFilter("");
     setRecommendationFilter("all");
     setLockFilter("all");
     setSlotFilter("all");
@@ -550,6 +686,7 @@ export function VaultPageContentView(props: {
     setSlotFilter("all");
     setLocationFilter(nextGroup === "weapons" ? "vault" : "all");
     if (nextGroup !== "weapons") {
+      setRecommendationSourceFilter("");
       setRecommendationFilter("all");
       setAmmoFilter("all");
       setItemTypeFilter("all");
@@ -725,20 +862,43 @@ export function VaultPageContentView(props: {
           ))}
         </div>
         {activeVaultTab === "filters" && group === "weapons" ? (
-          <div className="vault-recommendation-filter" role="group" aria-label="推荐命中筛选">
-            <span>推荐命中</span>
-            <div>
-              {recommendationFilterOptions.map((option) => (
-                <button
-                  type="button"
-                  key={option.key}
-                  aria-pressed={recommendationFilter === option.key}
-                  onClick={() => setRecommendationFilter(option.key)}
-                >
-                  <span>{option.label}</span><small>{option.count}</small>
-                </button>
-              ))}
-            </div>
+          <div className="vault-recommendation-filter" aria-label="按推荐来源筛选">
+            <span>推荐筛选</span>
+            <label>
+              <small>1 来源</small>
+              <select
+                aria-label="推荐来源"
+                value={recommendationSourceFilter}
+                onChange={(event) => {
+                  setRecommendationSourceFilter(event.target.value);
+                  setRecommendationFilter("all");
+                }}
+              >
+                <option value="">选择来源</option>
+                {recommendationSourceOptions.map((option) => (
+                  <option key={option.sourceId} value={option.sourceId}>
+                    {option.sourceLabel} · 覆盖 {option.count}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {recommendationSourceFilter ? (
+              <div role="group" aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}匹配结果`}>
+                <small>2 结果</small>
+                <span>
+                  {recommendationFilterOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option.key}
+                      aria-pressed={recommendationFilter === option.key}
+                      onClick={() => setRecommendationFilter(option.key)}
+                    >
+                      <span>{option.label}</span><small>{option.count}</small>
+                    </button>
+                  ))}
+                </span>
+              </div>
+            ) : <small className="vault-recommendation-filter-hint">先选择来源，再按该来源结果筛选</small>}
           </div>
         ) : null}
         <div className="vault-workflow-meta">
@@ -845,6 +1005,7 @@ export function VaultPageContentView(props: {
                 highlightedItemKeys={props.highlightedItemKeys}
                 tags={props.tags}
                 recommendationSummaryByInstance={recommendationSummaryByInstance}
+                preferredRecommendationSourceId={recommendationSourceFilter || undefined}
                 isOrganizing={isOrganizing}
                 isSearchActive={Boolean(query.trim())}
                 selectedKeys={selectedKeys}
@@ -913,6 +1074,7 @@ export function VaultPageContentView(props: {
                 recommendationSummaryByInstance={recommendationSummaryByInstance}
                 highlightedItemKeys={props.highlightedItemKeys}
                 sourceState={props.recommendationSourceState}
+                managedSources={managedRecommendationSources}
                 wishlistActions={props.wishlistActions}
                 managementLocked={hasPendingDuplicateChanges}
                 canOrganizeItem={(item) => duplicateGroupKeyByItemKey.has(getVaultSelectionItemKey(item))}
@@ -978,7 +1140,10 @@ function matchesSignalFilters(item: AccountItemSummary, filters: VaultSignalFilt
   if (!filters.length) return true;
   return filters.every((filter) => {
     if (filter === "wishlist") return (recommendationSummaryByInstance.get(getVaultCommunityInstanceKey(item)) ?? [])
-      .some((summary) => summary.sourceId === "dim_wishlist" && hasPositiveRecommendationSummary(summary));
+      .some((summary) => (
+        canonicalVaultRecommendationSourceId(summary.sourceId) === "dim_wishlist"
+        && hasPositiveRecommendationSummary(summary)
+      ));
     if (filter === "target") {
       const coreItem = normalizeCoreItem(item);
       return evaluateEquipmentTargets(coreItem, props.equipmentTargetStore ?? undefined).matched
@@ -1006,6 +1171,7 @@ function buildActiveFilterLabels(input: {
   lockFilter: VaultLockFilter;
   tagFilter: VaultTagFilter;
   signalFilters: VaultSignalFilter[];
+  recommendationSourceLabel?: string;
   recommendationFilter: VaultRecommendationFilter;
   frameFilterCount: number;
   armorRuleCount: number;
@@ -1025,7 +1191,10 @@ function buildActiveFilterLabels(input: {
     input.lockFilter !== "all" ? lockFilterLabels[input.lockFilter] : "",
     input.tagFilter !== "all" ? `整理状态：${input.tagFilter === "untagged" ? input.group === "weapons" ? "未整理" : "未标记" : input.tagFilter === "keep" ? "保留" : input.tagFilter === "review" ? "待复查" : "待处理"}` : "",
     ...input.signalFilters.map((signal) => signalLabel(signal)),
-    input.recommendationFilter !== "all" ? `推荐命中：${vaultRecommendationResultLabel(input.recommendationFilter)}` : "",
+    input.recommendationSourceLabel ? `推荐来源：${input.recommendationSourceLabel}` : "",
+    input.recommendationSourceLabel && input.recommendationFilter !== "all"
+      ? `该来源结果：${vaultSourceRecommendationResultLabel(input.recommendationFilter)}`
+      : "",
     input.frameFilterCount ? `武器框架：${input.frameFilterCount} 项` : "",
     input.armorRuleCount ? `护甲属性：${input.armorRuleCount} 条` : ""
   ].filter(Boolean);
@@ -1037,18 +1206,33 @@ function signalLabel(signal: VaultSignalFilter): string {
   return "目标命中";
 }
 
-function resolveVaultRecommendationResult(
+function matchesVaultRecommendationResultFilter(
+  item: AccountItemSummary,
+  resultByItemKey: ReadonlyMap<string, VaultRecommendationResult> | undefined,
+  filter: VaultRecommendationFilter
+): boolean {
+  if (!resultByItemKey || filter === "all") return true;
+  return resultByItemKey.get(getVaultSelectionItemKey(item)) === filter;
+}
+
+function resolveVaultRecommendationResultForSource(
   item: AccountItemSummary,
   recommendationSummaryByInstance: VaultRecommendationSummaryIndex,
+  sourceId: string,
   communityInstanceMatch: ReadonlyMap<string, VaultItemInstanceMatchInfo> | undefined,
   recommendationScanComplete: boolean
 ): VaultRecommendationResult | undefined {
   if (item.group_key !== "weapons") return undefined;
   const instanceKey = getVaultCommunityInstanceKey(item);
-  const summaries = recommendationSummaryByInstance.get(instanceKey) ?? [];
-  const instanceMatch = communityInstanceMatch?.get(instanceKey);
-  if (!summaries.length && !recommendationScanComplete) return undefined;
-  return inferVaultRecommendationResult(summaries, instanceMatch?.recommendation_state);
+  const summaries = recommendationSummaryByInstance.get(getVaultCommunityInstanceKey(item)) ?? [];
+  if (summaries.some((summary) => (
+    canonicalVaultRecommendationSourceId(summary.sourceId) === canonicalVaultRecommendationSourceId(sourceId)
+  ))) {
+    return inferVaultRecommendationResultForSource(summaries, sourceId);
+  }
+  return recommendationScanComplete || communityInstanceMatch?.has(instanceKey)
+    ? "uncovered"
+    : undefined;
 }
 
 function getQuickActionCharacterId(item: AccountItemSummary, currentCharacterId?: string): string {

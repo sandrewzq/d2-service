@@ -28,7 +28,10 @@ import { useDiagnosticsSettings } from "../features/settings/useDiagnosticsSetti
 import { useVendorsWorkspace } from "../features/vendors/useVendorsWorkspace";
 import { useVendorDefinitionDetail } from "../features/vendors/useVendorDefinitionDetail";
 import type { DesktopMenuSession } from "./providers/DesktopMenuProviderContext";
-import { useDesktopProductWriteActions } from "./useDesktopProductWriteActions";
+import {
+  useDesktopProductWriteActions,
+  type AccountWriteSyncActivity
+} from "./useDesktopProductWriteActions";
 
 type SettingsInitialSection = "overview" | "account" | "library" | "bungie";
 
@@ -92,6 +95,8 @@ export function useDesktopProductShell(props: {
     accountSummary,
     applyCommittedAccountActionPatches,
     confirmCommittedAccountActionPatches,
+    discardCommittedAccountActionPatches,
+    pendingCommittedAccountPatchCount,
     vaultTags,
     setVaultTags,
     accountError,
@@ -176,6 +181,8 @@ export function useDesktopProductShell(props: {
     accountSummary,
     applyCommittedAccountActionPatches,
     confirmCommittedAccountActionPatches,
+    discardCommittedAccountActionPatches,
+    pendingCommittedAccountPatchCount,
     diagnostics,
     vaultTags,
     setVaultTags,
@@ -189,6 +196,7 @@ export function useDesktopProductShell(props: {
     loadoutLibrary,
     onRecentHistoryChanged: library.setLibraryHistory
   });
+  const accountWriteSyncActivity = writeActions.accountWriteSyncActivity;
   const refreshAccountManually = () => {
     writeActions.clearCompletedWriteFeedback();
     return refreshAccountSnapshot("manual");
@@ -302,6 +310,7 @@ export function useDesktopProductShell(props: {
     accountSummary,
     lastAccountLoadedAt,
     isLoadingAccount,
+    accountWriteSyncActivity,
     accountError,
     accountWarning,
     isShowingCachedAccount: accountWorkspace.isShowingCachedAccount,
@@ -508,6 +517,7 @@ function buildShellStatus(input: {
   accountSummary: AccountSummary | null;
   lastAccountLoadedAt: Date | null;
   isLoadingAccount: boolean;
+  accountWriteSyncActivity: AccountWriteSyncActivity;
   accountError: string;
   accountWarning: string;
   isShowingCachedAccount: boolean;
@@ -521,6 +531,7 @@ function buildShellStatus(input: {
 }): ShellStatusItem[] {
   const needsLibraryRepair = Boolean(input.manifestStatus?.missing_required_components?.length);
   const waitingForBungieConfig = !input.isBungieConfigured;
+  const accountProfileStale = isAccountProfileStale(input.accountSummary);
   const shellCopy = getLocaleCopy(input.interfaceLocale).shell;
   const appUpdateStatus = getAppUpdateShellStatus(input.appUpdateSnapshot, shellCopy.update);
 
@@ -535,9 +546,11 @@ function buildShellStatus(input: {
     {
       key: "account",
       label: "账号",
-      value: formatAccountShellStatus(input.accountSummary, input.lastAccountLoadedAt, input.isLoadingAccount, input.isShowingCachedAccount, input.accountError, input.accountWarning, input.canRefreshAccount),
-      tone: getAccountStatusTone(input.accountSummary, input.isLoadingAccount, input.isShowingCachedAccount, input.accountError, input.accountWarning, input.canRefreshAccount),
-      priority: input.accountError || input.accountWarning ? "attention" : "standard"
+      value: formatAccountShellStatus(input.accountSummary, input.lastAccountLoadedAt, input.isLoadingAccount, input.accountWriteSyncActivity, input.isShowingCachedAccount, input.accountError, input.accountWarning, input.canRefreshAccount),
+      tone: getAccountStatusTone(input.accountSummary, input.isLoadingAccount, input.accountWriteSyncActivity, input.isShowingCachedAccount, input.accountError, input.accountWarning, input.canRefreshAccount),
+      priority: input.accountError || input.accountWarning || accountProfileStale || input.isLoadingAccount || input.accountWriteSyncActivity.active ? "attention" : "standard",
+      kind: "task",
+      active: input.isLoadingAccount || input.accountWriteSyncActivity.active
     },
     {
       key: "library",
@@ -573,19 +586,31 @@ function formatAccountShellStatus(
   accountSummary: AccountSummary | null,
   lastAccountLoadedAt: Date | null,
   isLoadingAccount: boolean,
+  accountWriteSyncActivity: AccountWriteSyncActivity,
   isShowingCachedAccount: boolean,
   accountError: string,
   accountWarning: string,
   canRefreshAccount: boolean
 ): string {
-  if (isLoadingAccount) return accountSummary ? "正在同步装备数据" : "正在读取装备数据";
   if (accountError && accountSummary) return "同步失败 · 显示上次装备数据";
   if (accountError) return "读取失败";
+  if (accountWriteSyncActivity.active) {
+    if (accountWriteSyncActivity.phase === "finalizing") return "正在核对最终状态";
+    if (accountWriteSyncActivity.delayed) return "等待游戏状态";
+    return accountWriteSyncActivity.pendingCount > 0
+      ? `${accountWriteSyncActivity.pendingCount} 项待确认`
+      : "等待游戏状态";
+  }
+  if (isLoadingAccount) return accountSummary ? "正在同步装备数据" : "正在读取装备数据";
   if (accountWarning && accountSummary) return "增强数据异常";
   if (accountSummary) {
     const loadedAt = formatTime(lastAccountLoadedAt);
     if (isShowingCachedAccount) return loadedAt ? `本地缓存 · ${loadedAt}` : "本地缓存";
-    return loadedAt ? `已同步 · ${loadedAt}` : "已同步";
+    const profileAge = getAccountProfileAge(accountSummary);
+    if (profileAge !== undefined && profileAge > ACCOUNT_PROFILE_STALE_THRESHOLD_MS) {
+      return `游戏数据延迟 · ${formatProfileAge(profileAge)}`;
+    }
+    return loadedAt ? `已核对 · ${loadedAt}` : "已核对";
   }
   return canRefreshAccount ? "可同步" : "未登录";
 }
@@ -593,17 +618,41 @@ function formatAccountShellStatus(
 function getAccountStatusTone(
   accountSummary: AccountSummary | null,
   isLoadingAccount: boolean,
+  accountWriteSyncActivity: AccountWriteSyncActivity,
   isShowingCachedAccount: boolean,
   accountError: string,
   accountWarning: string,
   canRefreshAccount: boolean
 ): ShellStatusItem["tone"] {
   if (accountError) return "error";
-  if (isLoadingAccount) return "warning";
+  if (accountWriteSyncActivity.active) return accountWriteSyncActivity.delayed ? "warning" : "pending";
+  if (isLoadingAccount) return "pending";
   if (isShowingCachedAccount && accountSummary) return "warning";
   if (accountWarning && accountSummary) return "warning";
+  if (isAccountProfileStale(accountSummary)) return "warning";
   if (accountSummary) return "ready";
   return canRefreshAccount ? "warning" : "neutral";
+}
+
+const ACCOUNT_PROFILE_STALE_THRESHOLD_MS = 90_000;
+
+function isAccountProfileStale(accountSummary: AccountSummary | null): boolean {
+  const age = getAccountProfileAge(accountSummary);
+  return age !== undefined && age > ACCOUNT_PROFILE_STALE_THRESHOLD_MS;
+}
+
+function getAccountProfileAge(accountSummary: AccountSummary | null): number | undefined {
+  if (!accountSummary?.profile_minted_at) return undefined;
+  const mintedAt = Date.parse(accountSummary.profile_minted_at);
+  return Number.isFinite(mintedAt) ? Math.max(0, Date.now() - mintedAt) : undefined;
+}
+
+function formatProfileAge(ageMs: number): string {
+  const seconds = Math.max(1, Math.round(ageMs / 1000));
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟`;
+  return `${Math.round(minutes / 60)} 小时`;
 }
 
 function formatManifestShellStatus(

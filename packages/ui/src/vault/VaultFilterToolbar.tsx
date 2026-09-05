@@ -126,7 +126,7 @@ export function VaultFilterToolbar(props: {
         />
       </label>
 
-      <FilterSection title="物品范围" hint="高频入口">
+      <FilterSection title="物品范围" hint="账号总数">
         <div className="vault-filter-option-grid vault-filter-category-grid" role="group" aria-label="物品范围">
           {visibleGroups.map((item) => (
             <button type="button" key={item.key} aria-pressed={props.group === item.key} onClick={() => props.onGroupChange(item.key)}>
@@ -136,7 +136,7 @@ export function VaultFilterToolbar(props: {
         </div>
       </FilterSection>
 
-      <FilterSection title={isArmorMode ? "护甲部位" : isWeaponMode ? "武器槽位" : "物品位置"} hint="单选">
+      <FilterSection title={isArmorMode ? "护甲部位" : isWeaponMode ? "武器槽位" : "物品位置"} hint="匹配其他条件">
         <div className="vault-filter-option-grid vault-filter-slot-grid" role="group" aria-label={isWeaponMode ? "武器槽位" : isArmorMode ? "护甲部位" : "物品位置"}>
           {visibleSlotFilters.map((item) => (
             <button type="button" key={item.key} aria-pressed={props.slotFilter === item.key} onClick={() => props.onSlotFilterChange(item.key)}>
@@ -165,7 +165,7 @@ export function VaultFilterToolbar(props: {
       </FilterSection>
 
       {isWeaponMode ? (
-        <FilterSection title="查看范围" hint="先选择这次要整理的武器">
+        <FilterSection title="查看范围" hint="匹配其他条件">
           <div className="vault-filter-option-grid vault-filter-location-grid" role="group" aria-label="武器查看范围">
             {props.locationFilters.map((item) => (
               <button type="button" key={item.key} aria-pressed={props.locationFilter === item.key} onClick={() => props.onLocationFilterChange(item.key)}>

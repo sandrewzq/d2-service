@@ -49,11 +49,16 @@ const emptyState: NormalizedAccountState = {
   revision: 0
 };
 
+let confirmedState = emptyState;
 let state = emptyState;
 let cachedSummaryState: NormalizedAccountState | null = null;
 let cachedSummary: AccountSummary | null = null;
 const listeners = new Set<() => void>();
 const committedPatchesByInstanceId = new Map<string, AccountItemActionPatch>();
+const verifiedPatchesByInstanceId = new Map<string, {
+  patch: AccountItemActionPatch;
+  profileVersion: number;
+}>();
 
 export function replaceAccountSummary(
   summary: AccountSummary | null,
@@ -68,33 +73,82 @@ export function replaceAccountSummary(
     && accountProfileVersion(summary) === 0) {
     return false;
   }
-  if (summary && state.account && isOlderAccountSummary(summary, state.account)) return false;
   if (!summary) {
     committedPatchesByInstanceId.clear();
+    verifiedPatchesByInstanceId.clear();
+    confirmedState = {
+      ...emptyState,
+      revision: state.revision + 1
+    };
+    state = confirmedState;
+    emitChange();
+    return true;
   }
-  const next = summary ? normalizeAccountSummary(summary, state.revision + 1) : {
-    ...emptyState,
-    revision: state.revision + 1
-  };
-  if (summary) {
-    for (const [instanceId, patch] of committedPatchesByInstanceId) {
-      if (isAccountItemActionPatchReflected(summary, patch)) {
-        committedPatchesByInstanceId.delete(instanceId);
-      }
+
+  const incomingProfileVersion = accountProfileVersion(summary);
+  const currentProfileVersion = accountProfileVersion(confirmedState.account);
+  if (confirmedState.account && currentProfileVersion > 0) {
+    if (incomingProfileVersion === 0 || incomingProfileVersion < currentProfileVersion) {
+      return false;
     }
   }
-  state = next;
+
+  const reflectedPatches: AccountItemActionPatch[] = [];
+  for (const [instanceId, patch] of committedPatchesByInstanceId) {
+    if (isAccountItemActionPatchReflected(summary, patch)) {
+      committedPatchesByInstanceId.delete(instanceId);
+      reflectedPatches.push(patch);
+    }
+  }
+  for (const [instanceId, verified] of verifiedPatchesByInstanceId) {
+    if (isAccountItemActionPatchReflected(summary, verified.patch)) {
+      verifiedPatchesByInstanceId.delete(instanceId);
+      reflectedPatches.push(verified.patch);
+    } else if (incomingProfileVersion > verified.profileVersion) {
+      // 完整 Profile 已越过轻量核对版本，之后以这个更新版本为准。
+      verifiedPatchesByInstanceId.delete(instanceId);
+    }
+  }
+
+  // Bungie 可能在相同 minted timestamp 下返回不同内容。与 DIM 一样，
+  // 相同版本不能重建当前页面，否则延迟响应会把刚完成的本地写入覆盖掉；
+  // 但仍允许它确认已经反映出来的逐实例 Pending。
+  if (
+    confirmedState.account
+    && incomingProfileVersion > 0
+    && incomingProfileVersion === currentProfileVersion
+  ) {
+    if (reflectedPatches.length) {
+      // 相同版本只吸收已经由逐实例事实确认的写入，不让整份响应覆盖
+      // 其他页面状态。这样既能结束 Pending，也保留严格单调的快照边界。
+      let nextConfirmed = confirmedState;
+      for (const patch of reflectedPatches) {
+        nextConfirmed = ensureCommittedPatchItem(nextConfirmed, state, patch);
+        nextConfirmed = applyPatch(nextConfirmed, patch);
+      }
+      confirmedState = { ...nextConfirmed, revision: state.revision + 1 };
+      state = projectCommittedAccountState(confirmedState, state, state.revision + 1);
+      emitChange();
+    }
+    return true;
+  }
+
+  confirmedState = normalizeAccountSummary(summary, state.revision + 1);
+  state = projectCommittedAccountState(confirmedState, state, state.revision + 1);
   emitChange();
   return true;
 }
 
 export function applyAccountEntityPatches(patches: readonly AccountItemActionPatch[]): void {
   if (!state.account || !patches.length) return;
+  let nextConfirmed = confirmedState;
   let next = state;
   for (const patch of patches) {
+    nextConfirmed = applyPatch(nextConfirmed, patch);
     next = applyPatch(next, patch);
   }
   if (next === state) return;
+  confirmedState = { ...nextConfirmed, revision: state.revision + 1 };
   state = { ...next, revision: state.revision + 1 };
   emitChange();
 }
@@ -104,17 +158,57 @@ export function applyCommittedAccountEntityPatches(patches: readonly AccountItem
   for (const patch of patches) clearConflictingCommittedPatches(patch);
   for (const patch of patches) {
     committedPatchesByInstanceId.delete(patch.item_instance_id);
+    verifiedPatchesByInstanceId.delete(patch.item_instance_id);
     committedPatchesByInstanceId.set(patch.item_instance_id, patch);
   }
+  state = projectCommittedAccountState(confirmedState, state, state.revision + 1);
+  emitChange();
 }
 
-export function confirmCommittedAccountEntityPatches(patches: readonly AccountItemActionPatch[]): void {
+export function discardCommittedAccountEntityPatches(patches: readonly AccountItemActionPatch[]): void {
+  let changed = false;
   for (const patch of patches) {
     const committedPatch = committedPatchesByInstanceId.get(patch.item_instance_id);
     if (isSameAccountItemActionPatch(committedPatch, patch)) {
       committedPatchesByInstanceId.delete(patch.item_instance_id);
+      changed = true;
     }
   }
+  if (changed) {
+    state = projectCommittedAccountState(confirmedState, state, state.revision + 1);
+    emitChange();
+  }
+}
+
+export function confirmCommittedAccountEntityPatches(
+  patches: readonly AccountItemActionPatch[],
+  profileMintedAt?: string
+): void {
+  let changed = false;
+  let nextConfirmed = confirmedState;
+  const verifiedProfileVersion = accountProfileVersion({ profile_minted_at: profileMintedAt })
+    || accountProfileVersion(confirmedState.account);
+  for (const patch of patches) {
+    const committedPatch = committedPatchesByInstanceId.get(patch.item_instance_id);
+    if (!isSameAccountItemActionPatch(committedPatch, patch)) continue;
+    nextConfirmed = ensureCommittedPatchItem(nextConfirmed, state, patch);
+    nextConfirmed = applyPatch(nextConfirmed, patch);
+    committedPatchesByInstanceId.delete(patch.item_instance_id);
+    verifiedPatchesByInstanceId.set(patch.item_instance_id, {
+      patch,
+      profileVersion: verifiedProfileVersion
+    });
+    changed = true;
+  }
+  if (changed) {
+    confirmedState = { ...nextConfirmed, revision: state.revision + 1 };
+    state = projectCommittedAccountState(confirmedState, state, state.revision + 1);
+    emitChange();
+  }
+}
+
+export function getPendingCommittedAccountPatchCount(): number {
+  return committedPatchesByInstanceId.size;
 }
 
 export function getAccountSummarySnapshot(): AccountSummary | null {
@@ -143,6 +237,14 @@ export function useAccountSummaryStore(): AccountSummary | null {
 
 export function useHasAccountDataStore(): boolean {
   return useAccountStoreSelector(selectHasAccountData);
+}
+
+export function usePendingCommittedAccountPatchCount(): number {
+  return useSyncExternalStore(
+    subscribe,
+    getPendingCommittedAccountPatchCount,
+    getPendingCommittedAccountPatchCount
+  );
 }
 
 export function useAccountStoreSelector<T>(
@@ -208,15 +310,20 @@ function clearConflictingCommittedPatches(patch: AccountItemActionPatch): void {
       committedPatchesByInstanceId.delete(instanceId);
     }
   }
-}
-
-function isOlderAccountSummary(
-  incoming: Pick<AccountSummary, "profile_minted_at">,
-  current: Pick<AccountSummary, "profile_minted_at">
-): boolean {
-  const incomingVersion = accountProfileVersion(incoming);
-  const currentVersion = accountProfileVersion(current);
-  return incomingVersion > 0 && currentVersion > incomingVersion;
+  for (const [instanceId, verified] of verifiedPatchesByInstanceId) {
+    const verifiedPatch = verified.patch;
+    if (verifiedPatch.kind !== "equip" || verifiedPatch.character_id !== patch.character_id) continue;
+    const existingKey = state.itemKeyByInstanceId[instanceId];
+    const existingItem = existingKey ? state.itemsByKey[existingKey] : undefined;
+    if (!existingItem) continue;
+    const sameSlot = incomingItem.bucket_hash !== undefined
+      ? existingItem.bucket_hash === incomingItem.bucket_hash
+      : incomingItem.group_key !== "other"
+        && existingItem.group_key === incomingItem.group_key;
+    if (sameSlot) {
+      verifiedPatchesByInstanceId.delete(instanceId);
+    }
+  }
 }
 
 function accountProfileVersion(
@@ -443,6 +550,71 @@ function applyPatch(
     inventoryItemKeys
   };
   return { ...detached, itemsByKey, charactersById };
+}
+
+function ensureCommittedPatchItem(
+  input: NormalizedAccountState,
+  previous: NormalizedAccountState,
+  patch: AccountItemActionPatch
+): NormalizedAccountState {
+  if (input.itemKeyByInstanceId[patch.item_instance_id]) return input;
+  const previousKey = previous.itemKeyByInstanceId[patch.item_instance_id];
+  const previousItem = previousKey ? previous.itemsByKey[previousKey] : undefined;
+  if (!previousKey || !previousItem) return input;
+  const charactersById = { ...input.charactersById };
+  for (const [characterId, previousCharacter] of Object.entries(previous.charactersById)) {
+    const character = charactersById[characterId];
+    if (!character) continue;
+    charactersById[characterId] = {
+      ...character,
+      equippedItemKeys: previousCharacter.equippedItemKeys.includes(previousKey)
+        ? [previousKey, ...character.equippedItemKeys.filter((key) => key !== previousKey)]
+        : character.equippedItemKeys,
+      inventoryItemKeys: previousCharacter.inventoryItemKeys.includes(previousKey)
+        ? [previousKey, ...character.inventoryItemKeys.filter((key) => key !== previousKey)]
+        : character.inventoryItemKeys,
+      postmasterItemKeys: previousCharacter.postmasterItemKeys.includes(previousKey)
+        ? [previousKey, ...character.postmasterItemKeys.filter((key) => key !== previousKey)]
+        : character.postmasterItemKeys
+    };
+  }
+  return {
+    ...input,
+    charactersById,
+    itemsByKey: {
+      ...input.itemsByKey,
+      [previousKey]: previousItem
+    },
+    itemKeyByInstanceId: {
+      ...input.itemKeyByInstanceId,
+      [patch.item_instance_id]: previousKey
+    },
+    vault: {
+      itemKeys: previous.vault.itemKeys.includes(previousKey)
+        ? [previousKey, ...input.vault.itemKeys.filter((key) => key !== previousKey)]
+        : input.vault.itemKeys,
+      sampleItemKeys: previous.vault.sampleItemKeys.includes(previousKey)
+        ? [previousKey, ...input.vault.sampleItemKeys.filter((key) => key !== previousKey)]
+        : input.vault.sampleItemKeys
+    }
+  };
+}
+
+function projectCommittedAccountState(
+  base: NormalizedAccountState,
+  previous: NormalizedAccountState,
+  revision: number
+): NormalizedAccountState {
+  let next = { ...base, revision };
+  for (const verified of verifiedPatchesByInstanceId.values()) {
+    next = ensureCommittedPatchItem(next, previous, verified.patch);
+    next = applyPatch(next, verified.patch);
+  }
+  for (const patch of committedPatchesByInstanceId.values()) {
+    next = ensureCommittedPatchItem(next, previous, patch);
+    next = applyPatch(next, patch);
+  }
+  return { ...next, revision };
 }
 
 function detachItemKey(

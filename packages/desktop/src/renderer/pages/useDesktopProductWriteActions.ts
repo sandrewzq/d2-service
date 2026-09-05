@@ -30,6 +30,14 @@ type AccountWriteSyncState = {
   surfaceFeedback: boolean;
 };
 
+export type AccountWriteSyncActivity = {
+  active: boolean;
+  delayed: boolean;
+  pendingCount: number;
+  phase: "idle" | "waiting" | "finalizing";
+  startedAtMs?: number;
+};
+
 // 后台对账目前最多等待 750ms + 2s + 5s + 10s + 20s，另加有限次
 // Profile 请求时间。留出缓冲后，Renderer 不应再无限保留“确认中”。
 const ACCOUNT_WRITE_SYNC_UI_TIMEOUT_MS = 75_000;
@@ -48,7 +56,12 @@ type LoadoutLibraryBridge = {
 export function useDesktopProductWriteActions(input: {
   accountSummary: AccountSummary | null;
   applyCommittedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
-  confirmCommittedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
+  confirmCommittedAccountActionPatches: (
+    patches: readonly AccountItemActionPatch[],
+    profileMintedAt?: string
+  ) => void;
+  discardCommittedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
+  pendingCommittedAccountPatchCount: number;
   diagnostics: DiagnosticsBridge;
   importedWishlist: DimWishlist | null;
   itemDetailCacheScopeKey: string;
@@ -110,17 +123,20 @@ export function useDesktopProductWriteActions(input: {
               tone: "warning",
               phase: "paused",
               itemInstanceIds: sync.itemInstanceIds,
-              message: "后台确认任务未及时返回，已刷新账号状态；请以当前页面显示的装备位置为准。"
+              message: "后台确认任务未及时返回；页面继续保留写入后的预计位置，并已重新读取游戏数据。"
             };
           });
           setItemActionMessage("");
         }
-        // 即使后台任务的终态事件丢失，也先把页面从“确认中”释放出来。
-        // 账号刷新失败时保留当前缓存，不再让状态无限等待。
-        input.confirmCommittedAccountActionPatches(sync.expectedPatches);
-        void input.loadAccountSummary().catch(() => undefined);
+        // 即使后台任务的终态事件丢失，也用最后一次权威账号刷新收束状态。
+        // 刷新结束前继续保留全局进度，失败时保留当前缓存。
+        reloadedTerminalTaskIdsRef.current.add(sync.taskId);
+        void input.loadAccountSummary()
+          .catch(() => undefined)
+          .finally(() => {
+            setAccountWriteSyncs((current) => current.filter((entry) => entry.taskId !== sync.taskId));
+          });
         void input.diagnostics.loadActionLog().catch(() => undefined);
-        setAccountWriteSyncs((current) => current.filter((entry) => entry.taskId !== sync.taskId));
       }, remainingMs);
       writeSyncTimeoutsRef.current.set(sync.taskId, timer);
     }
@@ -139,11 +155,6 @@ export function useDesktopProductWriteActions(input: {
       sync,
       task: backgroundTasks.find((entry) => entry.task_id === sync.taskId)
     }));
-    const completedAll = resolved.filter((entry) => entry.task
-      && ["success", "failed", "blocked"].includes(entry.task.status));
-    for (const entry of completedAll) {
-      input.confirmCommittedAccountActionPatches(entry.sync.expectedPatches);
-    }
     const visible = resolved.filter((entry) => entry.sync.surfaceFeedback);
     const succeeded = visible.filter((entry) => entry.task?.status === "success");
     const failed = visible.filter((entry) => entry.task?.status === "failed" || entry.task?.status === "blocked");
@@ -193,7 +204,7 @@ export function useDesktopProductWriteActions(input: {
             tone: "warning",
             phase: "paused",
             itemInstanceIds: sync.itemInstanceIds,
-            message: task.error ?? "写入请求未在游戏内确认，页面已按最新账号状态刷新。"
+            message: task.error ?? "写入请求尚未被游戏数据确认；页面继续保留写入后的预计位置。"
           };
         });
         setItemActionMessage("");
@@ -203,9 +214,48 @@ export function useDesktopProductWriteActions(input: {
       if (!entry.task || !terminalTaskIds.has(entry.sync.taskId)) continue;
       if (reloadedTerminalTaskIdsRef.current.has(entry.sync.taskId)) continue;
       reloadedTerminalTaskIdsRef.current.add(entry.sync.taskId);
-      // 验证任务结束后必须用真实 Bungie 快照刷新页面。Pending 只记录
-      // 预期目标；最终账号事实始终以本次权威 Profile 为准。
-      void input.loadAccountSummary().catch(() => undefined);
+      const timeout = writeSyncTimeoutsRef.current.get(entry.sync.taskId);
+      if (timeout) {
+        clearTimeout(timeout);
+        writeSyncTimeoutsRef.current.delete(entry.sync.taskId);
+      }
+      // 只有 Profile 已明确前进且仍与写入冲突时，才撤销预计位置。
+      // 普通超时、网络不可用或 Profile 尚未前进都继续保留逐实例 Pending。
+      const hasVerifiedProfile = entry.task.phase === "verified";
+      const hasConfirmedMismatch = entry.task.phase === "mismatch";
+      const verifiedItemIds = new Set(entry.task.verified_item_instance_ids
+        ?? (hasVerifiedProfile ? entry.sync.itemInstanceIds : []));
+      const verifiedPatches = entry.sync.expectedPatches.filter((patch) => (
+        verifiedItemIds.has(patch.item_instance_id)
+      ));
+      const mismatchedItemIds = new Set(entry.task.mismatched_item_instance_ids
+        ?? (hasConfirmedMismatch ? entry.sync.itemInstanceIds : []));
+      const mismatchedPatches = entry.sync.expectedPatches.filter((patch) => (
+        mismatchedItemIds.has(patch.item_instance_id)
+      ));
+      if (verifiedPatches.length) {
+        // 轻量核对已经读取到真实 Profile 状态，可以把预计位置提升为
+        // 最后确认状态。这样即使随后完整快照仍是相同时间戳，也不会
+        // 继续显示“待确认”或被旧快照覆盖。
+        input.confirmCommittedAccountActionPatches(
+          verifiedPatches,
+          entry.task.profile_minted_at
+        );
+      }
+      // 验证任务结束后用真实 Bungie 快照刷新页面。尚未反映写入的延迟
+      // Profile 会由 Account Store 重放 Pending，不能静默覆盖预计位置。
+      // 对账任务进入终态并不等于 Renderer 已经接收最终快照。保留这条
+      // 同步记录，直到权威刷新结束，避免全局进度在页面更新前消失。
+      void input.loadAccountSummary()
+        .catch(() => undefined)
+        .finally(() => {
+          if (mismatchedPatches.length) {
+            // 先让完整快照吸收已经真实反映的批量成功项，再只撤销仍与
+            // Pending 匹配的冲突项，避免批量操作在最终刷新前整体闪回。
+            input.discardCommittedAccountActionPatches(mismatchedPatches);
+          }
+          setAccountWriteSyncs((current) => current.filter((sync) => sync.taskId !== entry.sync.taskId));
+        });
       // 对账结果会追加到操作日志；任务结束后立即拉取，避免设置页继续
       // 只显示“请求已受理”而看不到最终“已确认/不可用”。
       void input.diagnostics.loadActionLog().catch(() => undefined);
@@ -231,7 +281,7 @@ export function useDesktopProductWriteActions(input: {
           : failed.flatMap((entry) => entry.sync.itemInstanceIds),
         message: confirmedCount > 0
           ? `已确认 ${confirmedCount} 项变化，另有 ${unconfirmedCount} 项尚未确认${submissionFailedCount ? `，${submissionFailedCount} 项提交失败` : ""}。${latestFailed.task?.error ?? "请检查登录和网络状态。"}`
-          : latestFailed.task?.error ?? "写入请求未在游戏内确认，页面已按最新账号状态刷新。"
+          : latestFailed.task?.error ?? "写入请求尚未被游戏数据确认；页面继续保留写入后的预计位置。"
       });
       setItemActionMessage("");
     } else if (latestSuperseded && !visibleRemainingSyncs.length) {
@@ -275,9 +325,6 @@ export function useDesktopProductWriteActions(input: {
       });
       setItemActionMessage(message);
     }
-    if (terminalTaskIds.size) {
-      setAccountWriteSyncs((current) => current.filter((sync) => !terminalTaskIds.has(sync.taskId)));
-    }
   }, [accountWriteSyncs, backgroundTasks]);
 
   async function startAccountWriteVerification(
@@ -299,8 +346,7 @@ export function useDesktopProductWriteActions(input: {
         surfaceFeedback: options.surfaceFeedback !== false
       }]);
     } catch (error) {
-      const message = `写入请求已受理，但未能启动后台对账；页面保持服务器最后确认的账号状态：${error instanceof Error ? error.message : "后台任务不可用"}`;
-      input.confirmCommittedAccountActionPatches(verificationInput.expected_patches);
+      const message = `写入请求已受理，但未能启动后台对账；页面保留写入后的预计位置，稍后可再次同步确认：${error instanceof Error ? error.message : "后台任务不可用"}`;
       if (options.surfaceFeedback === false) {
         setAccountOperationFeedback((current) => {
           if (!current?.itemInstanceIds?.some((instanceId) => itemInstanceIds.includes(instanceId))) {
@@ -398,8 +444,42 @@ export function useDesktopProductWriteActions(input: {
     startAccountWriteVerification
   });
 
+  const resolvedAccountWriteSyncs = accountWriteSyncs.map((sync) => ({
+    sync,
+    task: backgroundTasks.find((entry) => entry.task_id === sync.taskId)
+  }));
+  const waitingAccountWriteSyncs = resolvedAccountWriteSyncs.filter((entry) => (
+    !entry.task || ["queued", "running", "retrying"].includes(entry.task.status)
+  ));
+  const pendingItemIds = new Set(waitingAccountWriteSyncs.flatMap((entry) => entry.sync.itemInstanceIds));
+  const trackedPendingCount = pendingItemIds.size || waitingAccountWriteSyncs.reduce(
+    (count, entry) => count + entry.sync.acceptedCount,
+    0
+  );
+  const pendingCount = Math.max(input.pendingCommittedAccountPatchCount, trackedPendingCount);
+  const accountWriteSyncActivity: AccountWriteSyncActivity = accountWriteSyncs.length || pendingCount > 0
+    ? {
+        active: true,
+        delayed: waitingAccountWriteSyncs.some((entry) => entry.task?.status === "retrying")
+          || (pendingCount > 0 && waitingAccountWriteSyncs.length === 0),
+        pendingCount,
+        phase: waitingAccountWriteSyncs.length || accountWriteSyncs.length === 0
+          ? "waiting"
+          : "finalizing",
+        ...(accountWriteSyncs.length
+          ? { startedAtMs: Math.min(...accountWriteSyncs.map((sync) => sync.startedAtMs)) }
+          : {})
+      }
+    : {
+        active: false,
+        delayed: false,
+        pendingCount: 0,
+        phase: "idle"
+      };
+
   return {
     accountOperationFeedback,
+    accountWriteSyncActivity,
     itemActionMessage,
     itemDetail,
     isRunningItemAction,

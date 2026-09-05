@@ -59,7 +59,7 @@ describe("account write refresh strategy", () => {
     await waitFor(() => expect(loadAccountSummary).toHaveBeenCalledTimes(1));
   });
 
-  it("Loadouts 单件装备等待后台确认，不立即把页面标成已装备", async () => {
+  it("Loadouts 单件装备立即投影并启动后台确认", async () => {
     apiMock.equipItem.mockResolvedValue(equipResult(true));
     const applyCommittedAccountActionPatches = vi.fn();
     const loadAccountSummary = vi.fn().mockResolvedValue(undefined);
@@ -74,7 +74,9 @@ describe("account write refresh strategy", () => {
       await result.current.equipSingleLoadoutItem(loadoutTemplate(), loadoutTemplate().items[0]!);
     });
 
-    expect(applyCommittedAccountActionPatches).not.toHaveBeenCalled();
+    expect(applyCommittedAccountActionPatches).toHaveBeenCalledWith([
+      equipResult(true).account_patch
+    ]);
     expect(startHighestPowerVerification).toHaveBeenCalledTimes(1);
     expect(loadAccountSummary).not.toHaveBeenCalled();
   });
@@ -105,7 +107,9 @@ describe("account write refresh strategy", () => {
       await result.current.equipHighestPowerItems(summary.characters[0]!);
     });
 
-    expect(applyCommittedAccountActionPatches).not.toHaveBeenCalled();
+    expect(applyCommittedAccountActionPatches).toHaveBeenCalledWith([
+      highestPowerResult.account_patch
+    ]);
     expect(startHighestPowerVerification).toHaveBeenCalledWith(
       expect.objectContaining({
         expected_patches: [highestPowerResult.account_patch]

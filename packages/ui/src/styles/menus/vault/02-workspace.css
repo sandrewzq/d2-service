@@ -22,11 +22,11 @@
 
 :where(.app-shell) .vault-recommendation-filter {
   display: flex;
-  flex: 1 1 520px;
+  flex: 1 1 680px;
   min-width: 0;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 :where(.app-shell) .vault-recommendation-filter > span {
@@ -37,7 +37,32 @@
   white-space: nowrap;
 }
 
+:where(.app-shell) .vault-recommendation-filter > label,
 :where(.app-shell) .vault-recommendation-filter > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+:where(.app-shell) .vault-recommendation-filter > label > small,
+:where(.app-shell) .vault-recommendation-filter > div > small {
+  color: var(--text-muted);
+  font-size: var(--font-micro);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+:where(.app-shell) .vault-recommendation-filter select {
+  min-width: 178px;
+  min-height: 31px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-control);
+  color: var(--text-body);
+  background: var(--surface-panel);
+}
+
+:where(.app-shell) .vault-recommendation-filter > div > span {
   display: flex;
   min-width: 0;
   overflow-x: auto;
@@ -83,6 +108,12 @@
   font-size: var(--font-micro);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+:where(.app-shell) .vault-recommendation-filter-hint {
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+  white-space: nowrap;
 }
 
 :where(.app-shell) .vault-workflow-meta {
@@ -1900,19 +1931,48 @@
 }
 
 :where(.app-shell) .vault-evidence-filter-bar {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 12px;
   margin: 0 12px 12px;
 }
 
 :where(.app-shell) .vault-evidence-filter-bar > small {
   color: var(--text-muted);
+  align-self: center;
 }
 
 :where(.app-shell) .vault-evidence-filters {
+  display: grid;
+  gap: 4px;
+}
+
+:where(.app-shell) .vault-evidence-filters > span,
+:where(.app-shell) .vault-evidence-source-filter > span {
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+:where(.app-shell) .vault-evidence-filters > div {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+:where(.app-shell) .vault-evidence-source-filter {
+  display: grid;
+  gap: 4px;
+}
+
+:where(.app-shell) .vault-evidence-source-filter select {
+  min-width: 220px;
+  min-height: 32px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-control);
+  color: var(--text-body);
+  background: var(--surface-panel);
 }
 
 :where(.app-shell) .vault-evidence-filters button {
@@ -2187,6 +2247,13 @@
     flex-direction: column;
   }
 
+  :where(.app-shell) .vault-recommendation-filter {
+    width: 100%;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   :where(.app-shell) .vault-filter-primary {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2273,6 +2340,22 @@
 
   :where(.app-shell) .vault-filter-hint {
     display: none;
+  }
+
+  :where(.app-shell) .vault-recommendation-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(.app-shell) .vault-recommendation-filter > label,
+  :where(.app-shell) .vault-recommendation-filter > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(.app-shell) .vault-recommendation-filter select,
+  :where(.app-shell) .vault-recommendation-filter > div > span {
+    width: 100%;
   }
 
   .app-shell .vault-filter-primary,

@@ -245,6 +245,27 @@ button.shell-status-group:focus-visible {
   color: var(--muted);
 }
 
+.shell-account-status[data-active="true"] {
+  position: relative;
+  overflow: hidden;
+}
+
+.shell-account-status[data-active="true"]::after {
+  position: absolute;
+  right: 100%;
+  bottom: 0;
+  width: 42%;
+  height: 2px;
+  background: currentColor;
+  content: "";
+  animation: shell-account-sync-progress 1.35s ease-in-out infinite;
+}
+
+@keyframes shell-account-sync-progress {
+  from { transform: translateX(0); }
+  to { transform: translateX(338%); }
+}
+
 button.shell-status-group[data-priority="attention"]:hover,
 button.shell-status-group[data-priority="attention"]:focus-visible {
   background: color-mix(in srgb, var(--status-pending-bg) 72%, var(--hover-bg));
@@ -1099,6 +1120,12 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
 @media (prefers-reduced-motion: reduce) {
   .shell-workspace {
     transition-duration: 0.01ms;
+  }
+
+  .shell-account-status[data-active="true"]::after {
+    right: 0;
+    width: 100%;
+    animation: none;
   }
 }
 

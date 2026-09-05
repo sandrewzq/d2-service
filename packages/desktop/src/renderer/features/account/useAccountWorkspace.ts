@@ -9,10 +9,13 @@ import { services } from "../../api/services";
 import {
   applyCommittedAccountEntityPatches,
   confirmCommittedAccountEntityPatches,
+  discardCommittedAccountEntityPatches,
   getAccountStoreRevision,
+  getPendingCommittedAccountPatchCount,
   getAccountSummarySnapshot,
   replaceAccountSummary,
-  useAccountSummaryStore
+  useAccountSummaryStore,
+  usePendingCommittedAccountPatchCount
 } from "../../shared/stores/accountEntityStore";
 import { formatBungieLoginError } from "./loginErrors";
 
@@ -35,6 +38,7 @@ export function useAccountWorkspace(input: {
   const [manifestError, setManifestError] = useState("");
   const [isInitializingManifest, setIsInitializingManifest] = useState(false);
   const accountSummary = useAccountSummaryStore();
+  const pendingCommittedAccountPatchCount = usePendingCommittedAccountPatchCount();
   const [vaultTags, setVaultTags] = useState<VaultTags>({ items: {} });
   const [localTargetRules, setLocalTargetRules] = useState<LocalTargetRules>({
     action_policy: "notify_only",
@@ -97,7 +101,10 @@ export function useAccountWorkspace(input: {
       if (!acceptedSummary) return;
       setIsShowingCachedAccount(false);
       setLastAccountLoadedAt(new Date());
-      setAccountSyncMessage("装备数据已从游戏更新");
+      const pendingCount = getPendingCommittedAccountPatchCount();
+      setAccountSyncMessage(pendingCount
+        ? `已收到游戏数据，${pendingCount} 项操作仍在等待游戏状态确认`
+        : "装备数据已从游戏更新");
     });
   }, []);
 
@@ -134,8 +141,15 @@ export function useAccountWorkspace(input: {
     applyCommittedAccountEntityPatches(patches);
   }
 
-  function confirmCommittedAccountActionPatches(patches: readonly AccountItemActionPatch[]) {
-    confirmCommittedAccountEntityPatches(patches);
+  function discardCommittedAccountActionPatches(patches: readonly AccountItemActionPatch[]) {
+    discardCommittedAccountEntityPatches(patches);
+  }
+
+  function confirmCommittedAccountActionPatches(
+    patches: readonly AccountItemActionPatch[],
+    profileMintedAt?: string
+  ) {
+    confirmCommittedAccountEntityPatches(patches, profileMintedAt);
   }
 
   async function loginBungie() {
@@ -263,7 +277,10 @@ export function useAccountWorkspace(input: {
         setIsShowingCachedAccount(false);
         setLastAccountLoadedAt(new Date());
         if (reason !== "write-action") {
-          setAccountSyncMessage(formatAccountSyncMessage(previousSummary, summary, reason));
+          const pendingCount = getPendingCommittedAccountPatchCount();
+          setAccountSyncMessage(pendingCount
+            ? `已收到游戏数据，${pendingCount} 项操作仍在等待游戏状态确认`
+            : formatAccountSyncMessage(previousSummary, summary, reason));
         }
         communityRequestSequenceRef.current += 1;
         recommendationScanAccountKeyRef.current = "";
@@ -279,11 +296,14 @@ export function useAccountWorkspace(input: {
             : undefined
         }));
         if (reason === "initial" || reason === "manual") {
-          setActivityMessage(reason === "manual"
-            ? hasSameProfileVersion(previousSummary, summary)
-              ? "装备数据已同步，游戏中的内容没有变化"
-              : "装备数据已从游戏更新"
-            : "装备数据已同步，最近活动会继续在后台读取");
+          const pendingCount = getPendingCommittedAccountPatchCount();
+          setActivityMessage(pendingCount
+            ? `已收到游戏数据；${pendingCount} 项操作仍在等待确认，页面继续保留写入成功后的预计位置`
+            : reason === "manual"
+              ? hasSameProfileVersion(previousSummary, summary)
+                ? "装备数据已同步，游戏中的内容没有变化"
+                : "装备数据已从游戏更新"
+              : "装备数据已同步，最近活动会继续在后台读取");
         }
         if (reason === "initial") void refreshAccountDerivedData(summary);
         // 推荐核对是账号快照提交后的派生任务，不阻塞账号、仓库和配装更新。
@@ -474,9 +494,11 @@ export function useAccountWorkspace(input: {
     manifestError,
     isInitializingManifest,
     accountSummary,
+    pendingCommittedAccountPatchCount,
     setAccountSummary: setAccountSummaryState,
     applyCommittedAccountActionPatches,
     confirmCommittedAccountActionPatches,
+    discardCommittedAccountActionPatches,
     vaultTags,
     setVaultTags,
     localTargetRules,

@@ -5,7 +5,10 @@ import { matchesLoadoutTemplateItem, type LoadoutTemplateLookup } from "@d2-tool
 import type { VaultSection } from "@d2-tools/app/vault";
 import { MemoizedVaultListItem as VaultListItem } from "./VaultListItem.js";
 import { getVaultItemKey } from "@d2-tools/app/vault";
-import type { VaultRecommendationSummaryIndex } from "./vaultRecommendationMatch.js";
+import {
+  canonicalVaultRecommendationSourceId,
+  type VaultRecommendationSummaryIndex
+} from "./vaultRecommendationMatch.js";
 import { VaultVirtualWeaponGrid } from "./VaultVirtualWeaponGrid.js";
 
 export const INITIAL_VAULT_RENDER_LIMIT = 200;
@@ -16,6 +19,7 @@ export function VaultItemSections(props: {
   highlightedItemKeys?: LoadoutTemplateLookup | null;
   tags: VaultTags;
   recommendationSummaryByInstance?: VaultRecommendationSummaryIndex;
+  preferredRecommendationSourceId?: string;
   isOrganizing: boolean;
   isSearchActive: boolean;
   selectedKeys: Set<string>;
@@ -65,15 +69,21 @@ export function VaultItemSections(props: {
     const allSourceSummaries = item.group_key === "weapons"
       ? props.recommendationSummaryByInstance?.get(item.instance_id ?? `hash:${item.hash}`) ?? []
       : [];
+    const orderedSourceSummaries = props.preferredRecommendationSourceId
+      ? [...allSourceSummaries].sort((left, right) => (
+          Number(canonicalVaultRecommendationSourceId(right.sourceId) === props.preferredRecommendationSourceId)
+          - Number(canonicalVaultRecommendationSourceId(left.sourceId) === props.preferredRecommendationSourceId)
+        ))
+      : allSourceSummaries;
     const tagValue: VaultTagValue = props.tags.items[getVaultItemKey(item)]?.tag ?? "none";
     return {
       item,
       tagValue,
       isLoadoutMatch: matchesLoadoutTemplateItem(item, props.highlightedItemKeys),
-      sourceSummaries: allSourceSummaries.slice(0, 3),
+      sourceSummaries: orderedSourceSummaries.slice(0, 3),
       additionalSourceCount: Math.max(0, allSourceSummaries.length - 3)
     };
-  }, [props.highlightedItemKeys, props.recommendationSummaryByInstance, props.tags]);
+  }, [props.highlightedItemKeys, props.preferredRecommendationSourceId, props.recommendationSummaryByInstance, props.tags]);
   const onSelectItemRef = useRef(props.onSelectItem);
   const onToggleSelectedRef = useRef(props.onToggleSelected);
   const onQuickActionRef = useRef(props.onQuickAction);

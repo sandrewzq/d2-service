@@ -538,7 +538,7 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
           : undefined;
         if (existingProfile
           && isSuperset(existingProfile.components, components)
-          && isProfileOlder(profile, existingProfile.profile)) {
+          && isProfileNotNewer(profile, existingProfile.profile)) {
           if (diagnoseSnapshotRefresh) {
             reportDiagnostic({
               stage: "profile",
@@ -663,7 +663,11 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
         assertActiveRequest(accessToken, requestEpoch);
         const currentProfileVersion = snapshot ? accountProfileVersion(snapshot) : 0;
         const nextProfileVersion = accountProfileVersion(nextSnapshot);
-        if (snapshot && nextProfileVersion > 0 && currentProfileVersion > nextProfileVersion) {
+        if (
+          snapshot
+          && currentProfileVersion > 0
+          && (nextProfileVersion === 0 || currentProfileVersion >= nextProfileVersion)
+        ) {
           reportDiagnostic({
             stage: "snapshot-request",
             outcome: "cache-hit",
@@ -852,15 +856,14 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
   }
 }
 
-function isProfileOlder(
+function isProfileNotNewer(
   incoming: DestinyProfileResponse,
   current: DestinyProfileResponse
 ): boolean {
   const incomingVersion = profileVersion(incoming.responseMintedTimestamp);
   const currentVersion = profileVersion(current.responseMintedTimestamp);
-  return incomingVersion > 0
-    && currentVersion > 0
-    && incomingVersion < currentVersion;
+  return currentVersion > 0
+    && (incomingVersion === 0 || incomingVersion <= currentVersion);
 }
 
 function accountProfileVersion(account: Pick<AccountSummary, "profile_minted_at">): number {

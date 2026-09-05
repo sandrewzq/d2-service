@@ -40,6 +40,9 @@ export type BackgroundTaskSnapshot = {
   title: string;
   message?: string;
   phase?: string;
+  profile_minted_at?: string;
+  verified_item_instance_ids?: string[];
+  mismatched_item_instance_ids?: string[];
   availability?: "usable" | "limited" | "blocked";
   progress_percent?: number;
   progress_current_bytes?: number;

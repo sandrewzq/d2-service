@@ -112,10 +112,9 @@ export function useLoadoutWriteActions(input: {
   }
 
   function applyAcceptedAccountPatches(patches: readonly AccountItemActionPatch[]): void {
-    // 装备请求返回成功只代表 Bungie 接受了写入，不能把实例立即移动到
-    // “已装备”。装备位置必须等后台 Profile 对账确认后由权威刷新更新。
-    const confirmedNow = patches.filter((patch) => patch.kind !== "equip");
-    if (confirmedNow.length) input.applyCommittedAccountActionPatches(confirmedNow);
+    // Bungie 写接口成功后立即更新页面预计位置，并保留逐实例 Pending。
+    // 后续 Profile 只负责确认或纠正，不能用延迟快照静默覆盖这次成功写入。
+    if (patches.length) input.applyCommittedAccountActionPatches(patches);
   }
 
   function finishWriteActionsInBackground(options: {

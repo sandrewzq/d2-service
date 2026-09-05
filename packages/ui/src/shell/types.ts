@@ -16,6 +16,7 @@ export type ShellStatusItem = {
   tone?: "neutral" | "pending" | "ready" | "warning" | "error";
   priority?: "quiet" | "standard" | "attention" | "critical";
   kind?: "health" | "update" | "task";
+  active?: boolean;
   actionLabel?: string;
   onAction?: () => void;
 };

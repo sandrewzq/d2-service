@@ -718,7 +718,7 @@ export function useItemDetailWorkspace(input: {
           phase: "account-confirmation-registered",
           elapsed_ms: performance.now() - actionStartedAt,
           reflected: false,
-          message: "Bungie 写结果已提交，等待 Profile 确认后更新账号 Store"
+          message: "Bungie 写结果已提交，账号 Store 已显示预计状态并等待 Profile 确认"
         });
         const message = `${result.message}，正在确认游戏内状态...`;
         publishMessage(message);
