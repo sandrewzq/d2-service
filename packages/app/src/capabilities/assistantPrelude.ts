@@ -30,15 +30,10 @@ export function planAssistantCapabilityInvocations(
   const invocations: PlannedAssistantCapabilityInvocation[] = [];
   const entityQuery = extractEntityQuery(normalized);
   const armorInvocation = planArmorInvocation(normalized);
-  const guideInvocation = planGuideInvocation(normalized, entityQuery);
   const equipmentTargetIntent = isEquipmentTargetIntent(normalized);
 
   if (armorInvocation) {
     invocations.push(armorInvocation);
-  }
-
-  if (guideInvocation) {
-    invocations.push(guideInvocation);
   }
 
   if (!armorInvocation && !equipmentTargetIntent && /配装|方案|缺口|loadout/i.test(normalized)) {
@@ -54,7 +49,6 @@ export function planAssistantCapabilityInvocations(
     invocations.push({ name: "manifest.search-perks", input: { query: entityQuery, limit: 8 } });
   }
   if (!armorInvocation
-    && (!guideInvocation || equipmentTargetIntent)
     && (equipmentTargetIntent || /我有|有没有|是否拥有|账号|仓库|背包|邮政官|在哪|在哪里/i.test(normalized))
     && entityQuery) {
     invocations.push({ name: "account.find-items", input: { query: entityQuery, limit: 8 } });
@@ -113,34 +107,9 @@ async function invokePlannedCapability(
       return catalog.invoke(invocation.name, invocation.input as AssistantCapabilityInput<"vendors.find-offers">, context);
     case "loadouts.inspect":
       return catalog.invoke(invocation.name, invocation.input as AssistantCapabilityInput<"loadouts.inspect">, context);
-    case "guides.search":
-      return catalog.invoke(invocation.name, invocation.input as AssistantCapabilityInput<"guides.search">, context);
     case "armor.plan":
       return catalog.invoke(invocation.name, invocation.input as AssistantCapabilityInput<"armor.plan">, context);
   }
-}
-
-function planGuideInvocation(
-  question: string,
-  entityQuery: string
-): PlannedAssistantCapabilityInvocation | null {
-  if (!/攻略|指南|笔记|打法|机制|guide|notes?/i.test(question)) return null;
-  const listIntent = /哪些|什么|内容|摘要|有什么|有哪些|列表|全部|所有|收藏|what\s+(?:guides|notes)|list\s+(?:guides|notes)/i.test(question);
-  const query = entityQuery || (listIntent ? "*" : "");
-  if (!query) return null;
-  return {
-    name: "guides.search",
-    input: {
-      query,
-      status: /归档|archived/i.test(question)
-        ? "archived"
-        : /全部|所有|\ball\b/i.test(question)
-          ? "all"
-          : "active",
-      favorites_only: /收藏|favorite/i.test(question),
-      limit: 8
-    }
-  };
 }
 
 function planArmorInvocation(question: string): PlannedAssistantCapabilityInvocation | null {

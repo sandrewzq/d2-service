@@ -1004,41 +1004,20 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  align-items: end;
+  align-items: center;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-toolbar);
 }
 
-:where(.app-shell) .vault-organize-bar .mode-tabs {
-  display: flex;
-  align-self: center;
-  border: 1px solid var(--border-control);
-}
-
-:where(.app-shell) .vault-organize-bar .mode-tabs button {
-  min-height: 34px;
-  padding: 0 10px;
-  border: 0;
-  border-right: 1px solid var(--border-control);
-  border-radius: 0;
+:where(.app-shell) .vault-organize-hint {
   color: var(--text-muted);
-  background: transparent;
-  box-shadow: none;
-}
-
-:where(.app-shell) .vault-organize-bar .mode-tabs button:last-child {
-  border-right: 0;
-}
-
-:where(.app-shell) .vault-organize-bar .mode-tabs button.active {
-  color: var(--selected-fg);
-  background: var(--state-selected-bg);
+  font-size: var(--font-caption);
 }
 
 :where(.app-shell) .vault-organize-field {
-  flex: 0 0 156px;
-  width: 156px;
+  flex: 0 0 170px;
+  width: 170px;
 }
 
 :where(.app-shell) .vault-organize-field select,
@@ -1047,10 +1026,8 @@
 }
 
 :where(.app-shell) .vault-organize-panel .vault-batch-panel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  display: grid;
+  gap: 8px;
   margin: 0;
   padding: 8px 10px;
   border: 0;
@@ -1059,17 +1036,51 @@
   background: var(--surface-elevated);
 }
 
-:where(.app-shell) .vault-organize-panel .vault-batch-panel span {
+:where(.app-shell) .vault-batch-selection-tools,
+:where(.app-shell) .vault-batch-action-tools,
+:where(.app-shell) .vault-cleanup-transfer-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+:where(.app-shell) .vault-batch-selection-tools {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--section-divider);
+}
+
+:where(.app-shell) .vault-batch-selection-tools strong {
   margin-right: auto;
+  color: var(--text-title);
+  font-size: var(--font-content);
+}
+
+:where(.app-shell) .vault-batch-action-tools .vault-organize-field {
+  margin-left: auto;
 }
 
 :where(.app-shell) .vault-cleanup-boundary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
   margin: 0;
   padding: 7px 10px;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-muted);
   font-size: var(--font-caption);
   line-height: 1.5;
+}
+
+:where(.app-shell) .vault-cleanup-boundary p {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
+:where(.app-shell) .vault-cleanup-transfer-tools {
+  justify-content: flex-end;
 }
 
 :where(.app-shell) .vault-cleanup-locator {
@@ -1989,6 +2000,12 @@
   background: var(--state-selected-bg);
 }
 
+:where(.app-shell) .vault-evidence-filters button:disabled,
+:where(.app-shell) .vault-recommendation-filter button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
 :where(.app-shell) .vault-evidence-filters button strong {
   margin-left: 3px;
 }
@@ -2490,6 +2507,10 @@
   :where(.app-shell) .vault-organize-field {
     flex: 1 1 150px;
     width: auto;
+  }
+
+  :where(.app-shell) .vault-batch-action-tools .vault-organize-field {
+    margin-left: 0;
   }
 
   .app-shell .duplicate-row-main {
@@ -4703,6 +4724,11 @@
   min-width: 0;
 }
 
+:where(.app-shell) .vault-results-column .vault-native-weapon-grid .vault-virtual-cell {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 239px;
+}
+
 :where(.app-shell) .vault-results-column .vault-virtual-cell > .vault-item-card {
   width: 100%;
 }
@@ -4711,4 +4737,8 @@
   grid-column: 1 / -1;
   min-width: 0;
   pointer-events: none;
+}
+
+:where(.app-shell[data-density="compact"]) .vault-results-column .vault-native-weapon-grid .vault-virtual-cell {
+  contain-intrinsic-size: auto 225px;
 }

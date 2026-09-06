@@ -133,7 +133,6 @@ function isCapabilityName(value: unknown): value is AssistantCapabilityInvocatio
     || value === "account.find-items"
     || value === "vendors.find-offers"
     || value === "loadouts.inspect"
-    || value === "guides.search"
     || value === "armor.plan";
 }
 

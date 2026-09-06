@@ -12,7 +12,6 @@ export function useHomePageDerivedState(input: {
   accountSummary: AccountSummary | null;
   selectedCharacterId: string;
   activeLoadoutTemplate: LoadoutTemplate | null;
-  vaultFacts: string[];
   library: {
     libraryHistory: { recent: Array<{ name: string }> };
     libraryViewMode: "equipment" | "perks";
@@ -46,7 +45,6 @@ export function useHomePageDerivedState(input: {
       activeLoadoutName: input.activeLoadoutTemplate?.name,
       activeLoadoutTemplate: input.activeLoadoutTemplate,
       libraryRecentNames: input.library.libraryHistory.recent.map((item) => item.name),
-      vaultFacts: input.vaultFacts,
       libraryViewMode: input.library.libraryViewMode,
       equipmentQuery: input.library.equipmentFilters.query,
       perkQuery: input.library.perkFilters.query,
@@ -71,7 +69,6 @@ export function useHomePageDerivedState(input: {
     input.accountSummary,
     input.selectedCharacterId,
     input.activeLoadoutTemplate,
-    input.vaultFacts,
     input.library.libraryHistory,
     input.library.libraryViewMode,
     input.library.equipmentFilters.query,

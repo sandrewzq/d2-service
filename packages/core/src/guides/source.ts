@@ -23,6 +23,16 @@ export type GuideSourceReadPreview = {
   media_count?: number;
 };
 
+export function isSupportedGuideSourceUrl(value: string | undefined): boolean {
+  if (!value?.trim()) return false;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 export function createGuideSourceSections(body: string): GuideSourceSection[] {
   const lines = body.split(/\r?\n/);
   const sections: GuideSourceSection[] = [];

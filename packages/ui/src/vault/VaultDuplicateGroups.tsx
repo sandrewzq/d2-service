@@ -93,8 +93,8 @@ const DUPLICATE_DETAIL_CONCURRENCY = 3;
 const dispositionOptions: Array<{ key: DuplicateDisposition; label: string }> = [
   { key: "none", label: "未标记" },
   { key: "keep", label: "保留" },
-  { key: "review", label: "待复查" },
-  { key: "junk", label: "待处理" }
+  { key: "review", label: "待定" },
+  { key: "junk", label: "清理" }
 ];
 
 export function VaultDuplicateGroups(props: {
@@ -623,7 +623,7 @@ function DuplicateComparePanel(props: {
                 <EvidenceGroup label="推荐证据" values={evidence.matches} kind="match" />
               </div>
               <div className={["duplicate-decision", isDirty ? "is-dirty" : ""].filter(Boolean).join(" ")} role="group" aria-label={`实例 ${index + 1} 整理状态`}>
-                {dispositionOptions.map((option) => <button type="button" key={option.key} data-decision-value={option.key} aria-pressed={disposition === option.key} disabled={option.key === "junk" && hasProtectedDispositionEvidence(evidence)} title={option.key === "junk" && hasProtectedDispositionEvidence(evidence) ? `不能标为待处理：${[...evidence.protection, ...evidence.matches].join("、")}` : undefined} onClick={() => updateDisposition(entry.item_key, option.key)}>{option.label}</button>)}
+                {dispositionOptions.map((option) => <button type="button" key={option.key} data-decision-value={option.key} aria-pressed={disposition === option.key} disabled={option.key === "junk" && hasProtectedDispositionEvidence(evidence)} title={option.key === "junk" && hasProtectedDispositionEvidence(evidence) ? `不能标为清理：${[...evidence.protection, ...evidence.matches].join("、")}` : undefined} onClick={() => updateDisposition(entry.item_key, option.key)}>{option.label}</button>)}
               </div>
             </article>
           );
@@ -631,11 +631,11 @@ function DuplicateComparePanel(props: {
       </div>
       <footer className="duplicate-decision-footer">
         <div>
-          <div className="duplicate-decision-summary">本组状态：<span>保留 <strong>{summary.keep}</strong></span><span>待复查 <strong>{summary.review}</strong></span><span>待处理 <strong>{summary.junk}</strong></span><span>未标记 <strong>{summary.none}</strong></span></div>
+          <div className="duplicate-decision-summary">本组状态：<span>保留 <strong>{summary.keep}</strong></span><span>待定 <strong>{summary.review}</strong></span><span>清理 <strong>{summary.junk}</strong></span><span>未标记 <strong>{summary.none}</strong></span></div>
           <span className={changedCount ? "duplicate-decision-message is-dirty" : "duplicate-decision-message"}>{changedCount ? `${changedCount} 件状态待应用` : "当前显示已应用状态"}</span>
         </div>
         <div className="duplicate-decision-actions">
-          <button type="button" data-ui-kind="button" data-control-variant="secondary" disabled={!props.referenceKey || props.isBatchSaving} onClick={keepReferenceReviewRest}>填充：基准保留，其余待复查</button>
+          <button type="button" data-ui-kind="button" data-control-variant="secondary" disabled={!props.referenceKey || props.isBatchSaving} onClick={keepReferenceReviewRest}>填充：基准保留，其余待定</button>
           <button type="button" data-ui-kind="button" data-control-variant="secondary" disabled={!changedCount || props.isBatchSaving} onClick={() => props.onPendingDispositionChange(savedDisposition)}>撤销待应用</button>
           <button type="button" data-ui-kind="button" data-control-variant="primary" aria-busy={props.isBatchSaving} disabled={!changedCount || props.isBatchSaving} onClick={requestApplyPendingDisposition}>应用本组状态</button>
           <button type="button" data-ui-kind="button" data-control-variant="secondary" disabled={changedCount > 0 || props.isBatchSaving || !props.hasNextPendingGroup} onClick={props.onNextGroup}>下一未整理组</button>
@@ -643,7 +643,7 @@ function DuplicateComparePanel(props: {
       </footer>
       {protectionConflictCount > 0 ? (
         <p className="duplicate-protection-block" data-ui-kind="callout" data-status="warning" role="status">
-          {protectionConflictCount} 件装备带实例保护或推荐证据，不能标为待处理；已恢复为原状态。请确认后再次应用。
+          {protectionConflictCount} 件装备带实例保护或推荐证据，不能标为清理；已恢复为原状态。请确认后再次应用。
         </p>
       ) : null}
     </section>

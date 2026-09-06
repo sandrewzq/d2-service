@@ -174,25 +174,9 @@
       "types": "./dist/results/domainResult.d.ts",
       "import": "./dist/results/domainResult.js"
     },
-    "./guides/library": {
-      "types": "./dist/guides/library.d.ts",
-      "import": "./dist/guides/library.js"
-    },
     "./guides/source": {
       "types": "./dist/guides/source.d.ts",
       "import": "./dist/guides/source.js"
-    },
-    "./guides/extraction": {
-      "types": "./dist/guides/extraction.d.ts",
-      "import": "./dist/guides/extraction.js"
-    },
-    "./guides/derivedArtifacts": {
-      "types": "./dist/guides/derivedArtifacts.d.ts",
-      "import": "./dist/guides/derivedArtifacts.js"
-    },
-    "./guides/relations": {
-      "types": "./dist/guides/relations.d.ts",
-      "import": "./dist/guides/relations.js"
     },
     "./tools/registry": {
       "types": "./dist/tools/registry.d.ts",

@@ -16,6 +16,7 @@ export function GlobalAssistantSidebar(props: {
   daily: DailySummary | null;
   activity: ActivityHistorySummary | null;
   pageContext: AssistantPageContext;
+  getPageContext?: () => AssistantPageContext;
   tags: VaultTags;
   isLoadingAccount: boolean;
   onLoadAccount: () => void;
@@ -31,6 +32,7 @@ export function GlobalAssistantSidebar(props: {
       daily={props.daily}
       activity={props.activity}
       pageContext={props.pageContext}
+      getPageContext={props.getPageContext}
       tags={props.tags}
       isLoadingAccount={props.isLoadingAccount}
       onLoadAccount={props.onLoadAccount}

@@ -101,28 +101,7 @@ export type {
 } from "./errors.js";
 export { createServiceError, D2ServiceError, isServiceError, toServiceError } from "./errors.js";
 export type { AiChatReplyResult, AiChatRequest } from "./types.js";
-export {
-  createGuideDocument,
-  deleteGuideDocument,
-  listGuideDocuments,
-  updateGuideDocument
-} from "./guides/store.js";
 export { readGuideSourceUrl } from "./guides/sourceReader.js";
-export {
-  deleteGuideDocumentWithExtractions,
-  deleteGuideExtractions,
-  listGuideExtractions,
-  previewGuideExtraction,
-  saveGuideExtractionConfirmation
-} from "./guides/extractionStore.js";
-export {
-  guideDerivedRelationFileName,
-  loadGuideDerivedRelationStore,
-  recordGuideDerivedRelation,
-  removeStoredGuideDerivedRelationsForGuide,
-  removeStoredGuideDerivedRelationsForEntity,
-  saveGuideDerivedRelationStore
-} from "./guides/relationStore.js";
 export {
   ArmorPlannerStaleRevisionError,
   createArmorPlannerCacheKey,

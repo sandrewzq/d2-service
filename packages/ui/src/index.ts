@@ -43,8 +43,6 @@ export {
 export type { TimeValue } from "./time/formatTime.js";
 export { ShellSidebarAccountSummary, ShellSidebarActions } from "./shell/ShellSidebar.js";
 export { HomePageContentView } from "./home/HomePageContentView.js";
-export { GuideLibraryPageContentView } from "./guides/GuideLibraryPageContentView.js";
-export type { GuideLibraryPageActions, GuideLibraryPageContentViewProps } from "./guides/GuideLibraryPageContentView.js";
 export type { HomeDailyItem, HomeDailySummary, HomeStartupState, HomePageContentViewProps, HomeWeeklyActivityReward, HomeWeeklySummary } from "./home/HomePageContentView.js";
 export { getLocaleCopy, localeCopy } from "./i18n/copy.js";
 export {
@@ -56,7 +54,6 @@ export {
 export type {
   AccountCopy,
   BungieManifestLocale,
-  GuideCopy,
   InterfaceLocale,
   LocaleCopy,
   ProductPreferences,
@@ -155,7 +152,7 @@ export { VaultItemSections } from "./vault/VaultItemSections.js";
 export { MemoizedVaultListItem, VaultListItem, formatVaultItemMeta } from "./vault/VaultListItem.js";
 export { VaultOrganizePanel } from "./vault/VaultOrganizePanel.js";
 export { VaultRecommendationEvidencePanel } from "./vault/VaultRecommendationEvidencePanel.js";
-export type { VaultRecommendationSourceState } from "./vault/VaultRecommendationEvidencePanel.js";
+export type { VaultRecommendationEvidenceFilter, VaultRecommendationSourceState } from "./vault/VaultRecommendationEvidencePanel.js";
 export { buildVaultCleanupProtectionIndex } from "./vault/vaultCleanupProtection.js";
 export {
   buildVaultRecommendationSourceSummaries,

@@ -43,6 +43,7 @@ export function AiAnalysisPanel(props: {
   daily: DailySummary | null;
   activity: ActivityHistorySummary | null;
   pageContext: AssistantPageContext;
+  getPageContext?: () => AssistantPageContext;
   items: AccountItemSummary[];
   tags: VaultTags;
   onLoadAccount: () => void;
@@ -59,15 +60,16 @@ export function AiAnalysisPanel(props: {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isSessionDrawerOpen, setIsSessionDrawerOpen] = useState(false);
   const [isContextDrawerOpen, setIsContextDrawerOpen] = useState(false);
-  const contextFacts = useMemo(() => props.pageContext.facts.slice(0, 4), [props.pageContext]);
+  const pageContext = props.getPageContext?.() ?? props.pageContext;
+  const contextFacts = useMemo(() => pageContext.facts.slice(0, 4), [pageContext]);
   const safeTags = props.tags ?? { items: {} };
   const currentBaseContext = useMemo(() => buildAiChatContext({
     account: props.account,
     tags: safeTags,
     daily: props.daily,
     activity: props.activity,
-    pageContext: props.pageContext
-  }), [props.account, props.tags, props.daily, props.activity, props.pageContext]);
+    pageContext
+  }), [props.account, props.tags, props.daily, props.activity, pageContext]);
   const activeSession = activeSessionId ? history.find((entry) => entry.id === activeSessionId) : undefined;
   const latestContextSnapshot = activeSession?.context_snapshots.at(-1);
   const currentManifestVersion = getDesktopAssistantManifestVersion();
@@ -86,7 +88,7 @@ export function AiAnalysisPanel(props: {
       : "尚未创建上下文快照";
   const sessionTitle = activeSession?.title ?? (messages.length ? "当前会话" : "新会话");
   const contextChip = [
-    `当前页面：${props.pageContext.page_label}`,
+    `当前页面：${pageContext.page_label}`,
     `仓库 ${props.items.length} 件`,
     props.account ? `角色 ${props.account.characters.length} 个` : "账号未读取",
     props.daily ? "今日信息已载入" : "今日信息未载入",
@@ -111,17 +113,25 @@ export function AiAnalysisPanel(props: {
     try {
       const capabilityPrelude = await runDesktopAssistantCapabilityPrelude(trimmedQuestion);
       const conversationContext = formatAssistantConversationHistory(previousMessages);
+      const latestPageContext = props.getPageContext?.() ?? props.pageContext;
+      const latestBaseContext = buildAiChatContext({
+        account: props.account,
+        tags: safeTags,
+        daily: props.daily,
+        activity: props.activity,
+        pageContext: latestPageContext
+      });
       const context = appendAssistantContext(
-        currentBaseContext,
+        latestBaseContext,
         capabilityPrelude.prompt_context,
         conversationContext
       );
       const contextSnapshot = createAssistantContextSnapshot({
-        baseContext: currentBaseContext,
+        baseContext: latestBaseContext,
         promptContext: context,
         page: {
-          key: props.pageContext.page_key,
-          label: props.pageContext.page_label
+          key: latestPageContext.page_key,
+          label: latestPageContext.page_label
         },
         account: props.account,
         manifestVersion: capabilityPrelude.manifest_version,
@@ -165,7 +175,7 @@ export function AiAnalysisPanel(props: {
       };
       const nextMessages = [...previousMessages, contextualUserMessage, assistantMessage];
       setMessages(nextMessages);
-      saveSession(trimmedQuestion, nextMessages, contextSnapshot);
+      saveSession(trimmedQuestion, nextMessages, contextSnapshot, latestPageContext.page_label);
     } catch (analysisError) {
       setError(analysisError instanceof Error ? analysisError.message : "AI 聊天失败");
       setQuestion(trimmedQuestion);
@@ -178,7 +188,8 @@ export function AiAnalysisPanel(props: {
   function saveSession(
     title: string,
     nextMessages: AiAssistantMessageView[],
-    contextSnapshot: AssistantContextSnapshot
+    contextSnapshot: AssistantContextSnapshot,
+    pageLabel: string
   ) {
     const existingSession = activeSessionId ? history.find((entry) => entry.id === activeSessionId) : undefined;
     const id = activeSessionId ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -188,7 +199,7 @@ export function AiAnalysisPanel(props: {
     setHistory(saveAssistantSession(window.localStorage, {
       id,
       title: existingSession?.title ?? title,
-      page_label: props.pageContext.page_label,
+      page_label: pageLabel,
       messages: nextMessages,
       context_snapshots: appendContextSnapshot(existingSession?.context_snapshots ?? [], contextSnapshot)
     }));
@@ -242,8 +253,8 @@ export function AiAnalysisPanel(props: {
       isContextDrawerOpen={isContextDrawerOpen}
       contextChip={contextChip}
       context={{
-        pageLabel: props.pageContext.page_label,
-        focus: props.pageContext.focus,
+        pageLabel: pageContext.page_label,
+        focus: pageContext.focus,
         facts: contextFacts,
         itemCount: props.items.length,
         characterCount: props.account?.characters.length ?? 0,

@@ -14,7 +14,6 @@ export type AssistantCapabilityName =
   | "account.find-items"
   | "vendors.find-offers"
   | "loadouts.inspect"
-  | "guides.search"
   | "armor.plan";
 
 export type AssistantCapabilityCaller = "ai" | "diagnostics";
@@ -177,54 +176,6 @@ export type LoadoutsInspectOutput = {
   total: number;
 };
 
-export type GuidesSearchInput = {
-  query: string;
-  status?: "active" | "archived" | "all";
-  category?: string;
-  favorites_only?: boolean;
-  limit?: number;
-};
-
-export type GuideSearchSection = {
-  section_id: string;
-  heading?: string;
-  start_line: number;
-  end_line: number;
-  excerpt: string;
-};
-
-export type GuideSearchConfirmedRequirement = {
-  kind: "class" | "subclass" | "exotic_armor" | "weapon" | "armor_stat" | "mod" | "aspect" | "fragment";
-  label: string;
-  confidence: "high" | "medium" | "low";
-};
-
-export type GuideSearchResult = {
-  guide_document_id: string;
-  title: string;
-  category: string;
-  tags: string[];
-  favorite: boolean;
-  status: "active" | "archived";
-  source_kind: "text" | "note" | "url";
-  source_label?: string;
-  source_url?: string;
-  current_snapshot_id: string;
-  content_fingerprint: string;
-  captured_at: string;
-  excerpt: string;
-  matched_sections: GuideSearchSection[];
-  confirmed_requirements?: {
-    confirmed_at: string;
-    accepted: GuideSearchConfirmedRequirement[];
-  };
-};
-
-export type GuidesSearchOutput = {
-  guides: GuideSearchResult[];
-  total: number;
-};
-
 export type ArmorPlanInput = ArmorPlannerWorkspaceJob;
 
 export type ArmorPlanCandidatePiece = {
@@ -307,10 +258,6 @@ export type AssistantCapabilityContractMap = {
   "loadouts.inspect": {
     input: LoadoutsInspectInput;
     output: LoadoutsInspectOutput;
-  };
-  "guides.search": {
-    input: GuidesSearchInput;
-    output: GuidesSearchOutput;
   };
   "armor.plan": {
     input: ArmorPlanInput;

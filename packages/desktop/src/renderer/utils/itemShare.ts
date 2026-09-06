@@ -21,8 +21,8 @@ export type ItemShareTextInput = {
 const tagLabels: Record<VaultTagValue, string> = {
   none: "未标记",
   keep: "保留",
-  review: "复查",
-  junk: "可清理",
+  review: "待定",
+  junk: "清理",
   farm: "待刷",
   loadout: "配装用"
 };

@@ -4,10 +4,6 @@ import { api } from "../../api/client";
 import type { ActionLogType } from "@d2-tools/core/actions/log";
 import type { AccountItemActionPatch, AccountItemDetail, AccountItemSummary, AccountSummary, AccountWriteVerificationInput, ActionDebugTraceInput, DimWishlist, ItemActionResult, ItemAiAdviceResult, ItemSearchResult, LibraryHistory, LocalTargetRules, VaultTags, VaultTagValue, WeaponRecommendation } from "../../api/types";
 import type { LiveItemAvailabilityEntry } from "@d2-tools/core/items/liveAvailability";
-import type {
-  PersonalWeaponKnowledgeEntry,
-  SavePersonalWeaponKnowledgeInput
-} from "@d2-tools/core/community-perks/personalWeaponKnowledge";
 import {
   buildWishlistInsightText,
   collectSelectedSameNameItems,
@@ -62,7 +58,6 @@ export function useItemDetailWorkspace(input: {
   const [communityRecommendations, setCommunityRecommendations] = useState<WeaponRecommendation | null>(null);
   const [communityRecommendationError, setCommunityRecommendationError] = useState("");
   const [isCommunityRecommendationsLoading, setIsCommunityRecommendationsLoading] = useState(false);
-  const [personalWeaponKnowledge, setPersonalWeaponKnowledge] = useState<PersonalWeaponKnowledgeEntry[]>([]);
   const [selectedItemAvailability, setSelectedItemAvailability] = useState<LiveItemAvailabilityEntry | null>(null);
   const [selectedItemVersions, setSelectedItemVersions] = useState<ItemSearchResult[]>([]);
   const [isSelectedItemVersionsLoading, setIsSelectedItemVersionsLoading] = useState(false);
@@ -125,7 +120,6 @@ export function useItemDetailWorkspace(input: {
       setCommunityRecommendations(cachedRecommendation);
       setCommunityRecommendationError("");
       setIsCommunityRecommendationsLoading(isWeapon && !hasCachedRecommendation);
-      setPersonalWeaponKnowledge([]);
       setSelectedItemAvailability(null);
       setSelectedItemVersions(isWeapon && "description" in item && "source" in item ? [item] : []);
       setIsSelectedItemVersionsLoading(isWeapon);
@@ -157,17 +151,6 @@ export function useItemDetailWorkspace(input: {
               }
               if (!isCurrentRecommendation()) return;
               setIsCommunityRecommendationsLoading(false);
-            });
-        }
-        if (isWeapon) {
-          void api.getPersonalWeaponKnowledge(item.name)
-            .then((table) => {
-              if (!isCurrentWorkspace()) return;
-              setPersonalWeaponKnowledge(table.entries);
-            })
-            .catch((error) => {
-              if (!isCurrentWorkspace()) return;
-              console.warn("我的推荐读取失败：", error);
             });
         }
       }, ITEM_DETAIL_RECOMMENDATION_IDLE_TIMEOUT_MS, 280);
@@ -301,7 +284,6 @@ export function useItemDetailWorkspace(input: {
         },
         tags: input.vaultTags,
         user_knowledge: userKnowledge.trim() || undefined,
-        personal_knowledge: personalWeaponKnowledge,
         builtin_knowledge: communityRecommendations,
         allow_external_search: allowExternalSearch,
         weapon_context: selectedItem.group_key === "weapons" ? {
@@ -324,69 +306,6 @@ export function useItemDetailWorkspace(input: {
       if (workspaceRequestSequenceRef.current === requestSequence) {
         setIsGeneratingItemAi(false);
       }
-    }
-  }
-
-  async function saveConfirmedPersonalWeaponKnowledge(
-    draft: SavePersonalWeaponKnowledgeInput["entry"]
-  ): Promise<boolean> {
-    if (!selectedItem) return false;
-    const summary = [
-      `武器：${draft.weapon_name || selectedItem.name}`,
-      `模式：${draft.mode.toUpperCase()}`,
-      `推荐：${draft.title}`,
-      draft.perk_options.length
-        ? `Perk：${draft.perk_options.flatMap((option) => option.names).join(" / ")}`
-        : "",
-      draft.masterwork_names.length ? `大师杰作：${draft.masterwork_names.join(" / ")}` : "",
-      draft.mod_names.length ? `模组：${draft.mod_names.join(" / ")}` : "",
-      draft.reason ? `理由：${draft.reason}` : "",
-      draft.external_url ? `外部依据：${draft.external_url}` : "",
-      "",
-      "确认保存到我的推荐吗？保存后将优先于应用推荐。"
-    ].filter(Boolean).join("\n");
-    if (!window.confirm(summary)) return false;
-
-    try {
-      const table = await api.savePersonalWeaponKnowledge({
-        confirmed: true,
-        entry: {
-          ...draft,
-          weapon_name: draft.weapon_name || selectedItem.name,
-          weapon_hash: draft.weapon_hash ?? selectedItem.hash
-        }
-      });
-      setPersonalWeaponKnowledge(table.entries.filter((entry) => (
-        entry.weapon_name.trim().toLocaleLowerCase() === selectedItem.name.trim().toLocaleLowerCase()
-      )));
-      setItemNoteMessage("已保存到我的推荐。");
-      return true;
-    } catch (error) {
-      setItemAiError(error instanceof Error ? error.message : "我的推荐保存失败");
-      return false;
-    }
-  }
-
-  async function setPersonalWeaponKnowledgeEnabled(id: string, enabled: boolean): Promise<void> {
-    try {
-      const table = await api.setPersonalWeaponKnowledgeEnabled(id, enabled);
-      setPersonalWeaponKnowledge(table.entries.filter((entry) => (
-        selectedItem && entry.weapon_name.trim().toLocaleLowerCase() === selectedItem.name.trim().toLocaleLowerCase()
-      )));
-    } catch (error) {
-      setItemAiError(error instanceof Error ? error.message : "我的推荐更新失败");
-    }
-  }
-
-  async function deletePersonalWeaponKnowledge(id: string): Promise<void> {
-    if (!window.confirm("确认删除这条我的推荐吗？删除后将恢复使用应用推荐。")) return;
-    try {
-      const table = await api.deletePersonalWeaponKnowledge(id);
-      setPersonalWeaponKnowledge(table.entries.filter((entry) => (
-        selectedItem && entry.weapon_name.trim().toLocaleLowerCase() === selectedItem.name.trim().toLocaleLowerCase()
-      )));
-    } catch (error) {
-      setItemAiError(error instanceof Error ? error.message : "我的推荐删除失败");
     }
   }
 
@@ -460,7 +379,6 @@ export function useItemDetailWorkspace(input: {
     setCommunityRecommendations(null);
     setCommunityRecommendationError("");
     setIsCommunityRecommendationsLoading(false);
-    setPersonalWeaponKnowledge([]);
     setSelectedItemAvailability(null);
     setSelectedItemVersions([]);
     setIsSelectedItemVersionsLoading(false);
@@ -483,7 +401,7 @@ export function useItemDetailWorkspace(input: {
       ? input.cleanupProtectionByItemKey?.get(selectedItem.item_key) ?? []
       : [];
     if (protection.length) {
-      setItemNoteMessage(`不能标为待处理：${protection.join("、")}`);
+      setItemNoteMessage(`不能标为清理：${protection.join("、")}`);
       return;
     }
 
@@ -590,9 +508,9 @@ export function useItemDetailWorkspace(input: {
       await saveVaultTagsBatch(plan.inputs);
       setItemNoteMessage(
         `${mode === "keep-best-review-rest"
-          ? "已将推荐项保留，其余标记为关注。"
+          ? "已将推荐项保留，其余标记为待定。"
           : mode === "keep-best-junk-rest"
-            ? "已将推荐项保留，其余标记为可清理。"
+            ? "已将推荐项保留，其余标记为清理。"
             : "已清除这组同名装备的本地标记。"}${plan.protectedCount
               ? ` ${plan.protectedCount} 件受保护，已保持原状态。`
               : ""}`
@@ -626,8 +544,8 @@ export function useItemDetailWorkspace(input: {
       await saveVaultTagsBatch(plan.inputs);
       setItemNoteMessage(
         `${mode === "keep-current-review-rest"
-          ? "已保留当前这件，其余同名装备已标记为关注。"
-          : "已保留当前这件，其余同名装备已标记为可清理。"}${plan.protectedCount
+          ? "已保留当前这件，其余同名装备已标记为待定。"
+          : "已保留当前这件，其余同名装备已标记为清理。"}${plan.protectedCount
             ? ` ${plan.protectedCount} 件受保护，已保持原状态。`
             : ""}`
       );
@@ -874,7 +792,6 @@ export function useItemDetailWorkspace(input: {
     communityRecommendations,
     communityRecommendationError,
     isCommunityRecommendationsLoading,
-    personalWeaponKnowledge,
     selectedItemAvailability,
     selectedItemVersions,
     isSelectedItemVersionsLoading,
@@ -890,9 +807,6 @@ export function useItemDetailWorkspace(input: {
     setItemNoteDraft,
     setSelectedActionCharacterId,
     generateItemAiAdvice,
-    saveConfirmedPersonalWeaponKnowledge,
-    setPersonalWeaponKnowledgeEnabled,
-    deletePersonalWeaponKnowledge,
     copySelectedItemSummary,
     copySelectedItemChatGuide,
     saveSelectedItemNote,

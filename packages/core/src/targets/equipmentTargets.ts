@@ -166,23 +166,6 @@ export type CreateUserArmorAcquisitionTargetInput = {
   now?: Date;
 };
 
-export type CreateGuideWeaponTargetInput = {
-  id: string;
-  name: string;
-  item_hash: number;
-  item_name: string;
-  mode?: WeaponTarget["mode"];
-  perk_requirements: WeaponTargetPerkRequirement[];
-  guide_document_id: string;
-  source_snapshot_id: string;
-  extraction_id: string;
-  candidate_id: string;
-  guide_title: string;
-  manifest_version?: string;
-  note?: string;
-  now?: Date;
-};
-
 export type CreateArmorPlannerGapTargetInput = {
   id: string;
   name: string;
@@ -205,24 +188,6 @@ export type CreateArmorPlannerGapTargetInput = {
   target_masterwork_tier: number;
   note?: string;
   now?: Date;
-};
-
-export type EquipmentTargetConversionIssue = {
-  source_id: string;
-  label: string;
-  reason: string;
-};
-
-export type EquipmentTargetConversionResult = {
-  store: EquipmentTargetStore;
-  created_target_ids: string[];
-  unchanged_target_ids: string[];
-  issues: EquipmentTargetConversionIssue[];
-};
-
-export type GuideEquipmentTargetConversionRequest = {
-  guide_document_id: string;
-  extraction_id: string;
 };
 
 const armorStatLabels: Record<ArmorStatKey, string> = {
@@ -288,52 +253,6 @@ export function createUserArmorAcquisitionTarget(
     ...(input.minimum_total !== undefined ? { minimum_total: input.minimum_total } : {}),
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     source: buildSource("user", "用户手动创建", id, id, timestamp),
-    created_at: timestamp,
-    updated_at: timestamp
-  };
-}
-
-export function createGuideWeaponTarget(input: CreateGuideWeaponTargetInput): WeaponTarget {
-  const timestamp = (input.now ?? new Date()).toISOString();
-  const sourceId = `${input.guide_document_id}:${input.source_snapshot_id}:${input.extraction_id}:${input.candidate_id}`;
-  return {
-    id: input.id.trim(),
-    kind: "weapon",
-    name: input.name.trim() || `${input.item_name} / 攻略目标`,
-    enabled: true,
-    mode: input.mode ?? "general",
-    weapon: {
-      status: "verified",
-      item_hash: input.item_hash,
-      item_name: input.item_name.trim(),
-      ...(input.manifest_version?.trim() ? { manifest_version: input.manifest_version.trim() } : {})
-    },
-    perk_requirements: uniquePerkRequirements(input.perk_requirements),
-    ...(input.note?.trim() ? { note: input.note.trim() } : {}),
-    source: {
-      kind: "guide_confirmation",
-      label: input.guide_title.trim() || "已确认攻略",
-      source_id: sourceId,
-      evidence_refs: uniqueEvidenceRefs([
-        {
-          evidence_id: `equipment-target:${input.id}:guide`,
-          kind: "local_data",
-          label: `${input.guide_title.trim() || "攻略"} / 已确认提取`,
-          observed_at: timestamp,
-          entity: { type: "guide", id: input.guide_document_id },
-          open_target: { kind: "guide", id: input.guide_document_id, secondary_id: input.source_snapshot_id }
-        },
-        {
-          evidence_id: `equipment-target:${input.id}:manifest:${input.item_hash}`,
-          kind: "manifest_definition",
-          label: `${input.item_name.trim()} / Manifest 定义`,
-          observed_at: timestamp,
-          entity: { type: "inventory_item", id: String(input.item_hash) },
-          ...(input.manifest_version?.trim() ? { manifest_version: input.manifest_version.trim() } : {}),
-          open_target: { kind: "item", id: String(input.item_hash) }
-        }
-      ])
-    },
     created_at: timestamp,
     updated_at: timestamp
   };

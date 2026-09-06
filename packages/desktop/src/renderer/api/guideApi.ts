@@ -1,5 +1,5 @@
-import type { GuideLibraryApi } from "../../contracts/guides.js";
+import type { GuideSourceApi } from "../../contracts/guides.js";
 
 export type * from "../../contracts/guides.js";
 
-export type GuideApi = GuideLibraryApi;
+export type GuideApi = GuideSourceApi;

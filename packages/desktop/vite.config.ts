@@ -9,7 +9,6 @@ const appDomains = [
   "armor",
   "assistant",
   "capabilities",
-  "guides",
   "home",
   "items",
   "library",

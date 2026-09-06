@@ -7,7 +7,6 @@ const navItemKeys = [
   "account",
   "vault",
   "loadouts",
-  "guides",
   "library",
   "vendors",
   "settings"

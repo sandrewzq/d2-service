@@ -16,9 +16,7 @@ import type { AiSettings } from "@d2-tools/core/ai/settings";
 import type { VaultAnalysisResult } from "@d2-tools/core/analysis/vault";
 import type { LocalTargetRules } from "@d2-tools/core/analysis/targets";
 import type {
-  EquipmentTargetConversionResult,
-  EquipmentTargetStore,
-  GuideEquipmentTargetConversionRequest
+  EquipmentTargetStore
 } from "@d2-tools/core/targets/equipmentTargets";
 import type { DimWishlist, DimWishlistImportPreview } from "@d2-tools/core/analysis/wishlistImport";
 import type {
@@ -58,15 +56,7 @@ import type {
 import type { ItemSearchResult } from "@d2-tools/core/items/search";
 import type { ArmorSetCatalogEntry } from "@d2-tools/core/items/equipableItemSet";
 import type { LibraryHistory, LibraryHistoryItem } from "@d2-tools/core/library/history";
-import type {
-  CreateGuideDocumentInput,
-  GuideExtraction,
-  GuideDerivedRelation,
-  GuideLoadoutCandidatesArtifact,
-  GuideDocument,
-  GuideSourceReadPreview,
-  UpdateGuideDocumentInput
-} from "../contracts/guides.js";
+import type { GuideSourceReadPreview } from "../contracts/guides.js";
 import type { CreateLoadoutTemplateInput, LoadoutTemplate } from "@d2-tools/core/loadouts/templates";
 import type {
   CreateLocalLoadoutPlanInput,
@@ -281,25 +271,8 @@ contextBridge.exposeInMainWorld("d2", {
     ipcRenderer.invoke("library:favorite:add", item) as Promise<LibraryHistory>,
   removeFavoriteItem: (hash: number) =>
     ipcRenderer.invoke("library:favorite:remove", hash) as Promise<LibraryHistory>,
-  listGuideDocuments: () => ipcRenderer.invoke("guides:list") as Promise<GuideDocument[]>,
-  createGuideDocument: (input: CreateGuideDocumentInput) =>
-    ipcRenderer.invoke("guides:create", input) as Promise<GuideDocument>,
-  updateGuideDocument: (id: string, input: UpdateGuideDocumentInput) =>
-    ipcRenderer.invoke("guides:update", { id, document: input }) as Promise<GuideDocument>,
-  deleteGuideDocument: (id: string) =>
-    ipcRenderer.invoke("guides:delete", id) as Promise<GuideDocument[]>,
   readGuideSource: (url: string) =>
     ipcRenderer.invoke("guides:source:read", url) as Promise<GuideSourceReadPreview>,
-  listGuideExtractions: () =>
-    ipcRenderer.invoke("guides:extractions:list") as Promise<GuideExtraction[]>,
-  listGuideDerivedRelations: () =>
-    ipcRenderer.invoke("guides:relations:list") as Promise<GuideDerivedRelation[]>,
-  previewGuideExtraction: (id: string) =>
-    ipcRenderer.invoke("guides:extraction:preview", id) as Promise<GuideExtraction>,
-  confirmGuideExtraction: (input: { guideDocumentId: string; extractionId: string; acceptedCandidateIds: string[] }) =>
-    ipcRenderer.invoke("guides:extraction:confirm", input) as Promise<GuideExtraction>,
-  createGuideLoadoutCandidates: (input: { guideDocumentId: string; extractionId: string; characterId: string }) =>
-    ipcRenderer.invoke("guides:loadout-candidates:create", input) as Promise<GuideLoadoutCandidatesArtifact>,
   listLoadoutTemplates: () => ipcRenderer.invoke("loadouts:list") as Promise<LoadoutTemplate[]>,
   createLoadoutTemplate: (input: CreateLoadoutTemplateInput) =>
     ipcRenderer.invoke("loadouts:create", input) as Promise<LoadoutTemplate>,
@@ -342,8 +315,6 @@ contextBridge.exposeInMainWorld("d2", {
   saveEquipmentTargetStore: (store: EquipmentTargetStore) =>
     ipcRenderer.invoke("equipment-targets:save", store) as Promise<EquipmentTargetStore>,
   clearEquipmentTargetStore: () => ipcRenderer.invoke("equipment-targets:clear") as Promise<EquipmentTargetStore>,
-  convertConfirmedGuideEquipmentTargets: (input: GuideEquipmentTargetConversionRequest) =>
-    ipcRenderer.invoke("equipment-targets:convert-guide", input) as Promise<EquipmentTargetConversionResult>,
   getLocalCommunityRecommendations: () =>
     ipcRenderer.invoke("community:local:get") as Promise<LocalCommunityRecommendationTable | null>,
   saveLocalCommunityRecommendations: (table: LocalCommunityRecommendationTable) =>

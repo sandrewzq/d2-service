@@ -54,10 +54,6 @@ const dependencies: AssistantReadOnlyCapabilityDependencies = {
   loadouts: {
     listLocalLoadoutPlans: () => api.listLocalLoadoutPlans()
   },
-  guides: {
-    listGuideDocuments: () => api.listGuideDocuments(),
-    listGuideExtractions: () => api.listGuideExtractions()
-  },
   armor: {
     plan(job) {
       armorPlannerRevision += 1;

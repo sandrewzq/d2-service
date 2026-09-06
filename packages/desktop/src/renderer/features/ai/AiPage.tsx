@@ -15,6 +15,7 @@ export function AiPage(props: {
   daily: DailySummary | null;
   activity: ActivityHistorySummary | null;
   pageContext: AssistantPageContext;
+  getPageContext?: () => AssistantPageContext;
   tags: VaultTags;
   isLoadingAccount: boolean;
   onLoadAccount: () => void;
@@ -22,6 +23,7 @@ export function AiPage(props: {
   onOpenArtifact: (artifact: AssistantArtifact) => void;
   onClose?: () => void;
 }) {
+  const pageContext = props.getPageContext?.() ?? props.pageContext;
   if (!props.isConfigured) {
     return (
       <AiAssistantPanelView
@@ -38,9 +40,9 @@ export function AiPage(props: {
         isContextDrawerOpen={false}
         contextChip="AI 未配置"
         context={{
-          pageLabel: props.pageContext.page_label,
-          focus: props.pageContext.focus,
-          facts: props.pageContext.facts.slice(0, 4),
+          pageLabel: pageContext.page_label,
+          focus: pageContext.focus,
+          facts: pageContext.facts.slice(0, 4),
           itemCount: 0,
           characterCount: props.account?.characters.length ?? 0,
           materialCount: props.account?.materials.item_count ?? 0,
@@ -73,7 +75,8 @@ export function AiPage(props: {
       account={props.account}
       daily={props.daily}
       activity={props.activity}
-      pageContext={props.pageContext}
+      pageContext={pageContext}
+      getPageContext={props.getPageContext}
       items={props.account?.vault.items ?? []}
       tags={props.tags}
       isLoadingAccount={props.isLoadingAccount}

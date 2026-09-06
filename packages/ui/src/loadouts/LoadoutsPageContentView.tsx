@@ -21,7 +21,6 @@ import type {
   AssistantLoadoutArtifact,
   AssistantEquipmentTargetCandidatesArtifact
 } from "@d2-tools/app/capabilities";
-import type { GuideLoadoutCandidatesArtifact } from "@d2-tools/app/guides";
 import { getActiveApplicationLoadoutScreen, getLocalLoadoutPlanAccountItems } from "@d2-tools/app/loadouts";
 import type { AccountItemSummary, AccountSummary } from "@d2-tools/core/account/summary";
 import { armorSlots, type ArmorClass, type ArmorSetConstraint, type ArmorSlot } from "@d2-tools/core/armor";
@@ -96,12 +95,7 @@ export type LoadoutsPageActions = {
     candidateIds: string[],
     character: AccountSummary["characters"][number] | null
   ) => boolean;
-  acceptGuideLoadoutCandidates: (
-    artifact: GuideLoadoutCandidatesArtifact,
-    candidateIds: string[]
-  ) => boolean;
   dismissAssistantPrefill: () => void;
-  openGuideSource?: (sourceId: string) => Promise<boolean>;
   dismissArmorResultTrace?: () => void;
   createTransferPlan: (template: LoadoutTemplate) => void;
   copyMissingItems: (template: LoadoutTemplate, analysis: LoadoutTemplateAnalysis | null) => void;
@@ -185,7 +179,7 @@ export type LoadoutsPageContentViewProps = {
   localPlanIsPublishing?: boolean;
   localPlanIsImportingGuide: boolean;
   localPlanLegacyGuideText: string;
-  localPlanAssistantPrefill: ((AssistantLoadoutArtifact | GuideLoadoutCandidatesArtifact) & { request_id: number }) | null;
+  localPlanAssistantPrefill: (AssistantLoadoutArtifact & { request_id: number }) | null;
   armorPlannerState?: ArmorPlannerWorkspaceState;
   armorSetCatalog?: ArmorSetCatalogEntry[];
   armorSetCatalogStatus?: "loading" | "ready" | "error";
@@ -2168,16 +2162,12 @@ function GuideImportPanel(props: LoadoutsPageContentViewProps & {
   const equipmentArtifact = assistantPrefill?.kind === "equipment_target_candidates"
     ? assistantPrefill
     : null;
-  const guideLoadoutArtifact = assistantPrefill?.kind === "loadout_candidates"
-    ? assistantPrefill
-    : null;
   const assistantRawText = assistantPrefill && "raw_text" in assistantPrefill
     ? assistantPrefill.raw_text
     : "";
   const [sourceInput, setSourceInput] = useState(assistantRawText || props.localPlanLegacyGuideText);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>(
     equipmentArtifact?.candidates.map((candidate) => candidate.candidate_id)
-      ?? guideLoadoutArtifact?.candidates.filter((candidate) => candidate.selected_by_default).map((candidate) => candidate.candidate_id)
       ?? []
   );
   useEffect(() => {
@@ -2186,62 +2176,10 @@ function GuideImportPanel(props: LoadoutsPageContentViewProps & {
   useEffect(() => {
     setSelectedCandidateIds(
       equipmentArtifact?.candidates.map((candidate) => candidate.candidate_id)
-        ?? guideLoadoutArtifact?.candidates.filter((candidate) => candidate.selected_by_default).map((candidate) => candidate.candidate_id)
         ?? []
     );
   }, [assistantPrefill?.request_id]);
   const restoredLegacyText = Boolean(props.localPlanLegacyGuideText && sourceInput === props.localPlanLegacyGuideText);
-  if (guideLoadoutArtifact) {
-    const matchedCount = guideLoadoutArtifact.candidates.filter((candidate) => candidate.relation === "matched").length;
-    const alternativeCount = guideLoadoutArtifact.candidates.length - matchedCount;
-    const canCreateDraft = Boolean(selectedCandidateIds.length || guideLoadoutArtifact.armor_constraint_draft);
-    return (
-      <section className="loadout-capability-notice loadout-assistant-target-review" data-status="neutral" aria-label="攻略配装备选项审阅">
-        <div className="loadout-assistant-target-content">
-          <strong>审阅攻略配装备选项</strong>
-          <p>这些匹配结果基于生成时的账号和角色。确定命中默认选中；替代项只有在你明确勾选后才会进入未保存草稿。</p>
-          <p data-status="neutral">目标角色：{guideLoadoutArtifact.account_scope.character_class} · 确定命中 {matchedCount} 项 · 替代项 {alternativeCount} 项 · 缺口 {guideLoadoutArtifact.missing_requirements.length} 项</p>
-          {guideLoadoutArtifact.candidates.length ? (
-            <ul className="loadout-assistant-target-list" data-surface="list">
-              {guideLoadoutArtifact.candidates.map((candidate) => {
-                const checked = selectedCandidateIds.includes(candidate.candidate_id);
-                return (
-                  <li key={candidate.candidate_id} data-status={candidate.relation === "matched" ? "success" : "warning"}>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(event) => setSelectedCandidateIds((current) => event.target.checked
-                          ? [...current, candidate.candidate_id]
-                          : current.filter((id) => id !== candidate.candidate_id))}
-                      />
-                      <span>
-                        <strong>{candidate.item.name}</strong>
-                        <small>{[
-                          candidate.item.bucket_name || candidate.item.item_type || formatEquipmentGroup(candidate.item.group_key ?? "equipment"),
-                          candidate.relation === "matched" ? "确定命中" : "替代项",
-                          candidate.item.reason
-                        ].filter(Boolean).join(" · ")}</small>
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : <p data-status="warning">当前账号没有匹配装备；可以继续审阅已确认的护甲属性要求和攻略缺口。</p>}
-          {guideLoadoutArtifact.missing_requirements.length ? <ul>{guideLoadoutArtifact.missing_requirements.map((item) => <li key={item}>{item}</li>)}</ul> : null}
-        </div>
-        <div className="loadout-action-stack">
-          <button type="button" data-ui-kind="button" data-control-variant="secondary" onClick={() => { props.actions.dismissAssistantPrefill(); props.onCloseGuideImport(); }}>取消</button>
-          <button type="button" data-ui-kind="button" data-control-variant="primary" disabled={!canCreateDraft} onClick={() => {
-            if (props.actions.acceptGuideLoadoutCandidates(guideLoadoutArtifact, selectedCandidateIds)) {
-              props.onCloseGuideImport();
-            }
-          }}>生成未保存草稿</button>
-        </div>
-      </section>
-    );
-  }
   if (equipmentArtifact) {
     const ownedCount = equipmentArtifact.candidates.filter((candidate) => candidate.status === "owned-instance").length;
     const definitionCount = equipmentArtifact.candidates.length - ownedCount;
@@ -2449,7 +2387,6 @@ function formatPublishReportMessage(
 }
 
 function LocalPlanSummary(props: LoadoutsPageContentViewProps) {
-  const [sourceTraceMessage, setSourceTraceMessage] = useState("");
   const summary = props.localPlanDraft && props.accountSummary
     ? matchLocalLoadoutPlan(props.localPlanDraft, props.accountSummary)
     : null;
@@ -2458,9 +2395,6 @@ function LocalPlanSummary(props: LoadoutsPageContentViewProps) {
   const targetCharacter = props.accountSummary?.characters.find((character) => character.character_id === props.localPlanDraft?.target_character_id) ?? null;
   const armorPlanReference = props.localPlanDraft?.armor_plan;
   const armorPlanExpired = isExpiredTimestamp(armorPlanReference?.expires_at);
-  const guideSourceId = props.localPlanDraft?.source.kind === "guide"
-    ? props.localPlanDraft.source.source_id
-    : undefined;
   return (
     <>
       <div className="loadout-column-head"><div><strong>方案摘要</strong><small>基于当前账号装备数据</small></div></div>
@@ -2483,19 +2417,7 @@ function LocalPlanSummary(props: LoadoutsPageContentViewProps) {
           {waitingCount || issueCount ? <li data-status="warning"><span aria-hidden="true">!</span><span>{waitingCount + issueCount} 个目标仍需选择或确认。</span></li> : <li data-status="success"><span aria-hidden="true">✓</span><span>当前装备目标已完成账号核对。</span></li>}
         </ul>
       </section>
-      {guideSourceId && props.actions.openGuideSource ? (
-        <section className="loadout-source-trace" aria-label="方案来源追溯">
-          <div><strong>方案来源</strong><small title={guideSourceId}>{props.localPlanDraft?.source.label ?? "攻略派生成果"}</small></div>
-          <button type="button" data-ui-kind="button" data-control-variant="secondary" onClick={() => {
-            setSourceTraceMessage("");
-            void props.actions.openGuideSource?.(guideSourceId).then((opened) => {
-              if (!opened) setSourceTraceMessage("没有找到仍可用的攻略派生关系。该方案本身仍可继续使用。");
-            });
-          }}>返回原攻略</button>
-          {sourceTraceMessage ? <p data-status="warning">{sourceTraceMessage}</p> : null}
-        </section>
-      ) : null}
-      <p className="loadout-guidance">应用内保存不会写入 Bungie。穿戴前会按具体装备生成计划；DIM 和攻略只会预填草稿，仍需显式保存。</p>
+      <p className="loadout-guidance">应用内保存不会写入 Bungie。穿戴前会按具体装备生成计划；DIM、攻略链接和 AI 整理结果只会预填草稿，仍需显式保存。</p>
     </>
   );
 }

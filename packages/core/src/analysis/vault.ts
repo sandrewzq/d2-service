@@ -55,7 +55,7 @@ export function analyzeVault(input: VaultAnalysisInput): VaultAnalysisResult {
   return {
     facts: [
       `仓库共 ${input.items.length} 件物品，其中${formatGroupCounts(groupCounts)}。`,
-      `本地标记：保留 ${keepCount} 件、关注 ${reviewCount} 件、可清理 ${junkCount} 件、待刷 ${farmCount} 件、配装用 ${loadoutCount} 件、未标记 ${untaggedCount} 件。`,
+      `本地标记：保留 ${keepCount} 件、待定 ${reviewCount} 件、清理 ${junkCount} 件、待刷 ${farmCount} 件、配装用 ${loadoutCount} 件、未标记 ${untaggedCount} 件。`,
       `已读取实际 roll 的物品 ${rollCount} 件。`
     ],
     analysis: buildAnalysis({ keep, review, junk, untaggedCount }),
@@ -114,10 +114,10 @@ function buildAnalysis(input: {
     lines.push(`保留标记集中在 ${formatItemNames(input.keep)}。`);
   }
   if (input.review.length) {
-    lines.push(`关注标记集中在 ${formatItemNames(input.review)}，适合后续人工复查。`);
+    lines.push(`待定标记集中在 ${formatItemNames(input.review)}，适合后续人工确认。`);
   }
   if (input.junk.length) {
-    lines.push(`可清理标记已有 ${input.junk.length} 件，适合在正式删除前再次确认。`);
+    lines.push(`清理标记已有 ${input.junk.length} 件，适合在正式删除前再次确认。`);
   }
   if (input.untaggedCount) {
     lines.push(`还有 ${input.untaggedCount} 件未标记，AI 深度分析前建议先补一轮人工判断。`);
@@ -133,10 +133,10 @@ function buildSuggestions(input: {
 }): string[] {
   const lines: string[] = [];
   if (input.review.length) {
-    lines.push(`优先查看“关注”标记的 ${input.review.length} 件装备，确认是否改为保留或可清理。`);
+    lines.push(`优先查看“待定”标记的 ${input.review.length} 件装备，确认是否改为保留或清理。`);
   }
   if (input.junk.length) {
-    lines.push(`清理前先复查“可清理”标记，避免误删高光等或稀有 roll。`);
+    lines.push(`清理前先复查“清理”标记，避免误删高光等或稀有 roll。`);
   }
   if (input.untaggedCount) {
     lines.push(`继续给未标记装备补标签，这会让后续 AI 建议更贴近你的习惯。`);

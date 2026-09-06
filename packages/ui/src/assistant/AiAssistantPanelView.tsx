@@ -139,7 +139,7 @@ export function AiAssistantPanelView(props: AiAssistantPanelViewProps) {
                     data-control-variant="secondary"
                     onClick={() => props.onOpenArtifact(message.artifact!)}
                   >
-                    {message.artifact.kind === "guide_capture" ? "送到攻略页" : "交给配装页"}
+                    交给配装页
                   </button>
                 </div>
               ) : null}

@@ -33,10 +33,8 @@ docs/        正式文档
   - 负责领域模型、schema 和跨端类型
   - 负责确定性分析、评分、愿望单、目标规则等纯业务规则
   - 负责 Bungie / Manifest 数据到领域模型的转换逻辑
-  - 攻略确认和 Armor Planner 缺口只能通过装备目标领域命令转换为正式目标：攻略武器要求必须先完成唯一 Manifest 版本与 Perk 归属校验；Planner 缺口保存结果引用和抽象身份上下文，不得伪造实例或把五件聚合属性当作单件目标
-  - 攻略确认的五件聚合属性派生为稳定 `armor_constraint_draft`，保留文档、正文快照和提取引用；它只能经显式操作进入配装工作台审阅，不直接写入单件目标库或自动运行 Armor Planner
-  - 攻略 `loadout_candidates` 必须绑定当前账号、角色和匹配指纹；唯一完整命中可以默认选中，同名多实例、抽象要求和部分 Perk 命中只能作为替代候选，经配装页复选后生成未保存草稿
-  - 攻略派生关系使用独立版本化 `guide-derived-relations.json` 保存稳定实体 ID 和关系，不复制攻略正文、账号快照或完整成果；正式目标写入、候选生成，以及 `armor_constraint_draft` 或 `loadout_candidates` 来源本地方案显式保存时维护关系，删除业务对象时同步清理孤立关系；跨页面反向入口必须通过关系索引确认来源仍有效，不得解析展示文案或使用已删除攻略留下的证据 ID 伪定位
+  - 攻略链接、正文和 AI 整理文本只作为配装页的临时导入来源；解析并按当前账号核对后生成未保存应用配装草稿，不维护独立本地攻略库、正文快照、提取确认或派生关系
+  - 旧版本的 `guide-library.json`、`guide-extractions.json` 和 `guide-derived-relations.json` 不参与应用运行，也不主动删除；便携备份暂时保留这些遗留文件，避免升级时静默丢失历史内容
   - 保留 `config/defaults`、`config/env`、`manifest/metadata`、`manifest/definitions` 等纯 helper；不承接本地文件、HTTP、OAuth callback server 或 Manifest cache 读写 adapter
 
 - `packages/services`
@@ -482,7 +480,7 @@ packages/desktop/release/
 桌面端使用本地数据目录保存配置、Manifest 缓存、愿望单、本地标签、旧目标规则、独立装备目标库和操作日志。配置采用独立的 `config_version`；升级时会先备份旧 `config.json`，将历史字段转换为当前格式并原子写回，随后按当前版本严格校验，不长期保留读取时兼容分支。迁移兼容旧 OAuth 回调地址、`ai.provider` 和历史缺失字段，不因配置字段演进阻断窗口启动。日常换机或重装优先使用设置页的便携备份：
 
 1. 选择“创建便携备份”，指定一个可信的保存位置。
-2. 便携备份包含脱敏偏好、愿望单、旧目标规则、独立装备目标库、本地标签、本地方案、攻略库、提取确认、攻略派生关系和本地社区推荐，不包含 OAuth token、Bungie/AI 密钥、Manifest、缓存或日志。
+2. 便携备份包含脱敏偏好、愿望单、旧目标规则、独立装备目标库、本地标签、本地方案和本地社区推荐，不包含 OAuth token、Bungie/AI 密钥、Manifest、缓存或日志。旧版本攻略 JSON 仅作为遗留数据一并保留，不再参与应用运行。
 3. 在目标电脑安装并首次启动 d2-tools，然后选择“恢复便携备份”。
 4. 恢复前会校验备份格式、要求确认并创建本机回滚备份；写入失败时自动恢复原有数据。
 5. 重启应用，重新登录 Bungie，并填写目标电脑需要的 Bungie/AI 密钥。

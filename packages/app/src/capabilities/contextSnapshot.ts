@@ -207,7 +207,6 @@ function isCapabilityName(value: string): value is AssistantCapabilityName {
     || value === "account.find-items"
     || value === "vendors.find-offers"
     || value === "loadouts.inspect"
-    || value === "guides.search"
     || value === "armor.plan";
 }
 

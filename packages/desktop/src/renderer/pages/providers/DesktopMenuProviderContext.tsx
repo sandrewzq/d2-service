@@ -4,7 +4,6 @@ import type { StartupState } from "../../api/types";
 import type { useAccountWorkspace } from "../../features/account/useAccountWorkspace";
 import type { useDailySummary } from "../../features/daily/useDailySummary";
 import type { useHomePageDerivedState } from "../../features/home/useHomePageDerivedState";
-import type { useGuideLibrary } from "../../features/guides/useGuideLibrary";
 import type { useLibraryWorkspace } from "../../features/library/useLibraryWorkspace";
 import type { useLoadoutTemplates } from "../../features/loadouts/useLoadoutTemplates";
 import type { useLocalLoadoutPlans } from "../../features/loadouts/useLocalLoadoutPlans";
@@ -20,7 +19,7 @@ export type DesktopMenuSession = {
   setActivePage: Dispatch<SetStateAction<ShellPageKey>>;
   settingsInitialSection: "overview" | "account" | "library" | "bungie";
   setSettingsInitialSection: Dispatch<SetStateAction<"overview" | "account" | "library" | "bungie">>;
-  setVaultFacts: Dispatch<SetStateAction<string[]>>;
+  setVaultFacts: (facts: string[]) => void;
   vaultLocateRequest: { hash: number; name: string; requestId: number } | null;
   locateVaultItem: (item: { hash: number; name: string }) => void;
   vaultTargetLocateRequest: { targetId: string; requestId: number } | null;
@@ -34,7 +33,6 @@ export type DesktopMenuSession = {
   daily: ReturnType<typeof useDailySummary>;
   diagnostics: ReturnType<typeof useDiagnosticsSettings>;
   home: ReturnType<typeof useHomePageDerivedState>;
-  guides: ReturnType<typeof useGuideLibrary>;
   library: ReturnType<typeof useLibraryWorkspace>;
   loadouts: ReturnType<typeof useLoadoutTemplates>;
   localLoadoutPlans: ReturnType<typeof useLocalLoadoutPlans>;

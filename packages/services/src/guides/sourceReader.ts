@@ -1,8 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { parse, type DefaultTreeAdapterTypes } from "parse5";
-import { isSupportedGuideSourceUrl } from "@d2-tools/core/guides/library";
-import { createGuideSourceSections, type GuideSourceReadPreview, type GuideSourceSection } from "@d2-tools/core/guides/source";
+import { createGuideSourceSections, isSupportedGuideSourceUrl, type GuideSourceReadPreview, type GuideSourceSection } from "@d2-tools/core/guides/source";
 
 const maxRedirects = 5;
 const maxResponseBytes = 2_000_000;

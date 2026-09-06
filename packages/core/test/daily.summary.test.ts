@@ -58,7 +58,7 @@ describe("daily summary", () => {
     expect(summary.sources.lost_sector.status).toBe("ready");
     expect(summary.sources.weekly_report.status).toBe("ready");
     expect(summary.checklist).toContain("查看今日轮换、遗失区域和商人库存。");
-    expect(summary.checklist).toContain("检查仓库可清理装备和疑似好 roll。");
+    expect(summary.checklist).toContain("检查仓库清理装备和疑似好 roll。");
   });
 
   it("keeps a fuller vendor source list while still limiting other daily sources", () => {

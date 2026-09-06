@@ -74,7 +74,6 @@ export function HomePageItemDetailModal(props: {
       recommendations: [
         ...buildWeaponRecommendationViews(
           vendorDefinitionState.recommendations ?? null,
-          vendorDefinitionState.personalKnowledge,
           vendorSelectedItem
         ),
         ...buildEquipmentTargetWeaponViews(props.equipmentTargetStore, vendorSelectedItem)
@@ -100,7 +99,6 @@ export function HomePageItemDetailModal(props: {
               ) : null}
               <WeaponDetailContent
                 model={vendorWeaponModel}
-                personalKnowledge={vendorDefinitionState.personalKnowledge}
                 analysis={{
                   status: vendorDefinitionState.isGeneratingAi
                     ? "running"
@@ -116,10 +114,7 @@ export function HomePageItemDetailModal(props: {
                   externalSearchMessage: vendorDefinitionState.aiResult?.ai?.external_search?.message
                 }}
                 actions={{
-                  runAnalysis: (request) => void props.vendorDefinitionDetail.generateAi(request.prompt, request.allow_external_search),
-                  saveKnowledge: (draft) => void props.vendorDefinitionDetail.saveKnowledge(draft),
-                  setKnowledgeEnabled: (id, enabled) => void props.vendorDefinitionDetail.setKnowledgeEnabled(id, enabled),
-                  deleteKnowledge: (id) => void props.vendorDefinitionDetail.deleteKnowledge(id)
+                  runAnalysis: (request) => void props.vendorDefinitionDetail.generateAi(request.prompt, request.allow_external_search)
                 }}
               />
             </>
@@ -249,7 +244,6 @@ export function HomePageItemDetailModal(props: {
       itemAvailability={itemDetail.selectedItemAvailability}
       itemVersions={itemDetail.selectedItemVersions}
       isItemVersionsLoading={itemDetail.isSelectedItemVersionsLoading}
-      personalWeaponKnowledge={itemDetail.personalWeaponKnowledge}
       sameNameItems={itemDetail.selectedSameNameItems}
       selectedActionCharacterId={itemDetail.selectedActionCharacterId}
       selectedItem={itemDetail.selectedItem}
@@ -272,9 +266,6 @@ export function HomePageItemDetailModal(props: {
       onSaveSelectedItemTag={(tag) => void itemDetail.saveSelectedItemTag(tag)}
       onSelectedActionCharacterIdChange={itemDetail.setSelectedActionCharacterId}
       onSetItemNoteDraft={itemDetail.setItemNoteDraft}
-      onSavePersonalWeaponKnowledge={(draft) => void itemDetail.saveConfirmedPersonalWeaponKnowledge(draft)}
-      onSetPersonalWeaponKnowledgeEnabled={(id, enabled) => void itemDetail.setPersonalWeaponKnowledgeEnabled(id, enabled)}
-      onDeletePersonalWeaponKnowledge={(id) => void itemDetail.deletePersonalWeaponKnowledge(id)}
     />
   ) : null;
 }

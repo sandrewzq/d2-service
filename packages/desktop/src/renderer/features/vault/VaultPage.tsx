@@ -48,7 +48,6 @@ export function VaultPage(props: {
   onEquipmentTargetStoreChanged: (store: EquipmentTargetStore) => void;
   onWishlistChanged: (wishlist: DimWishlist | null) => void;
   onCommunityRecommendationsChanged: (weaponHashes?: readonly number[]) => Promise<void> | void;
-  onOpenGuide: (targetId: string) => Promise<boolean>;
   onOpenArmorResult: (reference: { resultId: string; candidateId: string }) => void;
   onLoadAccount: () => void;
   onConfigureBungie: () => void;
@@ -312,7 +311,6 @@ export function VaultPage(props: {
           props.onEquipmentTargetStoreChanged(cleared);
           return cleared;
         },
-        onOpenGuide: props.onOpenGuide,
         onOpenArmorResult: props.onOpenArmorResult
       }}
       onContextFactsChange={props.onContextFactsChange}

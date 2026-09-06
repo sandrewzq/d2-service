@@ -21,7 +21,6 @@ import type {
   WeaponStatSummary
 } from "@d2-tools/core/account/summary";
 import type { WeaponRecommendation as CommunityWeaponRecommendation } from "@d2-tools/core/community-perks";
-import type { PersonalWeaponKnowledgeEntry } from "@d2-tools/core/community-perks/personalWeaponKnowledge";
 import type { ItemReleaseSummary } from "@d2-tools/core/items/release";
 import type { VaultTags } from "@d2-tools/core/vault/tags";
 import type { EquipmentTargetStore } from "@d2-tools/core/targets/equipmentTargets";
@@ -302,7 +301,6 @@ function hasWeaponUpgradeData(upgrades: WeaponDetailViewModel["upgrades"]): bool
 
 export function buildWeaponRecommendationViews(
   recommendation: CommunityWeaponRecommendation | null,
-  personalKnowledge: PersonalWeaponKnowledgeEntry[],
   item: SelectedItemDetail
 ): WeaponDetailViewModel["recommendations"] {
   const classification = classifyWeaponConfiguration(item);
@@ -311,49 +309,6 @@ export function buildWeaponRecommendationViews(
     ...(item.socket_plugs ?? []).map((plug) => plug.hash),
     ...(item.sockets ?? []).flatMap((socket) => socket.reusable_plugs.map((plug) => plug.hash))
   ]);
-  const availableNames = new Set([
-    ...(item.socket_plugs ?? []).map((plug) => plug.name.trim().toLocaleLowerCase()),
-    ...(item.sockets ?? []).flatMap((socket) => socket.reusable_plugs.map((plug) => plug.name.trim().toLocaleLowerCase()))
-  ]);
-  const currentUpgradeNames = currentWeaponUpgradeNames(item);
-  const personal = personalKnowledge.filter((entry) => entry.enabled).map((entry) => {
-    const perkOptions = isFixedExotic ? [] : entry.perk_options;
-    const masterworkNames = isFixedExotic ? [] : entry.masterwork_names;
-    const modNames = isFixedExotic ? [] : entry.mod_names;
-    const matchedColumns = perkOptions.filter((option) => option.names.some((name) => (
-      availableNames.has(name.trim().toLocaleLowerCase())
-    ))).length;
-    const masterworkMatched = masterworkNames.length
-      ? masterworkNames.some((name) => currentUpgradeNames.masterwork.has(name.trim().toLocaleLowerCase()))
-      : false;
-    const modMatched = modNames.length
-      ? modNames.some((name) => currentUpgradeNames.mod.has(name.trim().toLocaleLowerCase()))
-      : false;
-    const matched = matchedColumns + Number(masterworkMatched) + Number(modMatched);
-    const total = perkOptions.length + Number(masterworkNames.length > 0) + Number(modNames.length > 0);
-    const match = isFixedExotic ? "not_applicable" : matchRecommendation(item, matched, total);
-    return {
-      id: `personal:${entry.id}`,
-      mode: entry.mode,
-      title: entry.title,
-      reason: entry.reason,
-      source: "user" as const,
-      source_label: "个人知识",
-      updated_at: entry.updated_at,
-      external_url: entry.external_url,
-      perk_options: perkOptions,
-      masterwork_names: masterworkNames,
-      mod_names: modNames,
-      match,
-      match_notes: isFixedExotic
-        ? ["固定异域不执行随机 Roll、大师杰作或武器模组匹配；保留此条个人知识作为使用与催化剂说明。"]
-        : [
-            ...recommendationMatchNotes(item, matched, total),
-            ...(masterworkNames.length ? [masterworkMatched ? "大师杰作符合推荐。" : "大师杰作与推荐不同。"] : []),
-            ...(modNames.length ? [modMatched ? "武器模组符合推荐。" : "武器模组与推荐不同。"] : [])
-          ]
-    };
-  });
   const builtin = (classification.kind === "fixed" && !isFixedExotic ? [] : recommendation?.combos ?? [])
     .filter((combo) => combo.source === "local_community")
     .map((combo, index) => {
@@ -379,7 +334,7 @@ export function buildWeaponRecommendationViews(
           : recommendationMatchNotes(item, matched, combo.perks.length)
       };
     });
-  return [...personal, ...builtin];
+  return builtin;
 }
 
 export function buildWeaponPersonalTargetViews(
@@ -536,23 +491,6 @@ function recommendationMatchNotes(item: SelectedItemDetail, matched: number, tot
   return item.instance_id || item.socket_plugs?.length
     ? [`当前 Roll 符合 ${matched}/${total} 项推荐。`]
     : ["当前对象没有账号实例 Roll，暂时无法核对推荐项。"];
-}
-
-function currentWeaponUpgradeNames(item: SelectedItemDetail): { masterwork: Set<string>; mod: Set<string> } {
-  const plugs = [
-    ...(item.socket_plugs ?? []),
-    ...(item.sockets ?? []).flatMap((socket) => socket.selected_plug ? [socket.selected_plug] : [])
-  ];
-  return {
-    masterwork: new Set(plugs
-      .filter((plug) => plugHasSemanticType(plug, "masterwork"))
-      .map((plug) => plug.name.trim().toLocaleLowerCase())),
-    mod: new Set(plugs
-      .filter((plug) => {
-        return plugHasSemanticType(plug, "mod");
-      })
-      .map((plug) => plug.name.trim().toLocaleLowerCase()))
-  };
 }
 
 function isReusablePlugSummary(

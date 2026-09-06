@@ -8,7 +8,7 @@ import type { VaultTags, VaultTagValue } from "@d2-tools/core/vault/tags";
 
 export type VaultGroupFilter = EquipmentGroupKey | "all";
 export type VaultSlotFilter = string | "all";
-export type VaultLocationFilter = "vault" | "current_carry" | "all" | "current_inventory" | "current_equipped" | "current_postmaster" | "other_characters";
+export type VaultLocationFilter = "vault" | "all" | "current_inventory" | "current_equipped" | "current_postmaster" | "other_characters";
 export type VaultItemSourceKind = "equipped" | "inventory" | "vault" | "postmaster";
 export type VaultLocatedItem = AccountItemSummary & {
   source_character_id?: string;
@@ -127,19 +127,26 @@ export const defaultVaultGroupTab: VaultGroupFilter = "weapons";
 
 export const locationFilterLabels: Record<VaultLocationFilter, string> = {
   vault: "仓库整理",
-  current_carry: "随身待检查",
-  all: "全账号武器",
+  all: "定位结果",
   current_inventory: "当前背包",
   current_equipped: "当前已装备",
   current_postmaster: "当前邮政官",
   other_characters: "其他角色"
 };
 
+const visibleVaultLocationFilters: Array<Exclude<VaultLocationFilter, "all">> = [
+  "vault",
+  "current_inventory",
+  "current_equipped",
+  "current_postmaster",
+  "other_characters"
+];
+
 export const tagLabels: Record<VaultTagFilter, string> = {
   all: "全部标记",
   keep: "保留",
-  review: "待复查",
-  junk: "待处理",
+  review: "待定",
+  junk: "清理",
   farm: "待刷",
   loadout: "配装用",
   untagged: "未标记",
@@ -389,13 +396,19 @@ export function buildVaultLocationFilters(
   items: readonly AccountItemSummary[],
   currentCharacterId?: string
 ): VaultLocationSummary[] {
-  const weapons = items.filter((item) => item.group_key === "weapons");
-  return (Object.keys(locationFilterLabels) as VaultLocationFilter[]).map((key) => ({
+  const counts = new Map<Exclude<VaultLocationFilter, "all">, number>(
+    visibleVaultLocationFilters.map((key) => [key, 0])
+  );
+  for (const item of items) {
+    if (item.group_key !== "weapons") continue;
+    const location = visibleVaultLocationForItem(item, currentCharacterId);
+    if (!location) continue;
+    counts.set(location, (counts.get(location) ?? 0) + 1);
+  }
+  return visibleVaultLocationFilters.map((key) => ({
     key,
     label: locationFilterLabels[key],
-    count: key === "all"
-      ? weapons.length
-      : weapons.filter((item) => matchesLocation(item, key, currentCharacterId)).length
+    count: counts.get(key) ?? 0
   }));
 }
 
@@ -697,10 +710,6 @@ function matchesLocation(
   const sourceKind = isVaultLocatedItem(item) ? item.source_kind : "vault";
   const sourceCharacterId = isVaultLocatedItem(item) ? item.source_character_id : undefined;
   if (location === "vault") return sourceKind === "vault";
-  if (location === "current_carry") {
-    return (sourceKind === "inventory" || sourceKind === "postmaster")
-      && sourceCharacterId === currentCharacterId;
-  }
   if (location === "current_inventory") {
     return sourceKind === "inventory" && sourceCharacterId === currentCharacterId;
   }
@@ -711,6 +720,21 @@ function matchesLocation(
     return sourceKind === "postmaster" && sourceCharacterId === currentCharacterId;
   }
   return sourceKind !== "vault" && Boolean(sourceCharacterId) && sourceCharacterId !== currentCharacterId;
+}
+
+function visibleVaultLocationForItem(
+  item: AccountItemSummary,
+  currentCharacterId?: string
+): Exclude<VaultLocationFilter, "all"> | undefined {
+  const sourceKind = isVaultLocatedItem(item) ? item.source_kind : "vault";
+  const sourceCharacterId = isVaultLocatedItem(item) ? item.source_character_id : undefined;
+  if (sourceKind === "vault") return "vault";
+  if (sourceCharacterId !== currentCharacterId) {
+    return sourceCharacterId ? "other_characters" : undefined;
+  }
+  if (sourceKind === "equipped") return "current_equipped";
+  if (sourceKind === "postmaster") return "current_postmaster";
+  return sourceKind === "inventory" ? "current_inventory" : undefined;
 }
 
 function isVaultLocatedItem(item: AccountItemSummary): item is VaultLocatedItem {

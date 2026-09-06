@@ -9,10 +9,6 @@ const AccountMenuProvider = lazy(async () => {
   const module = await import("./providers/AccountMenuProvider");
   return { default: module.AccountMenuProvider };
 });
-const GuidesMenuProvider = lazy(async () => {
-  const module = await import("./providers/GuidesMenuProvider");
-  return { default: module.GuidesMenuProvider };
-});
 const LoadoutsMenuProvider = lazy(async () => {
   const module = await import("./providers/LoadoutsMenuProvider");
   return { default: module.LoadoutsMenuProvider };
@@ -41,7 +37,6 @@ export function HomePageRoutes(props: {
     <Suspense fallback={<div className="page-loading">加载中...</div>}>
       {props.activePage === "home" ? <HomeMenuProvider /> : null}
       {props.activePage === "account" ? <AccountMenuProvider /> : null}
-      {props.activePage === "guides" ? <GuidesMenuProvider /> : null}
       {props.activePage === "loadouts" ? <LoadoutsMenuProvider /> : null}
       {props.activePage === "library" ? <LibraryMenuProvider /> : null}
       {props.activePage === "vendors" ? <VendorsMenuProvider /> : null}

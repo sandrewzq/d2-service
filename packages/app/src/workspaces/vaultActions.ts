@@ -18,8 +18,8 @@ const ammoFilterLabels: Record<VaultAmmoFilter, string> = {
 
 const tagLabelsForCleanup = {
   keep: "保留",
-  review: "待复查",
-  junk: "待处理",
+  review: "待定",
+  junk: "清理",
   farm: "待刷",
   loadout: "配装用"
 } as const;
@@ -48,9 +48,9 @@ export function buildVaultBulkMoveResultMessage(
 export function buildVaultBatchTagCopy(tag: VaultTagValue): { action: string; loading: string } {
   switch (tag) {
     case "review":
-      return { action: "批量待复查", loading: "正在批量标记为待复查..." };
+      return { action: "批量待定", loading: "正在批量标记为待定..." };
     case "junk":
-      return { action: "批量待处理", loading: "正在批量标记为待处理..." };
+      return { action: "批量清理", loading: "正在批量标记为清理..." };
     case "farm":
       return { action: "批量待刷", loading: "正在批量标记为待刷..." };
     case "loadout":
@@ -215,16 +215,16 @@ export function buildDuplicateGroupBatchActionCopy(
 ): { action: string; loading: string; success: string } {
   if (mode === "keep-best-review-rest") {
     return {
-      action: "重复组标记为待复查",
-      loading: `正在处理 ${groupName}，保留选中件，其余标记为待复查...`,
-      success: `已处理 ${groupName}，保留选中件，其余标记为待复查`
+      action: "重复组标记为待定",
+      loading: `正在处理 ${groupName}，保留选中件，其余标记为待定...`,
+      success: `已处理 ${groupName}，保留选中件，其余标记为待定`
     };
   }
   if (mode === "keep-best-junk-rest") {
     return {
-      action: "重复组标记为待处理",
-      loading: `正在处理 ${groupName}，保留选中件，其余标记为待处理...`,
-      success: `已处理 ${groupName}，保留选中件，其余标记为待处理`
+      action: "重复组标记为清理",
+      loading: `正在处理 ${groupName}，保留选中件，其余标记为清理...`,
+      success: `已处理 ${groupName}，保留选中件，其余标记为清理`
     };
   }
   return {
@@ -258,7 +258,7 @@ export function selectVaultActionableItems(
 }
 
 export function buildVaultCleanupWriteConfirmText(label: string, itemCount: number): string {
-  return `确认要${label} ${itemCount} 件待处理装备吗？这个操作不会分解装备。`;
+  return `确认要${label} ${itemCount} 件清理装备吗？这个操作不会分解装备。`;
 }
 
 export function buildVaultCleanupWriteResultMessage(input: {

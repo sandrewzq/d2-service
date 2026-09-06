@@ -39,7 +39,6 @@ export type VaultTargetRulesActions = {
   onSearchPerks?: (query: string) => Promise<PerkSearchResult[]> | PerkSearchResult[];
   onSaveEquipmentTargetStore?: (store: EquipmentTargetStore) => Promise<EquipmentTargetStore> | EquipmentTargetStore;
   onClearEquipmentTargetStore?: () => Promise<EquipmentTargetStore> | EquipmentTargetStore;
-  onOpenGuide?: (targetId: string) => Promise<boolean> | boolean;
   onOpenArmorResult?: (reference: { resultId: string; candidateId: string }) => void;
 };
 
@@ -326,7 +325,6 @@ export function VaultTargetRulesPanel(props: {
             <button type="button" data-ui-kind="button" data-control-variant="secondary" disabled={isSaving || !props.equipmentTargetStore.targets.length} onClick={() => void clearEquipmentTargets()}>清空目标库</button>
           </div>
           {props.equipmentTargetStore.targets.map((target) => {
-            const hasGuideSource = target.source.kind === "guide_confirmation";
             const armorReference = target.kind === "armor_acquisition" && target.planner_context
               ? {
                   resultId: target.planner_context.result_id,
@@ -349,17 +347,6 @@ export function VaultTargetRulesPanel(props: {
                   <span>{formatEquipmentTarget(target)}</span>
                 </div>
                 <div className="target-rule-actions">
-                  {hasGuideSource && props.actions?.onOpenGuide ? (
-                    <button type="button" data-ui-kind="button" data-control-variant="secondary" onClick={() => {
-                      setMessage("");
-                      requestNavigation(async () => {
-                        const opened = await props.actions?.onOpenGuide?.(target.id);
-                        if (!opened) setMessage("目标仍可使用，但找不到仍有效的攻略派生关系。");
-                      });
-                    }}>
-                      返回攻略
-                    </button>
-                  ) : null}
                   {armorReference && props.actions?.onOpenArmorResult ? (
                     <button type="button" data-ui-kind="button" data-control-variant="secondary" onClick={() => requestNavigation(() => props.actions?.onOpenArmorResult?.(armorReference))}>
                       查看 Planner 引用

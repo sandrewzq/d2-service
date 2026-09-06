@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { GameAssetImage } from "../../media/GameAssetImage.js";
 import { GameCombatIcon } from "../../media/GameCombatIcon.js";
 import { formatStandardDateTime } from "../../time/formatTime.js";
@@ -13,10 +13,6 @@ import type {
   WeaponSourceEntry,
   WeaponStatTrack
 } from "@d2-tools/app/items";
-import type {
-  PersonalWeaponKnowledgeEntry,
-  SavePersonalWeaponKnowledgeInput
-} from "@d2-tools/core/community-perks/personalWeaponKnowledge";
 import type { RecommendationSourceMatch, RecommendationSourceSlotMatch } from "@d2-tools/core/community-perks";
 import type { ItemReleaseKind } from "@d2-tools/core/items/release";
 import {
@@ -43,9 +39,6 @@ export type WeaponDetailContentActions = {
   refreshConfiguration?: () => void | Promise<void>;
   loadConfiguration?: () => void | Promise<void>;
   runAnalysis?: (request: { prompt: string; allow_external_search: boolean }) => void;
-  saveKnowledge?: (draft: SavePersonalWeaponKnowledgeInput["entry"]) => void;
-  setKnowledgeEnabled?: (id: string, enabled: boolean) => void;
-  deleteKnowledge?: (id: string) => void;
 };
 
 export type WeaponConfigurationWriteFeedback = {
@@ -73,7 +66,6 @@ export type WeaponDetailContentProps = {
     status: "idle" | "loading" | "partial" | "ready" | "error";
     message?: string;
   };
-  personalKnowledge?: PersonalWeaponKnowledgeEntry[];
   activeSection?: WeaponDetailSection;
   onSectionChange?: (section: WeaponDetailSection) => void;
   instanceActions?: ReactNode;
@@ -280,10 +272,6 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
               allowExternalSearch={allowExternalSearch}
               onAllowExternalSearchChange={setAllowExternalSearch}
               onRun={props.actions?.runAnalysis}
-              personalKnowledge={props.personalKnowledge ?? []}
-              onSaveKnowledge={props.actions?.saveKnowledge}
-              onSetKnowledgeEnabled={props.actions?.setKnowledgeEnabled}
-              onDeleteKnowledge={props.actions?.deleteKnowledge}
             />
           </section>
         </div>
@@ -478,20 +466,14 @@ function OverviewSection(props: {
   model: WeaponDetailViewModel;
   onOpenSource?: (source: WeaponSourceEntry) => void;
 }) {
-  const expectCurrent = props.model.context.kind !== "definition";
-  const showCurrent = expectCurrent
+  const preferCurrentValues = props.model.context.kind !== "definition"
     && props.model.stats.some((stat) => stat.current_value !== undefined);
-  const showStandard = props.model.stats.some((stat) => stat.standard_value !== undefined);
-  const showPending = props.model.context.kind === "account_instance"
-    && props.model.stats.some((stat) => stat.pending_delta !== undefined && stat.pending_delta !== 0);
-  const statSource = props.model.context.kind === "account_instance"
-    ? "资料库定义 + 当前装备"
-    : props.model.context.kind === "vendor_offer"
-      ? "资料库定义 + 商人当前售卖"
-      : "资料库定义";
+  const statSource = preferCurrentValues
+    ? props.model.context.kind === "vendor_offer" ? "当前售卖数值" : "当前数值"
+    : "资料库数值";
   return (
     <>
-      <SectionHeading eyebrow="属性与获取" title="属性与获取详情" description="区分资料库标准值、这件武器的实际值和待应用配置变化。" />
+      <SectionHeading eyebrow="属性与获取" title="武器数值与获取方式" description="属性只保留当前可用数值；获取入口区分当前状态与历史记录。" />
       <div className="weapon-detail-overview-grid">
         <section className="weapon-detail-block" aria-labelledby="weapon-stat-title">
           <DataBlockHeading
@@ -500,24 +482,15 @@ function OverviewSection(props: {
             source={`${statSource} · ${props.model.stats.length} 项`}
           />
           {props.model.stats.length ? (
-            <div className="weapon-detail-stats">
-              <div className="weapon-detail-stat-legend">
-                {expectCurrent ? <span><i className="is-current" />{showCurrent ? "当前实际值" : props.model.loading_state.instance ? "当前实际值读取中" : "当前实际值未返回"}</span> : null}
-                {expectCurrent || showStandard ? <span><i className="is-standard" />{showStandard ? "资料库标准值" : props.model.loading_state.definition ? "资料库标准值读取中" : "资料库标准值未返回"}</span> : null}
-                {showPending ? <span><i className="is-pending" />待应用变化</span> : null}
-              </div>
+            <dl className="weapon-detail-stats">
               {props.model.stats.map((stat) => (
-                <StatTrack
+                <StatValue
                   key={stat.key}
                   stat={stat}
-                  expectCurrent={expectCurrent}
-                  showStandard={showStandard}
-                  showPending={showPending}
-                  isDefinitionLoading={props.model.loading_state.definition}
-                  isInstanceLoading={props.model.loading_state.instance}
+                  preferCurrent={preferCurrentValues}
                 />
               ))}
-            </div>
+            </dl>
           ) : <EmptyState text="当前定义没有可显示的武器属性。" />}
         </section>
         <section className="weapon-detail-block" aria-labelledby="weapon-source-title">
@@ -577,95 +550,24 @@ function OverviewSection(props: {
   );
 }
 
-function StatTrack(props: {
+function StatValue(props: {
   stat: WeaponStatTrack;
-  expectCurrent: boolean;
-  showStandard: boolean;
-  showPending: boolean;
-  isDefinitionLoading: boolean;
-  isInstanceLoading: boolean;
+  preferCurrent: boolean;
 }) {
   const { stat } = props;
-  const hasCurrent = props.expectCurrent && stat.current_value !== undefined;
-  const maximum = Math.max(100, stat.standard_value ?? 0, stat.current_value ?? 0, stat.pending_value ?? 0);
-  const currentPercent = ((stat.current_value ?? 0) / maximum) * 100;
-  const pendingPercent = ((stat.pending_value ?? stat.current_value ?? 0) / maximum) * 100;
-  const style = {
-    "--weapon-standard": `${((stat.standard_value ?? 0) / maximum) * 100}%`,
-    "--weapon-current": `${currentPercent}%`,
-    "--weapon-pending-start": `${Math.min(currentPercent, pendingPercent)}%`,
-    "--weapon-pending-size": `${Math.abs(pendingPercent - currentPercent)}%`
-  } as CSSProperties;
-  const currentTone = stat.current_delta ? statDeltaTone(stat, stat.current_delta) : "neutral";
-  const pendingTone = stat.pending_delta ? statDeltaTone(stat, stat.pending_delta) : "neutral";
-  const currentText = stat.current_delta === undefined
-    ? undefined
-    : stat.current_delta === 0
-      ? "与标准一致"
-      : `当前 ${stat.current_delta > 0 ? "+" : ""}${stat.current_delta} · ${toneLabel(currentTone)}`;
-  const pendingText = stat.pending_delta
-    ? `${stat.pending_delta > 0 ? "+" : ""}${stat.pending_delta} → ${stat.pending_value} · ${toneLabel(pendingTone)}`
-    : "无变化";
-  const currentModifierText = stat.current_modifiers.length
-    ? formatStatModifiers(stat.current_modifiers)
-    : "";
-  const pendingModifierText = stat.pending_modifiers.length
-    ? formatStatModifiers(stat.pending_modifiers)
-    : "";
-  const primaryValue = hasCurrent ? stat.current_value : stat.standard_value;
+  const primaryValue = props.preferCurrent
+    ? stat.current_value ?? stat.standard_value
+    : stat.standard_value ?? stat.current_value;
+  const pendingValue = stat.pending_delta ? stat.pending_value : undefined;
+  const value = pendingValue !== undefined && pendingValue !== primaryValue
+    ? `${primaryValue ?? "—"} → ${pendingValue}`
+    : primaryValue ?? "—";
   return (
-    <div className={[
-      "weapon-detail-stat-row",
-      !hasCurrent && "is-definition",
-      props.expectCurrent && "has-standard"
-    ].filter(Boolean).join(" ")} style={style}>
-      <strong>{stat.label}</strong>
-      <span className="weapon-detail-stat-value">{primaryValue ?? "—"}</span>
-      <span className="weapon-detail-stat-track" aria-hidden="true">
-        {hasCurrent ? <i /> : null}
-        {props.showStandard && stat.standard_value !== undefined ? <b /> : null}
-        {props.showPending && stat.pending_delta ? <em className={stat.pending_delta > 0 ? "is-increase" : "is-decrease"} /> : null}
-      </span>
-      {props.expectCurrent ? (
-        <span className="weapon-detail-stat-comparison">
-          {stat.standard_value !== undefined ? (
-            <small>标准 {stat.standard_value}</small>
-          ) : <small>{props.isDefinitionLoading ? "标准值读取中" : "标准值未返回"}</small>}
-          {hasCurrent
-            ? (
-              <small className={`is-${currentTone}`} title={currentModifierText || undefined}>
-                {[currentText ?? "当前值已读取", currentModifierText].filter(Boolean).join(" · ")}
-              </small>
-            )
-            : <small>{props.isInstanceLoading ? "实际值读取中" : "实际值未返回"}</small>}
-          {props.showPending ? (
-            <small className={`is-${pendingTone}`} title={pendingModifierText || undefined}>
-              {[
-                `待应用 ${pendingText}`,
-                pendingModifierText
-              ].filter(Boolean).join(" · ")}
-            </small>
-          ) : null}
-        </span>
-      ) : null}
+    <div className="weapon-detail-stat-row" data-pending={pendingValue !== undefined ? "true" : undefined}>
+      <dt>{stat.label}</dt>
+      <dd>{value}</dd>
     </div>
   );
-}
-
-function statDeltaTone(stat: WeaponStatTrack, delta: number): "improved" | "worsened" | "neutral" {
-  if (!delta || stat.direction === "neutral") return "neutral";
-  const improved = stat.direction === "higher" ? delta > 0 : delta < 0;
-  return improved ? "improved" : "worsened";
-}
-
-function toneLabel(tone: "improved" | "worsened" | "neutral"): string {
-  return tone === "improved" ? "改善" : tone === "worsened" ? "降低" : "变化";
-}
-
-function formatStatModifiers(modifiers: WeaponStatTrack["current_modifiers"]): string {
-  return modifiers.map((modifier) => (
-    `${modifier.source} ${modifier.amount > 0 ? "+" : ""}${modifier.amount}`
-  )).join(" / ");
 }
 
 function ConfigurationSection(props: {
@@ -1605,24 +1507,12 @@ function AnalysisSection(props: {
   allowExternalSearch: boolean;
   onAllowExternalSearchChange: (value: boolean) => void;
   onRun?: (request: { prompt: string; allow_external_search: boolean }) => void;
-  personalKnowledge: PersonalWeaponKnowledgeEntry[];
-  onSaveKnowledge?: (draft: SavePersonalWeaponKnowledgeInput["entry"]) => void;
-  onSetKnowledgeEnabled?: (id: string, enabled: boolean) => void;
-  onDeleteKnowledge?: (id: string) => void;
 }) {
   const status = props.analysis?.status ?? "idle";
   const isFixedExotic = props.model.identity.is_exotic && props.model.configuration.kind === "fixed";
-  const [knowledgeMode, setKnowledgeMode] = useState<"pve" | "pvp" | "general">("general");
-  const [knowledgeTitle, setKnowledgeTitle] = useState("");
-  const [knowledgePerks, setKnowledgePerks] = useState("");
-  const [knowledgeMasterwork, setKnowledgeMasterwork] = useState("");
-  const [knowledgeMod, setKnowledgeMod] = useState("");
-  const [knowledgeReason, setKnowledgeReason] = useState("");
-  const [knowledgeUrl, setKnowledgeUrl] = useState("");
-  const [editingKnowledgeId, setEditingKnowledgeId] = useState<string | undefined>();
   return (
     <>
-      <SectionHeading eyebrow="AI 分析" title="结合这件武器与知识库分析" description="用户指定知识优先，其次使用内置知识库，AI 外部查询优先级最低。" />
+      <SectionHeading eyebrow="AI 分析" title="结合这件武器与推荐来源分析" description="AI 只提供辅助解释，不修改装备、标签或推荐数据。" />
       <div className="weapon-detail-ai-layout">
         <div className="weapon-detail-ai-analysis">
           {props.analysis?.message ? <p className={`status-message status-${status === "error" ? "error" : status === "ready" ? "ready" : "pending"}`} role="status">{props.analysis.message}</p> : null}
@@ -1641,68 +1531,10 @@ function AnalysisSection(props: {
             <textarea id="weapon-analysis-prompt" value={props.prompt} onChange={(event) => props.onPromptChange(event.target.value)} placeholder={isFixedExotic ? "例如：结合固定配置、当前催化剂状态和获取来源，分析 PvE 使用方向。" : "例如：结合这件武器的全部可切换 Perk，分析 PvE 推荐匹配情况。"} />
             <label className="weapon-detail-ai-external"><input type="checkbox" checked={props.allowExternalSearch} onChange={(event) => props.onAllowExternalSearchChange(event.target.checked)} />允许 AI 查询外部知识，必须保留引用</label>
             <button type="button" data-ui-kind="button" data-control-variant="ai" data-control-size="prominent" disabled={!props.onRun || status === "running"} onClick={() => props.onRun?.({ prompt: props.prompt, allow_external_search: props.allowExternalSearch })}>{status === "running" ? "分析中..." : "结合全部来源分析"}</button>
-            <small>AI 结果不会自动进入可靠数据区，保存前必须由用户确认。</small>
+            <small>AI 结果仅供参考，不会写入装备或推荐数据。</small>
           </div>
         </aside>
       </div>
-      <section className="weapon-detail-knowledge">
-        <div className="weapon-detail-block-heading"><h4>个人知识</h4><span>确认后持久化</span></div>
-        {props.personalKnowledge.length ? (
-          <div className="weapon-detail-knowledge-list">
-            {props.personalKnowledge.map((entry) => (
-              <article key={entry.id}>
-                <div><strong>{entry.title}</strong><span>{entry.mode.toUpperCase()} · {entry.origin === "confirmed_external" ? "用户确认的外部知识" : "用户知识"} · {entry.enabled ? "已启用" : "已停用"}</span></div>
-                <p>{entry.reason || entry.perk_options.flatMap((option) => option.names).join(" / ")}</p>
-                <small>更新时间：{formatStandardDateTime(entry.updated_at, "未知")}</small>
-                {entry.external_url ? <a href={entry.external_url} target="_blank" rel="noreferrer">查看保存的外部依据</a> : null}
-                <div>
-                  <button type="button" onClick={() => {
-                    setEditingKnowledgeId(entry.id);
-                    setKnowledgeMode(entry.mode);
-                    setKnowledgeTitle(entry.title);
-                    setKnowledgePerks(entry.perk_options.map((option) => `${option.column_key}: ${option.names.join("/")}`).join("；"));
-                    setKnowledgeMasterwork(entry.masterwork_names.join(" / "));
-                    setKnowledgeMod(entry.mod_names.join(" / "));
-                    setKnowledgeReason(entry.reason);
-                    setKnowledgeUrl(entry.external_url ?? "");
-                  }}>修改</button>
-                  <button type="button" onClick={() => props.onSetKnowledgeEnabled?.(entry.id, !entry.enabled)}>{entry.enabled ? "停用" : "启用"}</button>
-                  <button type="button" onClick={() => props.onDeleteKnowledge?.(entry.id)}>删除</button>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : <EmptyState text="还没有为这件武器保存个人知识。" />}
-        {props.onSaveKnowledge ? (
-          <div className="weapon-detail-knowledge-form">
-            <label>模式<select value={knowledgeMode} onChange={(event) => setKnowledgeMode(event.target.value as typeof knowledgeMode)}><option value="general">通用</option><option value="pve">PvE</option><option value="pvp">PvP</option></select></label>
-            <label>推荐名称<input value={knowledgeTitle} onChange={(event) => setKnowledgeTitle(event.target.value)} placeholder="例如：高难 PvE 通用配置" /></label>
-            {!isFixedExotic ? <label>推荐 Perk<input value={knowledgePerks} onChange={(event) => setKnowledgePerks(event.target.value)} placeholder="枪管: A/B；Perk 1: C/D" /></label> : null}
-            {!isFixedExotic ? <label>大师杰作<input value={knowledgeMasterwork} onChange={(event) => setKnowledgeMasterwork(event.target.value)} /></label> : null}
-            {!isFixedExotic ? <label>武器模组<input value={knowledgeMod} onChange={(event) => setKnowledgeMod(event.target.value)} /></label> : null}
-            <label className="is-wide">外部依据链接<input type="url" value={knowledgeUrl} onChange={(event) => setKnowledgeUrl(event.target.value)} placeholder="可选；保存外部知识时保留原始链接" /></label>
-            <label className="is-wide">理由<textarea value={knowledgeReason} onChange={(event) => setKnowledgeReason(event.target.value)} placeholder={props.analysis?.body ? "可根据上方 AI 结论整理" : "说明适用玩法和理由"} /></label>
-            <button
-              type="button"
-              disabled={!knowledgeTitle.trim()}
-              onClick={() => props.onSaveKnowledge?.({
-                id: editingKnowledgeId,
-                weapon_name: props.model.identity.name,
-                weapon_hash: props.model.identity.hash,
-                mode: knowledgeMode,
-                title: knowledgeTitle.trim(),
-                perk_options: isFixedExotic ? [] : parseKnowledgePerkOptions(knowledgePerks),
-                masterwork_names: isFixedExotic ? [] : splitKnowledgeValues(knowledgeMasterwork),
-                mod_names: isFixedExotic ? [] : splitKnowledgeValues(knowledgeMod),
-                reason: knowledgeReason.trim() || props.analysis?.body || "",
-                enabled: true,
-                origin: knowledgeUrl.trim() ? "confirmed_external" : "user",
-                external_url: knowledgeUrl.trim() || undefined
-              })}
-            >{editingKnowledgeId ? "确认并更新" : "确认并保存"}</button>
-          </div>
-        ) : null}
-      </section>
     </>
   );
 }
@@ -1938,20 +1770,4 @@ function sameLabel(left?: string, right?: string): boolean {
 
 function matchFactLabel(hasObject: boolean, matched: boolean): string {
   return hasObject ? matched ? "命中" : "未命中" : "未选择实际对象";
-}
-
-function splitKnowledgeValues(value: string): string[] {
-  return [...new Set(value.split(/[\/、,，]/).map((item) => item.trim()).filter(Boolean))];
-}
-
-function parseKnowledgePerkOptions(value: string): Array<{ column_key: string; names: string[] }> {
-  return value.split(/[；;\n]/).flatMap((segment, index) => {
-    const [rawColumn, ...rawNames] = segment.split(/[:：]/);
-    const names = splitKnowledgeValues(rawNames.length ? rawNames.join(":") : rawColumn);
-    if (!names.length) return [];
-    return [{
-      column_key: rawNames.length ? rawColumn.trim() || `Perk ${index + 1}` : `Perk ${index + 1}`,
-      names
-    }];
-  });
 }

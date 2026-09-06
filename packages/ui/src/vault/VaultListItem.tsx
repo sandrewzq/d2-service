@@ -281,11 +281,11 @@ function getItemSourceKind(item: AccountItemSummary): "equipped" | "inventory" |
 }
 
 function dispositionLabel(tag: "none" | "keep" | "review" | "junk"): string {
-  return tag === "none" ? "未标记" : tag === "review" ? "待复查" : tagLabels[tag];
+  return tag === "none" ? "未标记" : tag === "review" ? "待定" : tagLabels[tag];
 }
 
 function dispositionShortLabel(tag: "none" | "keep" | "review" | "junk"): string {
-  if (tag === "review") return "待查";
+  if (tag === "review") return "待定";
   if (tag === "junk") return "清理";
   return dispositionLabel(tag);
 }

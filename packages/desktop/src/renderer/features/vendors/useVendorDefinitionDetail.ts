@@ -4,8 +4,6 @@ import {
   type VendorOfferContextView
 } from "@d2-tools/ui";
 import type { WeaponRecommendation } from "@d2-tools/core/community-perks";
-import type { PersonalWeaponKnowledgeEntry } from "@d2-tools/core/community-perks/personalWeaponKnowledge";
-import type { SavePersonalWeaponKnowledgeInput } from "@d2-tools/core/community-perks/personalWeaponKnowledge";
 import type { ItemAiAdviceResult, VaultTags } from "../../api/types";
 import {
   buildLibraryVendorLiveEntry,
@@ -25,7 +23,6 @@ export type VendorDefinitionDetailState = {
   liveEntry?: LiveItemAvailabilityEntry;
   communityMatch?: VaultItemMatchInfo;
   recommendations?: WeaponRecommendation | null;
-  personalKnowledge: PersonalWeaponKnowledgeEntry[];
   aiResult: ItemAiAdviceResult | null;
   aiError: string;
   isGeneratingAi: boolean;
@@ -63,7 +60,6 @@ export function useVendorDefinitionDetail(input: { vendorSourcePaths?: Map<numbe
       offerItem: item,
       context,
       liveEntry: fallbackLiveEntry,
-      personalKnowledge: [],
       aiResult: null,
       aiError: "",
       isGeneratingAi: false,
@@ -75,7 +71,7 @@ export function useVendorDefinitionDetail(input: { vendorSourcePaths?: Map<numbe
     const resolvedItemHashPromise = detailPromise
       .then((detail) => detail.hash)
       .catch(() => itemHash);
-    const [detailResult, availabilityResult, communityResult, recommendationsResult, knowledgeResult] = await Promise.allSettled([
+    const [detailResult, availabilityResult, communityResult, recommendationsResult] = await Promise.allSettled([
       detailPromise,
       api.getLiveItemAvailability([itemHash]),
       resolvedItemHashPromise.then((resolvedItemHash) => (
@@ -83,8 +79,7 @@ export function useVendorDefinitionDetail(input: { vendorSourcePaths?: Map<numbe
       )),
       resolvedItemHashPromise.then((resolvedItemHash) => (
         api.getCommunityPerkRecommendations(resolvedItemHash, { item_name: item.name })
-      )),
-      api.getPersonalWeaponKnowledge(item.name)
+      ))
     ]);
     if (requestSequence !== requestSequenceRef.current) return;
 
@@ -103,7 +98,6 @@ export function useVendorDefinitionDetail(input: { vendorSourcePaths?: Map<numbe
       liveEntry,
       communityMatch,
       recommendations: recommendationsResult.status === "fulfilled" ? recommendationsResult.value : null,
-      personalKnowledge: knowledgeResult.status === "fulfilled" ? knowledgeResult.value.entries : [],
       isBusy: false,
       error: detailResult.status === "rejected"
         ? detailResult.reason instanceof Error
@@ -116,58 +110,6 @@ export function useVendorDefinitionDetail(input: { vendorSourcePaths?: Map<numbe
   function close() {
     requestSequenceRef.current += 1;
     setState(null);
-  }
-
-  async function saveKnowledge(draft: SavePersonalWeaponKnowledgeInput["entry"]): Promise<void> {
-    if (!state) return;
-    const summary = [
-      `武器：${draft.weapon_name || state.item.name}`,
-      `模式：${draft.mode.toUpperCase()}`,
-      `推荐：${draft.title}`,
-      draft.perk_options.length ? `Perk：${draft.perk_options.flatMap((option) => option.names).join(" / ")}` : "",
-      draft.masterwork_names.length ? `大师杰作：${draft.masterwork_names.join(" / ")}` : "",
-      draft.mod_names.length ? `模组：${draft.mod_names.join(" / ")}` : "",
-      draft.reason ? `理由：${draft.reason}` : "",
-      draft.external_url ? `外部依据：${draft.external_url}` : "",
-      "",
-      "确认保存到我的推荐吗？保存后将优先于应用推荐。"
-    ].filter(Boolean).join("\n");
-    if (!window.confirm(summary)) return;
-    try {
-      const table = await api.savePersonalWeaponKnowledge({ confirmed: true, entry: draft });
-      setState((current) => current ? {
-        ...current,
-        personalKnowledge: table.entries.filter((entry) => sameWeaponName(entry.weapon_name, current.item.name)),
-        aiError: ""
-      } : current);
-    } catch (error) {
-      setState((current) => current ? { ...current, aiError: error instanceof Error ? error.message : "我的推荐保存失败" } : current);
-    }
-  }
-
-  async function setKnowledgeEnabled(id: string, enabled: boolean): Promise<void> {
-    try {
-      const table = await api.setPersonalWeaponKnowledgeEnabled(id, enabled);
-      setState((current) => current ? {
-        ...current,
-        personalKnowledge: table.entries.filter((entry) => sameWeaponName(entry.weapon_name, current.item.name))
-      } : current);
-    } catch (error) {
-      setState((current) => current ? { ...current, aiError: error instanceof Error ? error.message : "我的推荐更新失败" } : current);
-    }
-  }
-
-  async function deleteKnowledge(id: string): Promise<void> {
-    if (!window.confirm("确认删除这条我的推荐吗？")) return;
-    try {
-      const table = await api.deletePersonalWeaponKnowledge(id);
-      setState((current) => current ? {
-        ...current,
-        personalKnowledge: table.entries.filter((entry) => sameWeaponName(entry.weapon_name, current.item.name))
-      } : current);
-    } catch (error) {
-      setState((current) => current ? { ...current, aiError: error instanceof Error ? error.message : "我的推荐删除失败" } : current);
-    }
   }
 
   async function generateAi(userKnowledge = "", allowExternalSearch = false): Promise<void> {
@@ -199,7 +141,6 @@ export function useVendorDefinitionDetail(input: { vendorSourcePaths?: Map<numbe
         },
         tags: input.vaultTags ?? { items: {} },
         user_knowledge: userKnowledge.trim() || undefined,
-        personal_knowledge: current.item.group_key === "weapons" ? current.personalKnowledge : [],
         builtin_knowledge: current.item.group_key === "weapons" ? current.recommendations ?? null : null,
         allow_external_search: allowExternalSearch,
         weapon_context: current.item.group_key === "weapons" ? {
@@ -234,9 +175,5 @@ export function useVendorDefinitionDetail(input: { vendorSourcePaths?: Map<numbe
     }
   }
 
-  return { state, open, close, saveKnowledge, setKnowledgeEnabled, deleteKnowledge, generateAi };
-}
-
-function sameWeaponName(left: string, right: string): boolean {
-  return left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
+  return { state, open, close, generateAi };
 }

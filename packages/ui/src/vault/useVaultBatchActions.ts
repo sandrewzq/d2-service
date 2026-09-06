@@ -1,21 +1,16 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { AccountItemSummary } from "@d2-tools/core/account/summary";
-import type { SaveVaultTagInput, VaultTags, VaultTagValue } from "@d2-tools/core/vault/tags";
+import type { SaveVaultTagInput, VaultTagValue } from "@d2-tools/core/vault/tags";
 import {
   buildVaultBatchTagCopy,
   buildVaultBatchTagResultMessage,
   buildVaultBulkMoveResultMessage,
-  buildVaultCandidateSelectionMessage,
   buildVaultCleanupActionLabel,
   buildVaultCleanupActionProgressMessage,
-  buildVaultCleanupClipboardText,
-  buildVaultCleanupClipboardUnavailableMessage,
-  buildVaultCleanupCopiedMessage,
   buildVaultCleanupNoTargetMessage,
   buildVaultSelectedBulkMoveNoSelectionMessage,
   buildVaultSelectedBulkMovePrepareMessage,
-  getVaultSelectionItemKey,
-  selectVaultBatchItems
+  getVaultSelectionItemKey
 } from "@d2-tools/app/vault";
 
 export type BatchItemActionResult = {
@@ -38,42 +33,16 @@ export function useVaultBatchActions(input: {
   selectedItems: AccountItemSummary[];
   vaultActionItems?: AccountItemSummary[];
   cleanupActionItems: AccountItemSummary[];
-  filteredItems: AccountItemSummary[];
-  tags: VaultTags;
-  isCleanupMode: boolean;
   cleanupActions?: VaultCleanupActions;
   cleanupTargetCharacterId: string;
   cleanupTargetCharacterLabel: string;
   cleanupProtectionByItemKey?: Map<string, string[]>;
   setSelectedKeys: Dispatch<SetStateAction<Set<string>>>;
-  setIsOrganizing: (value: boolean) => void;
-  setIsCleanupMode: (value: boolean) => void;
   onSaveTagBatch: (inputs: SaveVaultTagInput[]) => void | Promise<void>;
 }) {
   const [batchMessage, setBatchMessage] = useState("");
   const [isBatchSaving, setIsBatchSaving] = useState(false);
   const [activeBatchAction, setActiveBatchAction] = useState("");
-
-  function mergeSelectedKeys(keys: string[]) {
-    if (!keys.length) {
-      setBatchMessage(buildVaultCandidateSelectionMessage({ addedCount: 0, totalCount: 0 }));
-      return;
-    }
-
-    input.setSelectedKeys((current) => {
-      const next = new Set(current);
-      for (const key of keys) {
-        next.add(key);
-      }
-      setBatchMessage(buildVaultCandidateSelectionMessage({
-        addedCount: keys.length,
-        totalCount: next.size
-      }));
-      return next;
-    });
-    input.setIsOrganizing(true);
-    input.setIsCleanupMode(false);
-  }
 
   async function applyBatchTag(tag: VaultTagValue) {
     const copy = buildVaultBatchTagCopy(tag);
@@ -97,7 +66,7 @@ export function useVaultBatchActions(input: {
         })));
       }
       setBatchMessage(protectedItems.length
-        ? `已处理 ${writableItems.length} 件；${protectedItems.length} 件受保护，未改为待处理。`
+        ? `已处理 ${writableItems.length} 件；${protectedItems.length} 件受保护，未改为清理。`
         : buildVaultBatchTagResultMessage(writableItems.length));
       input.setSelectedKeys(new Set());
     } catch (error) {
@@ -136,20 +105,6 @@ export function useVaultBatchActions(input: {
     }
   }
 
-  async function copyCleanupList() {
-    const cleanupItems = input.isCleanupMode
-      ? input.cleanupActionItems
-      : input.selectedItems.length
-      ? input.selectedItems
-      : selectVaultBatchItems(input.filteredItems, "junk", input.tags);
-    try {
-      await navigator.clipboard.writeText(buildVaultCleanupClipboardText(cleanupItems, input.tags));
-      setBatchMessage(buildVaultCleanupCopiedMessage(cleanupItems.length));
-    } catch {
-      setBatchMessage(buildVaultCleanupClipboardUnavailableMessage());
-    }
-  }
-
   async function runCleanupAction(action: "unlock" | "transfer") {
     if (!input.cleanupActions) return;
     if (!input.cleanupTargetCharacterId) {
@@ -181,9 +136,7 @@ export function useVaultBatchActions(input: {
     activeBatchAction,
     applyBatchTag,
     batchMessage,
-    copyCleanupList,
     isBatchSaving,
-    mergeSelectedKeys,
     runCleanupAction,
     runSelectedBulkMove,
     setBatchMessage,

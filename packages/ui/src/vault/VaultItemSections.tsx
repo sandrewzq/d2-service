@@ -7,6 +7,7 @@ import { MemoizedVaultListItem as VaultListItem } from "./VaultListItem.js";
 import { getVaultItemKey } from "@d2-tools/app/vault";
 import {
   canonicalVaultRecommendationSourceId,
+  selectVaultRecommendationSourceSummaries,
   type VaultRecommendationSummaryIndex
 } from "./vaultRecommendationMatch.js";
 import { VaultVirtualWeaponGrid } from "./VaultVirtualWeaponGrid.js";
@@ -66,13 +67,14 @@ export function VaultItemSections(props: {
     [renderedSections]
   );
   const buildCardItem = useCallback((item: AccountItemSummary) => {
-    const allSourceSummaries = item.group_key === "weapons"
+    const sourceRuleSummaries = item.group_key === "weapons"
       ? props.recommendationSummaryByInstance?.get(item.instance_id ?? `hash:${item.hash}`) ?? []
       : [];
+    const allSourceSummaries = selectVaultRecommendationSourceSummaries(sourceRuleSummaries);
     const orderedSourceSummaries = props.preferredRecommendationSourceId
       ? [...allSourceSummaries].sort((left, right) => (
-          Number(canonicalVaultRecommendationSourceId(right.sourceId) === props.preferredRecommendationSourceId)
-          - Number(canonicalVaultRecommendationSourceId(left.sourceId) === props.preferredRecommendationSourceId)
+          Number(canonicalVaultRecommendationSourceId(right.sourceId) === canonicalVaultRecommendationSourceId(props.preferredRecommendationSourceId ?? ""))
+          - Number(canonicalVaultRecommendationSourceId(left.sourceId) === canonicalVaultRecommendationSourceId(props.preferredRecommendationSourceId ?? ""))
         ))
       : allSourceSummaries;
     const tagValue: VaultTagValue = props.tags.items[getVaultItemKey(item)]?.tag ?? "none";

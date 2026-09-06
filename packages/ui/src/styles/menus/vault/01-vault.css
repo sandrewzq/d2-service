@@ -312,7 +312,7 @@
   background: var(--surface-toolbar);
 }
 
-.vault-batch-panel span {
+.vault-batch-panel > span {
   margin-right: auto;
   color: var(--text-title);
   font-weight: 600;

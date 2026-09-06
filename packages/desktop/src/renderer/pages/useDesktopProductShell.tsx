@@ -13,14 +13,13 @@ import {
 } from "@d2-tools/ui";
 import { buildVendorItemSourcePaths } from "@d2-tools/app/vendors";
 import { getAllKnownAccountItemsWithSource } from "@d2-tools/app/loadouts";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { AccountSummary, AppUpdateSnapshot, BackgroundTaskSnapshot, ManifestStatus, StartupState } from "../api/types";
 import { GlobalAssistantSidebar } from "../components/GlobalAssistantSidebar";
 import { useAccountWorkspace } from "../features/account/useAccountWorkspace";
 import { useDailySummary } from "../features/daily/useDailySummary";
 import { useHomePageDerivedState } from "../features/home/useHomePageDerivedState";
-import { useGuideLibrary } from "../features/guides/useGuideLibrary";
 import { useLibraryWorkspace } from "../features/library/useLibraryWorkspace";
 import { useLoadoutTemplates } from "../features/loadouts/useLoadoutTemplates";
 import { useLocalLoadoutPlans } from "../features/loadouts/useLocalLoadoutPlans";
@@ -53,7 +52,11 @@ export function useDesktopProductShell(props: {
     props.state.cards.bungieConfig.status === "missing" ? "bungie" : "overview"
   );
   const [assistantMode, setAssistantMode] = useState<ShellAssistantMode>(null);
-  const [vaultFacts, setVaultFacts] = useState<string[]>([]);
+  const vaultFactsRef = useRef<string[]>([]);
+  const setVaultFacts = useCallback((facts: string[]) => {
+    if (sameStringArray(vaultFactsRef.current, facts)) return;
+    vaultFactsRef.current = facts;
+  }, []);
   const [vaultLocateRequest, setVaultLocateRequest] = useState<{
     hash: number;
     name: string;
@@ -142,10 +145,6 @@ export function useDesktopProductShell(props: {
     diagnostics.manifestStatus?.version
   ]);
   const library = useLibraryWorkspace({ vendorSourcePaths });
-  const guides = useGuideLibrary({
-    active: activePage === "guides",
-    onEquipmentTargetStoreChanged: setEquipmentTargetStore
-  });
   const loadoutLibrary = useLoadoutTemplates();
   const cleanupProtectedItemKeys = useMemo(() => ({
     instanceIds: new Set([
@@ -295,12 +294,20 @@ export function useDesktopProductShell(props: {
     accountSummary,
     selectedCharacterId,
     activeLoadoutTemplate,
-    vaultFacts,
     library,
     diagnostics
   });
   const currentPageMeta = homeDerivedState.currentPageMeta;
-  const assistantPageContext = homeDerivedState.assistantPageContext;
+  const baseAssistantPageContext = homeDerivedState.assistantPageContext;
+  const getAssistantPageContext = useCallback(() => (
+    activePage === "vault" && vaultFactsRef.current.length
+      ? {
+          ...baseAssistantPageContext,
+          facts: [...baseAssistantPageContext.facts, ...vaultFactsRef.current]
+        }
+      : baseAssistantPageContext
+  ), [activePage, baseAssistantPageContext]);
+  const assistantPageContext = getAssistantPageContext();
   const isAiConfigured = homeDerivedState.isAiConfigured;
   const appUpdateSnapshot = diagnostics.appUpdateSnapshot;
   const shellStatus = buildShellStatus({
@@ -376,7 +383,6 @@ export function useDesktopProductShell(props: {
     daily,
     diagnostics,
     home: homeDerivedState,
-    guides,
     library,
     loadouts: loadoutLibrary,
     localLoadoutPlans,
@@ -393,6 +399,7 @@ export function useDesktopProductShell(props: {
       daily={daily.dailySummary}
       activity={activitySummary}
       pageContext={assistantPageContext}
+      getPageContext={getAssistantPageContext}
       tags={vaultTags}
       isLoadingAccount={isLoadingAccount}
       onLoadAccount={() => void refreshAccountManually()}
@@ -401,16 +408,6 @@ export function useDesktopProductShell(props: {
         setAssistantMode(null);
       }}
       onOpenArtifact={(artifact) => {
-        if (artifact.kind === "guide_capture") {
-          guides.startImportText({
-            title: artifact.title,
-            body: artifact.raw_text,
-            sourceLabel: "AI 工作台整理"
-          });
-          setActivePage("guides");
-          setAssistantMode(null);
-          return;
-        }
         localLoadoutPlans.prefillFromAssistant(artifact);
         setActivePage("loadouts");
         setAssistantMode(null);
@@ -745,7 +742,7 @@ function formatAppVersion(version: string): string {
 }
 
 function isShellPageKey(value: string | undefined): value is ShellPageKey {
-  return value === "home" || value === "account" || value === "vault" || value === "loadouts" || value === "guides" || value === "library" || value === "vendors" || value === "settings";
+  return value === "home" || value === "account" || value === "vault" || value === "loadouts" || value === "library" || value === "vendors" || value === "settings";
 }
 
 function isColorMode(value: string | undefined): value is "light" | "dark" {
@@ -774,4 +771,8 @@ function getManifestStatusTone(status: ManifestStatus | null): ShellStatusItem["
   if (!status) return "neutral";
   if (!status.initialized || status.missing_required_components?.length || status.needs_update) return "warning";
   return "ready";
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

@@ -4,6 +4,7 @@ import { gameAssetCacheName, persistGameAsset, readCachedGameAsset, releaseCache
 const MAX_RETAINED_GAME_ASSETS = 384;
 const retainedGameAssets = new Map<string, HTMLImageElement>();
 const pendingGameAssets = new Map<string, HTMLImageElement>();
+const loadedGameAssets = new Set<string>();
 
 export type GameAssetImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "onError"> & {
   src?: string | null;
@@ -40,8 +41,10 @@ export function GameAssetImage({
     loadedSrcRef.current = undefined;
     if (!normalizedSrc) return;
 
+    const wasLoaded = loadedGameAssets.has(gameAssetKey(normalizedSrc, assetNamespace));
     touchRetainedGameAsset(normalizedSrc, assetNamespace);
     if (loading === "eager") preloadGameAsset(normalizedSrc, assetNamespace);
+    if (wasLoaded) return;
 
     let disposed = false;
     void readCachedGameAsset(normalizedSrc, assetNamespace).then((url) => {
@@ -89,6 +92,7 @@ export function GameAssetImage({
           return;
         }
         retainedGameAssets.delete(gameAssetKey(normalizedSrc, assetNamespace));
+        loadedGameAssets.delete(gameAssetKey(normalizedSrc, assetNamespace));
         pendingGameAssets.delete(`${gameAssetCacheName(assetNamespace)}\n${normalizedSrc}`);
         setFailedSrc(normalizedSrc);
       }}
@@ -128,6 +132,7 @@ function touchRetainedGameAsset(src: string, namespace?: GameAssetCacheNamespace
 
 function retainGameAsset(src: string, image: HTMLImageElement, namespace?: GameAssetCacheNamespace) {
   const key = gameAssetKey(src, namespace);
+  loadedGameAssets.add(key);
   retainedGameAssets.delete(key);
   retainedGameAssets.set(key, image);
 

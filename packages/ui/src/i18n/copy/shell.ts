@@ -60,7 +60,6 @@ export const shellCopy: Record<InterfaceLocale, LocaleCopy["shell"]> = {
         account: "账号",
         vault: "仓库",
         loadouts: "配装",
-        guides: "攻略",
         library: "资料库",
         vendors: "商人",
         settings: "设置"
@@ -136,7 +135,6 @@ export const shellCopy: Record<InterfaceLocale, LocaleCopy["shell"]> = {
         account: "Account",
         vault: "Vault",
         loadouts: "Loadouts",
-        guides: "Guides",
         library: "Library",
         vendors: "Vendors",
         settings: "Settings"

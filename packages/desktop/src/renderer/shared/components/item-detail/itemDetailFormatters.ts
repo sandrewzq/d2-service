@@ -64,9 +64,9 @@ export function formatWishlistModeLabels(labels: string[]): string[] {
 
 export function formatVaultTagLabel(tag: VaultTagValue): string {
   if (tag === "keep") return "保留";
-  if (tag === "review") return "关注";
+  if (tag === "review") return "待定";
   if (tag === "farm") return "待刷";
   if (tag === "loadout") return "配装用";
-  if (tag === "junk") return "待处理";
+  if (tag === "junk") return "清理";
   return "未标记";
 }

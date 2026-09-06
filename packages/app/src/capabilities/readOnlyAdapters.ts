@@ -1,11 +1,5 @@
 import type { AccountItemSummary, AccountSummary } from "@d2-tools/core/account/summary";
 import type { EvidenceRef } from "@d2-tools/core/evidence/reference";
-import {
-  getGuideCurrentSnapshot,
-  searchGuideDocuments,
-  type GuideDocument
-} from "@d2-tools/core/guides/library";
-import type { GuideExtraction } from "@d2-tools/core/guides/extraction";
 import type { ItemSearchResult } from "@d2-tools/core/items/search";
 import type { PerkSearchResult } from "@d2-tools/core/items/perkSearch";
 import {
@@ -34,9 +28,6 @@ import type {
   AssistantCapabilityResult,
   ArmorPlanCandidate,
   ArmorPlanOutput,
-  GuideSearchResult,
-  GuidesSearchInput,
-  GuidesSearchOutput,
   InspectedLoadout,
   LoadoutsInspectOutput,
   ManifestSearchItem,
@@ -57,10 +48,6 @@ export type AssistantReadOnlyCapabilityDependencies = {
   loadouts: {
     listLocalLoadoutPlans(): Promise<LocalLoadoutPlan[]>;
   };
-  guides: {
-    listGuideDocuments(): Promise<GuideDocument[]>;
-    listGuideExtractions(): Promise<GuideExtraction[]>;
-  };
   armor: {
     plan(job: ArmorPlannerWorkspaceJob): Promise<ArmorPlannerClientRunResult<ArmorPlannerWorkspaceJob>>;
   };
@@ -72,7 +59,6 @@ export type AssistantReadOnlyCapabilityAdapters = readonly [
   AssistantCapabilityAdapter<"account.find-items">,
   AssistantCapabilityAdapter<"vendors.find-offers">,
   AssistantCapabilityAdapter<"loadouts.inspect">,
-  AssistantCapabilityAdapter<"guides.search">,
   AssistantCapabilityAdapter<"armor.plan">
 ];
 
@@ -85,7 +71,6 @@ export function createAssistantReadOnlyCapabilityAdapters(
     createAccountFindItemsAdapter(dependencies.profile),
     createVendorsFindOffersAdapter(dependencies.vendors),
     createLoadoutsInspectAdapter(dependencies.profile, dependencies.loadouts),
-    createGuidesSearchAdapter(dependencies.guides),
     createArmorPlanAdapter(dependencies.armor)
   ];
 }
@@ -268,57 +253,6 @@ export function createLoadoutsInspectAdapter(
         }, context, [localLoadoutsEvidence(context), accountEvidence(context, account)], warnings);
       } catch {
         return failedResult("loadouts.inspect", input, emptyLoadouts(), context, "loadout_inspection_failed", "配装或账号数据读取失败，请稍后重试。");
-      }
-    }
-  };
-}
-
-export function createGuidesSearchAdapter(
-  guides: AssistantReadOnlyCapabilityDependencies["guides"]
-): AssistantCapabilityAdapter<"guides.search"> {
-  return {
-    descriptor: {
-      name: "guides.search",
-      title: "搜索本地攻略",
-      description: "搜索本机攻略摘要、命中章节、正文快照和已人工确认要求。",
-      requires_auth: false,
-      write_mode: "read-only"
-    },
-    async invoke(input, context) {
-      const invalid = validateQuery("guides.search", input, context, emptyGuides());
-      if (invalid) return invalid;
-
-      try {
-        const documents = await guides.listGuideDocuments();
-        const warnings: DomainWarning[] = [];
-        let extractions: GuideExtraction[] = [];
-        try {
-          extractions = await guides.listGuideExtractions();
-        } catch {
-          warnings.push({
-            code: "guide_extractions_unavailable",
-            message: "攻略正文仍可搜索，但当前无法读取人工确认要求。",
-            retryable: true
-          });
-        }
-        const result = findGuides(documents, extractions, input);
-        return completeResult(
-          "guides.search",
-          input,
-          result,
-          context,
-          result.guides.map((guide) => guideEvidence(context, guide)),
-          warnings
-        );
-      } catch {
-        return failedResult(
-          "guides.search",
-          input,
-          emptyGuides(),
-          context,
-          "guide_search_failed",
-          "本地攻略读取失败，请在攻略页检查文件状态后重试。"
-        );
       }
     }
   };
@@ -552,94 +486,6 @@ function inspectLoadout(plan: LocalLoadoutPlan, account: AccountSummary): Inspec
   };
 }
 
-function findGuides(
-  documents: GuideDocument[],
-  extractions: GuideExtraction[],
-  input: GuidesSearchInput
-): GuidesSearchOutput {
-  const query = input.query.trim();
-  const matches = searchGuideDocuments(documents, {
-    query: query === "*" ? "" : query,
-    status: input.status ?? "active",
-    category: input.category?.trim() ?? "",
-    favorites_only: input.favorites_only === true
-  });
-  const extractionBySnapshot = new Map(
-    extractions
-      .filter((extraction) => extraction.status === "confirmed")
-      .map((extraction) => [`${extraction.guide_document_id}:${extraction.source_snapshot_id}`, extraction] as const)
-  );
-  return {
-    guides: matches
-      .slice(0, normalizeLimit(input.limit))
-      .flatMap((document) => {
-        const snapshot = getGuideCurrentSnapshot(document);
-        if (!snapshot) return [];
-        const extraction = extractionBySnapshot.get(`${document.id}:${snapshot.id}`);
-        const accepted = extraction ? new Set(extraction.accepted_candidate_ids) : null;
-        return [{
-          guide_document_id: document.id,
-          title: document.title,
-          category: document.category,
-          tags: [...document.tags],
-          favorite: document.favorite,
-          status: document.status,
-          source_kind: document.source.kind,
-          source_label: document.source.label,
-          source_url: document.source.resolved_url ?? document.source.url,
-          current_snapshot_id: snapshot.id,
-          content_fingerprint: snapshot.content_fingerprint,
-          captured_at: snapshot.captured_at,
-          excerpt: createGuideExcerpt(snapshot.body, 280),
-          matched_sections: findGuideSections(snapshot.sections, query),
-          ...(extraction && accepted ? {
-            confirmed_requirements: {
-              confirmed_at: extraction.confirmed_at ?? extraction.created_at,
-              accepted: extraction.candidates
-                .filter((candidate) => accepted.has(candidate.id))
-                .map((candidate) => ({
-                  kind: candidate.kind,
-                  label: candidate.label,
-                  confidence: candidate.confidence
-                }))
-            }
-          } : {})
-        } satisfies GuideSearchResult];
-      }),
-    total: matches.length
-  };
-}
-
-function findGuideSections(
-  sections: GuideDocument["snapshots"][number]["sections"],
-  query: string
-): GuideSearchResult["matched_sections"] {
-  const terms = query === "*" ? [] : normalizeSearch(query).split(/\s+/).filter(Boolean);
-  const allTerms = sections.filter((section) => {
-    const text = normalizeSearch(`${section.heading ?? ""} ${section.body}`);
-    return terms.length === 0 || terms.every((term) => text.includes(term));
-  });
-  const anyTerm = allTerms.length || terms.length === 0
-    ? allTerms
-    : sections.filter((section) => {
-      const text = normalizeSearch(`${section.heading ?? ""} ${section.body}`);
-      return terms.some((term) => text.includes(term));
-    });
-  const selected = anyTerm.length ? anyTerm : sections.slice(0, 1);
-  return selected.slice(0, 3).map((section) => ({
-    section_id: section.id,
-    heading: section.heading,
-    start_line: section.start_line,
-    end_line: section.end_line,
-    excerpt: createGuideExcerpt(section.body, 420)
-  }));
-}
-
-function createGuideExcerpt(value: string, limit: number): string {
-  const compact = value.replace(/\s+/g, " ").trim();
-  return compact.length <= limit ? compact : `${compact.slice(0, Math.max(1, limit - 1))}…`;
-}
-
 function projectArmorPlan(
   response: ArmorPlannerClientRunResult<ArmorPlannerWorkspaceJob>,
   view: ReturnType<typeof buildArmorPlannerViewModel>
@@ -813,7 +659,7 @@ function failedResult<Name extends AssistantCapabilityName>(
   });
 }
 
-function validateQuery<Name extends "manifest.search-items" | "manifest.search-perks" | "account.find-items" | "vendors.find-offers" | "guides.search">(
+function validateQuery<Name extends "manifest.search-items" | "manifest.search-perks" | "account.find-items" | "vendors.find-offers">(
   kind: Name,
   input: AssistantCapabilityInput<Name>,
   context: AssistantCapabilityAdapterContext,
@@ -871,24 +717,6 @@ function localLoadoutsEvidence(context: AssistantCapabilityAdapterContext): Evid
     observed_at: context.checked_at,
     entity: { type: "local_loadout_plans", id: "current" },
     open_target: { kind: "loadout", id: "local" }
-  };
-}
-
-function guideEvidence(
-  context: AssistantCapabilityAdapterContext,
-  guide: GuideSearchResult
-): EvidenceRef {
-  return {
-    evidence_id: `${context.result_id}:guide:${guide.guide_document_id}`,
-    kind: "local_data",
-    label: `本地攻略：${guide.title}`,
-    observed_at: guide.captured_at,
-    entity: { type: "guide_snapshot", id: guide.current_snapshot_id },
-    open_target: {
-      kind: "guide",
-      id: guide.guide_document_id,
-      secondary_id: guide.current_snapshot_id
-    }
   };
 }
 
@@ -965,10 +793,6 @@ function emptyVendorOffers(): VendorsFindOffersOutput {
 
 function emptyLoadouts(): LoadoutsInspectOutput {
   return { loadouts: [], total: 0 };
-}
-
-function emptyGuides(): GuidesSearchOutput {
-  return { guides: [], total: 0 };
 }
 
 function emptyArmorPlan(mode: ArmorPlannerWorkspaceJob["mode"]): ArmorPlanOutput {

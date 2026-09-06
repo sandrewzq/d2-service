@@ -17,10 +17,6 @@ import type { AccountOperationFeedbackView } from "@d2-tools/app/account";
 import type { VaultRecommendationScanState } from "@d2-tools/app/account";
 import type { ItemSearchResult } from "../../api/types";
 import type { LiveItemAvailabilityEntry } from "@d2-tools/core/items/liveAvailability";
-import type {
-  PersonalWeaponKnowledgeEntry,
-  SavePersonalWeaponKnowledgeInput
-} from "@d2-tools/core/community-perks/personalWeaponKnowledge";
 import { useEffect, useState } from "react";
 import { selectedItemToAccountItem, type ArmorDetailViewModel, type WeaponDetailViewModel } from "@d2-tools/app/items";
 import { api } from "../../api/client";
@@ -63,7 +59,6 @@ export type ItemDetailModalProps = {
   itemAvailability: LiveItemAvailabilityEntry | null;
   itemVersions: ItemSearchResult[];
   isItemVersionsLoading: boolean;
-  personalWeaponKnowledge: PersonalWeaponKnowledgeEntry[];
   sameNameItems: SameNameItemSummary[];
   selectedActionCharacterId: string;
   selectedItem: SelectedItemDetail;
@@ -104,9 +99,6 @@ export type ItemDetailModalProps = {
   onSaveSelectedItemTag: (tag: VaultTagValue) => void;
   onSelectedActionCharacterIdChange: (id: string) => void;
   onSetItemNoteDraft: (value: string) => void;
-  onSavePersonalWeaponKnowledge: (draft: SavePersonalWeaponKnowledgeInput["entry"]) => void;
-  onSetPersonalWeaponKnowledgeEnabled: (id: string, enabled: boolean) => void;
-  onDeletePersonalWeaponKnowledge: (id: string) => void;
 };
 
 export function ItemDetailModal(props: ItemDetailModalProps) {
@@ -136,7 +128,6 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
     recommendations: [
       ...buildWeaponRecommendationViews(
         props.communityRecommendations,
-        props.personalWeaponKnowledge,
         selectedItem
       ),
       ...buildEquipmentTargetWeaponViews(props.equipmentTargetStore, selectedItem)
@@ -211,7 +202,6 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
         weaponModel ? (
           <WeaponDetailContent
             model={weaponModel}
-            personalKnowledge={props.personalWeaponKnowledge}
             recommendationEvidence={{
               sourceMatches: mergeRecommendationSourceDetails(
                 props.communityInstanceMatch?.source_matches ?? [],
@@ -241,7 +231,7 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
               evidence: props.itemAiResult?.ai
                 ? [
                     { label: "模型", value: props.itemAiResult.ai.model },
-                    { label: "知识范围", value: "这件武器、官方数据与本地知识库" }
+                    { label: "分析范围", value: "这件武器、官方数据与推荐来源" }
                   ]
                 : undefined,
               externalSources: props.itemAiResult?.ai?.external_search?.sources,
@@ -257,9 +247,6 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
               loadConfiguration: selectedItem.detail_loaded?.definition && selectedItem.detail_loaded?.instance
                 ? undefined
                 : props.onLoadSelectedItemFullDetail,
-              saveKnowledge: props.onSavePersonalWeaponKnowledge,
-              setKnowledgeEnabled: props.onSetPersonalWeaponKnowledgeEnabled,
-              deleteKnowledge: props.onDeletePersonalWeaponKnowledge,
               stagePerk: (column, perk) => {
                 if (props.isRunningItemAction) return;
                 setPerkWriteFeedback({ status: "idle" });

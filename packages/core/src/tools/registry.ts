@@ -88,7 +88,7 @@ const toolDefinitions: D2ToolDefinition[] = [
     requires_auth: true,
     write_mode: "read-only",
     input_schema: objectSchema({
-      include_local_tags: { type: "boolean", description: "是否使用本地保留、关注、清理标记。" },
+      include_local_tags: { type: "boolean", description: "是否使用本地保留、待定、清理标记。" },
       mode: {
         type: "string",
         description: "分析侧重点。",

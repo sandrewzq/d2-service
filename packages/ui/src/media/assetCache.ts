@@ -31,6 +31,7 @@ export function gameAssetCacheName(namespace?: GameAssetCacheNamespace): string 
 }
 
 const pendingPersist = new Map<string, Promise<void>>();
+const persistedThisSession = new Set<string>();
 
 function canUseCacheStorage() {
   return typeof window !== "undefined" && typeof caches !== "undefined";
@@ -46,10 +47,13 @@ export async function persistGameAsset(src: string, namespace?: GameAssetCacheNa
 
   const cacheName = gameAssetCacheName(namespace);
   const pendingKey = `${cacheName}\n${src}`;
+  if (persistedThisSession.has(pendingKey)) return;
   const existing = pendingPersist.get(pendingKey);
   if (existing) return existing;
 
-  const task = persistGameAssetInternal(src, cacheName).then(() => undefined);
+  const task = persistGameAssetInternal(src, cacheName).then((persisted) => {
+    if (persisted) persistedThisSession.add(pendingKey);
+  });
   pendingPersist.set(pendingKey, task);
   try {
     await task;

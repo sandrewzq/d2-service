@@ -20,11 +20,7 @@ import {
 } from "@d2-tools/core/loadouts/localPlanExecution";
 import type { DimLoadoutImportPreview } from "@d2-tools/core/loadouts/dimImport";
 import type { BuildGuideLoadoutDraft } from "@d2-tools/core/assistant/guideSchema";
-import type {
-  GuideArmorConstraintDraftArtifact,
-  GuideLoadoutCandidatesArtifact,
-  GuideSourceReadPreview
-} from "@d2-tools/app/guides";
+import type { GuideSourceReadPreview } from "@d2-tools/core/guides/source";
 import type {
   AssistantLoadoutArtifact,
   AssistantEquipmentTargetCandidatesArtifact
@@ -72,9 +68,7 @@ export function useLocalLoadoutPlans(input: {
   const [isPreviewingDim, setIsPreviewingDim] = useState(false);
   const [isImportingGuide, setIsImportingGuide] = useState(false);
   const [legacyGuideText, setLegacyGuideText] = useState(readLegacyGuideText);
-  const [assistantPrefill, setAssistantPrefill] = useState<(
-    (AssistantLoadoutArtifact | GuideLoadoutCandidatesArtifact) & { request_id: number }
-  ) | null>(null);
+  const [assistantPrefill, setAssistantPrefill] = useState<(AssistantLoadoutArtifact & { request_id: number }) | null>(null);
   const [executionReport, setExecutionReport] = useState<LocalPlanExecutionReport | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [publishReport, setPublishReport] = useState<LocalPlanPublishReport | null>(null);
@@ -384,129 +378,9 @@ export function useLocalLoadoutPlans(input: {
     setError("");
   }, []);
 
-  const prefillFromGuideLoadoutCandidates = useCallback((artifact: GuideLoadoutCandidatesArtifact) => {
-    setAssistantPrefill((current) => ({
-      ...artifact,
-      request_id: (current?.request_id ?? 0) + 1
-    }));
-    setError("");
-  }, []);
-
   const dismissAssistantPrefill = useCallback(() => {
     setAssistantPrefill(null);
   }, []);
-
-  const startFromGuideArmorConstraintDraft = useCallback((
-    artifact: GuideArmorConstraintDraftArtifact,
-    character: CharacterSummary | null
-  ) => {
-    setSelectedPlanId("");
-    setEditingPlanId(null);
-    setDraft({
-      name: `${artifact.guide_title} · 护甲约束`,
-      class_name: artifact.class_name || character?.class_name || "未限定职业",
-      ...(character ? { target_character_id: character.character_id } : {}),
-      source: { kind: "guide", source_id: artifact.artifact_id, label: "攻略 Armor 约束交接" },
-      item_targets: [],
-      armor_constraints: artifact.constraints,
-      guidance: {
-        raw_text: artifact.summary,
-        warnings: [
-          ...artifact.warnings,
-          ...artifact.confirmations.map((item) => `待确认：${item}`)
-        ],
-        evidence: [
-          `攻略文档：${artifact.guide_document_id}`,
-          `攻略正文快照：${artifact.source_snapshot_id}`,
-          `攻略提取：${artifact.extraction_id}`,
-          `护甲约束成果：${artifact.artifact_id}`
-        ]
-      }
-    });
-    setDimPreview(null);
-    setExecutionReport(null);
-    setAssistantPrefill(null);
-    setError("");
-  }, []);
-
-  const acceptGuideLoadoutCandidates = useCallback((
-    artifact: GuideLoadoutCandidatesArtifact,
-    candidateIds: string[]
-  ) => {
-    if (!accountSummary
-      || accountSummary.destiny_membership_id !== artifact.account_scope.destiny_membership_id
-      || accountSummary.membership_type !== artifact.account_scope.membership_type) {
-      setError("配装候选属于另一个账号快照，请回攻略页重新生成。");
-      return false;
-    }
-    const character = accountSummary.characters.find((entry) => (
-      entry.character_id === artifact.account_scope.character_id
-    ));
-    if (!character) {
-      setError("配装候选绑定的角色已不在当前账号中，请重新生成。");
-      return false;
-    }
-    const selectedIds = new Set(candidateIds);
-    const candidates = artifact.candidates.filter((candidate) => selectedIds.has(candidate.candidate_id));
-    const currentInstanceIds = new Set([
-      ...accountSummary.vault.items,
-      ...accountSummary.characters.flatMap((entry) => [
-        ...entry.equipped_items,
-        ...entry.inventory_items,
-        ...entry.postmaster_items
-      ])
-    ].flatMap((item) => item.instance_id ? [item.instance_id] : []));
-    const missingInstances = candidates.filter((candidate) => (
-      candidate.item.instance_id && !currentInstanceIds.has(candidate.item.instance_id)
-    ));
-    if (missingInstances.length) {
-      setError(`有 ${missingInstances.length} 个攻略候选实例已不在当前账号快照中，请重新生成。`);
-      return false;
-    }
-    if (!candidates.length && !artifact.armor_constraint_draft) {
-      setError("当前没有已选择的装备候选或 Armor 约束，未生成空白草稿。");
-      return false;
-    }
-    setSelectedPlanId("");
-    setEditingPlanId(null);
-    setDraft({
-      name: `${artifact.guide_title} · 配装候选`,
-      class_name: artifact.account_scope.character_class || character.class_name,
-      target_character_id: character.character_id,
-      source: { kind: "guide", source_id: artifact.artifact_id, label: "攻略配装候选交接" },
-      item_targets: candidates.map((candidate, index) => ({
-        slot: candidate.item.bucket_name || `攻略候选 ${index + 1}`,
-        item_hash: candidate.item.hash,
-        ...(candidate.item.instance_id ? { selected_instance_id: candidate.item.instance_id } : {}),
-        plug_hashes: [],
-        notes: candidate.item.reason
-      })),
-      ...(artifact.armor_constraint_draft
-        ? { armor_constraints: artifact.armor_constraint_draft.constraints }
-        : {}),
-      guidance: {
-        raw_text: artifact.summary,
-        warnings: [
-          ...artifact.missing_requirements,
-          ...artifact.confirmations.map((item) => `待确认：${item}`),
-          ...(artifact.armor_constraint_draft?.warnings ?? []),
-          ...(artifact.armor_constraint_draft?.confirmations.map((item) => `待确认：${item}`) ?? [])
-        ],
-        evidence: [
-          `攻略文档：${artifact.guide_document_id}`,
-          `攻略正文快照：${artifact.source_snapshot_id}`,
-          `攻略提取：${artifact.extraction_id}`,
-          `配装候选成果：${artifact.artifact_id}`,
-          `账号匹配指纹：${artifact.account_scope.fingerprint}`
-        ]
-      }
-    });
-    setDimPreview(null);
-    setExecutionReport(null);
-    setAssistantPrefill(null);
-    setError("");
-    return true;
-  }, [accountSummary]);
 
   const executeDraft = useCallback(async () => {
     if (!draft || !accountSummary || !draft.target_character_id || isExecuting) return;
@@ -857,10 +731,7 @@ export function useLocalLoadoutPlans(input: {
     legacyGuideText,
     assistantPrefill,
     prefillFromAssistant,
-    prefillFromGuideLoadoutCandidates,
     dismissAssistantPrefill,
-    startFromGuideArmorConstraintDraft,
-    acceptGuideLoadoutCandidates,
     importGuideSource,
     acceptAssistantEquipmentTargets,
     executionPlan,

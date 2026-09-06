@@ -38,7 +38,6 @@ import type {
   AssistantLoadoutArtifact,
   AssistantEquipmentTargetCandidatesArtifact
 } from "@d2-tools/app/capabilities";
-import type { GuideLoadoutCandidatesArtifact } from "@d2-tools/app/guides";
 import type { LocalPlanExecutionReport, LocalPlanPublishReport } from "./useLocalLoadoutPlans";
 import { useArmorPlannerWorkspace } from "./useArmorPlannerWorkspace";
 import { api } from "../../api/client";
@@ -79,7 +78,7 @@ export type LoadoutsPageProps = {
   localPlanIsPublishing: boolean;
   localPlanIsImportingGuide: boolean;
   localPlanLegacyGuideText: string;
-  localPlanAssistantPrefill: ((AssistantLoadoutArtifact | GuideLoadoutCandidatesArtifact) & { request_id: number }) | null;
+  localPlanAssistantPrefill: (AssistantLoadoutArtifact & { request_id: number }) | null;
   equipmentTargetStore: EquipmentTargetStore;
   armorResultTraceRequest: { resultId: string; candidateId: string; requestId: number } | null;
   onSelectTemplate: (id: string) => void;
@@ -151,12 +150,7 @@ export type LoadoutsPageProps = {
     candidateIds: string[],
     character: CharacterSummary | null
   ) => boolean;
-  onAcceptGuideLoadoutCandidates: (
-    artifact: GuideLoadoutCandidatesArtifact,
-    candidateIds: string[]
-  ) => boolean;
   onDismissAssistantPrefill: () => void;
-  onOpenGuideSource: (sourceId: string) => Promise<boolean>;
   onDismissArmorResultTrace: () => void;
   onEquipmentTargetStoreChanged: (store: EquipmentTargetStore) => void;
 };
@@ -375,9 +369,7 @@ export function LoadoutsPage(props: LoadoutsPageProps) {
     publishLocalPlanToSlot: props.onPublishLocalPlanToSlot,
     importGuideSource: props.onImportGuideSource,
     acceptAssistantEquipmentTargets: props.onAcceptAssistantEquipmentTargets,
-    acceptGuideLoadoutCandidates: props.onAcceptGuideLoadoutCandidates,
     dismissAssistantPrefill: props.onDismissAssistantPrefill,
-    openGuideSource: props.onOpenGuideSource,
     dismissArmorResultTrace: props.onDismissArmorResultTrace,
     planArmor: armorPlanner.plan,
     resetArmorPlanner: armorPlanner.reset,

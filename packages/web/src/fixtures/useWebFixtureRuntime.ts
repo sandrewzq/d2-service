@@ -755,7 +755,6 @@ export function createWebAssistantContext(snapshot: WebHomeSnapshot, account: Ac
     account: "账号页",
     vault: "仓库页",
     loadouts: "配装页",
-    guides: "攻略页",
     library: "资料库",
     vendors: "商人页",
     settings: "设置页"

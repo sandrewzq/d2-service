@@ -1,8 +1,6 @@
 import type { LocalTargetRules } from "@d2-tools/core/analysis/targets";
 import type {
-  EquipmentTargetConversionResult,
-  EquipmentTargetStore,
-  GuideEquipmentTargetConversionRequest
+  EquipmentTargetStore
 } from "@d2-tools/core/targets/equipmentTargets";
 
 export type {
@@ -18,14 +16,11 @@ export type {
 export type {
   ArmorAcquisitionTarget,
   EquipmentTarget,
-  EquipmentTargetConversionIssue,
-  EquipmentTargetConversionResult,
   EquipmentTargetMatch,
   EquipmentTargetMatchResult,
   EquipmentTargetSource,
   EquipmentTargetSourceKind,
   EquipmentTargetStore,
-  GuideEquipmentTargetConversionRequest,
   WeaponTarget,
   WeaponTargetCandidate,
   WeaponTargetPerkRequirement,
@@ -39,7 +34,4 @@ export type TargetApi = {
   getEquipmentTargetStore(): Promise<EquipmentTargetStore>;
   saveEquipmentTargetStore(store: EquipmentTargetStore): Promise<EquipmentTargetStore>;
   clearEquipmentTargetStore(): Promise<EquipmentTargetStore>;
-  convertConfirmedGuideEquipmentTargets(
-    input: GuideEquipmentTargetConversionRequest
-  ): Promise<EquipmentTargetConversionResult>;
 };

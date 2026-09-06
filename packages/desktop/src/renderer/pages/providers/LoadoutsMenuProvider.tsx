@@ -78,15 +78,7 @@ export function LoadoutsMenuProvider() {
       onPublishLocalPlanToSlot={(loadoutIndex) => void localPlans.publishAppliedPlan(loadoutIndex)}
       onImportGuideSource={localPlans.importGuideSource}
       onAcceptAssistantEquipmentTargets={localPlans.acceptAssistantEquipmentTargets}
-      onAcceptGuideLoadoutCandidates={localPlans.acceptGuideLoadoutCandidates}
       onDismissAssistantPrefill={localPlans.dismissAssistantPrefill}
-      onOpenGuideSource={async (sourceId) => {
-        const guideDocumentId = await session.guides.findGuideDocumentIdForDerivedEntity(sourceId);
-        if (!guideDocumentId) return false;
-        session.guides.selectDocument(guideDocumentId);
-        session.setActivePage("guides");
-        return true;
-      }}
       onDismissArmorResultTrace={session.dismissArmorResultTrace}
       onEquipmentTargetStoreChanged={session.account.setEquipmentTargetStore}
     />

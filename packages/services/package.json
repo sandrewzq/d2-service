@@ -90,21 +90,9 @@
       "types": "./dist/loadouts/dimImport.d.ts",
       "import": "./dist/loadouts/dimImport.js"
     },
-    "./guides/store": {
-      "types": "./dist/guides/store.d.ts",
-      "import": "./dist/guides/store.js"
-    },
     "./guides/sourceReader": {
       "types": "./dist/guides/sourceReader.d.ts",
       "import": "./dist/guides/sourceReader.js"
-    },
-    "./guides/extractionStore": {
-      "types": "./dist/guides/extractionStore.d.ts",
-      "import": "./dist/guides/extractionStore.js"
-    },
-    "./guides/relationStore": {
-      "types": "./dist/guides/relationStore.d.ts",
-      "import": "./dist/guides/relationStore.js"
     },
     "./items/aliases": {
       "types": "./dist/items/aliases.d.ts",

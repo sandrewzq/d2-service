@@ -30,21 +30,12 @@ import {
 import { VaultArmorFilterPanel } from "./VaultArmorFilterPanel.js";
 import { VaultAmmoTypeIcon, VaultDamageTypeIcon } from "./VaultWeaponFactIcons.js";
 
-export type VaultSignalFilter = "wishlist" | "loadout" | "target";
 export type VaultArmorSetCatalogStatus = "loading" | "ready" | "error";
 
-const dispositionOptions: Array<{ key: VaultTagFilter; label: string }> = [
-  { key: "all", label: "全部" },
-  { key: "untagged", label: "未标记" },
+const dispositionOptions: Array<{ key: Extract<VaultTagFilter, "keep" | "review" | "junk">; label: string }> = [
   { key: "keep", label: "保留" },
-  { key: "review", label: "待复查" },
-  { key: "junk", label: "待处理" }
-];
-
-const signalOptions: Array<{ key: VaultSignalFilter; label: string }> = [
-  { key: "wishlist", label: "愿望单" },
-  { key: "loadout", label: "配装引用" },
-  { key: "target", label: "目标命中" }
+  { key: "review", label: "待定" },
+  { key: "junk", label: "清理" }
 ];
 
 const damageTypeIds: Record<string, number> = {
@@ -62,7 +53,6 @@ export function VaultFilterToolbar(props: {
   query: string;
   sortKey: VaultSortKey;
   tagFilter: VaultTagFilter;
-  signalFilters: VaultSignalFilter[];
   armorStatRules: VaultArmorStatRule[];
   lockFilter: VaultLockFilter;
   slotFilter: VaultSlotFilter;
@@ -86,7 +76,6 @@ export function VaultFilterToolbar(props: {
   onQueryChange: (value: string) => void;
   onSortKeyChange: (value: VaultSortKey) => void;
   onTagFilterChange: (value: VaultTagFilter) => void;
-  onSignalFilterToggle: (value: VaultSignalFilter) => void;
   onAddArmorStatRule: () => void;
   onClearArmorStatRules: () => void;
   onRemoveArmorStatRule: (index: number) => void;
@@ -267,20 +256,12 @@ export function VaultFilterToolbar(props: {
         </div>
       </FilterSection>
 
-      <FilterSection title="整理状态" hint="玩家决定 · 单选">
+      <FilterSection title="整理状态" hint="再次点击取消">
         <div className="vault-filter-option-grid vault-disposition-grid" role="group" aria-label="玩家整理状态">
           {dispositionOptions.map((item) => (
-            <button type="button" key={item.key} aria-pressed={props.tagFilter === item.key} onClick={() => props.onTagFilterChange(item.key)}>
-              {item.key === "untagged" && isWeaponMode ? "未整理" : item.label}
+            <button type="button" key={item.key} aria-pressed={props.tagFilter === item.key} onClick={() => props.onTagFilterChange(props.tagFilter === item.key ? "all" : item.key)}>
+              {item.label}
             </button>
-          ))}
-        </div>
-      </FilterSection>
-
-      <FilterSection title="保护与匹配" hint="只提供证据 · 可多选">
-        <div className="vault-filter-option-grid vault-signal-grid" role="group" aria-label="保护与匹配信号">
-          {signalOptions.map((item) => (
-            <button type="button" key={item.key} aria-pressed={props.signalFilters.includes(item.key)} onClick={() => props.onSignalFilterToggle(item.key)}>{item.label}</button>
           ))}
         </div>
       </FilterSection>

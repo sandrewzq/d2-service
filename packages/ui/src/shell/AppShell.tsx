@@ -484,8 +484,6 @@ function ShellNavIcon(props: { page: ShellPageKey }) {
       return <svg {...iconProps}><path d="M4 7h16v13H4zM3 3h18v4H3z" /><path d="M10 11h4" /></svg>;
     case "loadouts":
       return <svg {...iconProps}><path d="m12 2 9 5-9 5-9-5Z" /><path d="m3 12 9 5 9-5M3 17l9 5 9-5" /></svg>;
-    case "guides":
-      return <svg {...iconProps}><path d="M5 3h11a3 3 0 0 1 3 3v15H8a3 3 0 0 1-3-3Z" /><path d="M8 17h11M8 7h7M8 11h7" /></svg>;
     case "library":
       return <svg {...iconProps}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></svg>;
     case "vendors":

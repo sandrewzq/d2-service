@@ -1,7 +1,7 @@
 import { VaultPage } from "../../features/vault/VaultPage";
 import { useAccountSummaryStore } from "../../shared/stores/accountEntityStore";
 import { useDesktopMenuSession } from "./DesktopMenuProviderContext";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 export function VaultMenuProvider() {
   const session = useDesktopMenuSession();
@@ -22,6 +22,12 @@ export function VaultMenuProvider() {
     bucketHashKeys: new Set<string>(),
     hashKeys: new Set<number>()
   }), [accountSummary?.characters, session.loadouts.templates]);
+  const handleCommunityRecommendationsChanged = useCallback((weaponHashes?: readonly number[]) => (
+    account.loadVaultCommunityMatch(undefined, {
+      force: true,
+      ...(weaponHashes ? { weaponHashes } : {})
+    })
+  ), [account.loadVaultCommunityMatch]);
 
   return (
     <VaultPage
@@ -56,17 +62,7 @@ export function VaultMenuProvider() {
       onLocalTargetRulesChanged={account.setLocalTargetRules}
       onEquipmentTargetStoreChanged={account.setEquipmentTargetStore}
       onWishlistChanged={account.setImportedWishlist}
-      onCommunityRecommendationsChanged={(weaponHashes) => account.loadVaultCommunityMatch(undefined, {
-        force: true,
-        ...(weaponHashes ? { weaponHashes } : {})
-      })}
-      onOpenGuide={async (targetId) => {
-        const guideDocumentId = await session.guides.findGuideDocumentIdForDerivedEntity(targetId);
-        if (!guideDocumentId) return false;
-        session.guides.selectDocument(guideDocumentId);
-        session.setActivePage("guides");
-        return true;
-      }}
+      onCommunityRecommendationsChanged={handleCommunityRecommendationsChanged}
       onOpenArmorResult={session.locateArmorResultReference}
       onLoadAccount={session.refreshAccountManually}
       onConfigureBungie={session.onConfigure}

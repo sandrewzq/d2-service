@@ -8,8 +8,6 @@ import {
   ArmorDetailContent,
   AiAssistantPanelView,
   defaultProductPreferences,
-  GuideLibraryPageContentView,
-  getLocaleCopy,
   HomePageContentView,
   LibraryPageContentView,
   LoadoutsPageContentView,
@@ -35,18 +33,7 @@ import {
 import type { AccountItemSummary } from "@d2-tools/core/account/summary";
 import type { DimWishlist } from "@d2-tools/core/analysis/wishlistImport";
 import { createHomeWeeklyActivityRewardDetailTarget } from "@d2-tools/app/home";
-import {
-  createEmptyGuideDocumentDraft,
-  confirmGuideExtraction as confirmGuideExtractionDraft,
-  createGuideExtraction,
-  isSupportedGuideSourceUrl,
-  selectGuideLibraryWorkspace,
-  toGuideDocumentDraft,
-  type GuideDocument,
-  type GuideDocumentDraft,
-  type GuideExtraction,
-  type GuideLibraryFilters
-} from "@d2-tools/app/guides";
+import type { AssistantLoadoutArtifact } from "@d2-tools/app/capabilities";
 import { formatLibraryVersion, type ItemSearchResult, type LibraryHistory } from "@d2-tools/app/library";
 import {
   buildArmorDetailViewModel,
@@ -74,7 +61,6 @@ import {
 } from "@d2-tools/app/loadouts";
 import type { CreateLocalLoadoutPlanInput, LocalLoadoutPlan } from "@d2-tools/core/loadouts/plans";
 import { createDimLoadoutExport } from "@d2-tools/core/loadouts/dimImport";
-import { createGuideSourceSections } from "@d2-tools/core/guides/source";
 import "@d2-tools/ui/styles.css";
 import {
   createWebShellAdapter,
@@ -118,13 +104,7 @@ function WebApp() {
   const [applicationLoadoutCompareIds, setApplicationLoadoutCompareIds] = useState<string[]>([]);
   const [applicationLoadoutInGameReference, setApplicationLoadoutInGameReference] = useState<ApplicationLoadoutInGameReference | null>(null);
   const [applicationLoadoutShowDiffOnly, setApplicationLoadoutShowDiffOnly] = useState(false);
-  const [guideDocuments, setGuideDocuments] = useState<GuideDocument[]>([]);
-  const [guideExtractions, setGuideExtractions] = useState<GuideExtraction[]>([]);
-  const [guideExtractionPreview, setGuideExtractionPreview] = useState<GuideExtraction | null>(null);
-  const [guideFilters, setGuideFilters] = useState<GuideLibraryFilters>({ query: "", status: "active", category: "", favorites_only: false });
-  const [selectedGuideDocumentId, setSelectedGuideDocumentId] = useState("");
-  const [guideDraft, setGuideDraft] = useState<GuideDocumentDraft | null>(null);
-  const [editingGuideDocumentId, setEditingGuideDocumentId] = useState<string | null>(null);
+  const [localPlanAssistantPrefill, setLocalPlanAssistantPrefill] = useState<(AssistantLoadoutArtifact & { request_id: number }) | null>(null);
   const [libraryViewMode, setLibraryViewMode] = useState<LibraryViewMode>("equipment");
   const [equipmentFilters, setEquipmentFilters] = useState<LibraryEquipmentFilter>(fixture.equipmentFilters);
   const [perkFilters, setPerkFilters] = useState<LibraryPerkFilter>(fixture.perkFilters);
@@ -223,17 +203,6 @@ function WebApp() {
   const localPlanDimExport = useMemo(() => localPlanDraft
     ? createDimLoadoutExport({ plan: localPlanDraft, account: fixture.accountSummary })
     : null, [fixture.accountSummary, localPlanDraft]);
-  const guideWorkspace = useMemo(() => selectGuideLibraryWorkspace({
-    documents: guideDocuments,
-    filters: guideFilters,
-    selectedDocumentId: selectedGuideDocumentId
-  }), [guideDocuments, guideFilters, selectedGuideDocumentId]);
-  const confirmedGuideExtraction = useMemo(() => {
-    const selected = guideWorkspace.selected_document;
-    if (!selected) return null;
-    return guideExtractions.find((entry) => entry.guide_document_id === selected.id && entry.source_snapshot_id === selected.current_snapshot_id) ?? null;
-  }, [guideExtractions, guideWorkspace.selected_document]);
-
   useEffect(() => {
     setLocalPlanDimExportFeedback("");
   }, [localPlanDimExport]);
@@ -298,52 +267,6 @@ function WebApp() {
     setLocalPlanDraft(toLocalLoadoutPlanDraft(saved));
   }
 
-  function saveWebGuideDraft() {
-    if (!guideDraft?.title.trim() || !guideDraft.body.trim() || (guideDraft.source.kind === "url" && !isSupportedGuideSourceUrl(guideDraft.source.url))) return;
-    const now = new Date().toISOString();
-    const existing = editingGuideDocumentId
-      ? guideDocuments.find((document) => document.id === editingGuideDocumentId)
-      : null;
-    const body = guideDraft.body.trim();
-    const previousSnapshot = existing?.snapshots.find((snapshot) => snapshot.id === existing.current_snapshot_id)
-      ?? existing?.snapshots.at(-1);
-    const bodyChanged = previousSnapshot?.body !== body;
-    const snapshot = bodyChanged || !previousSnapshot ? createWebGuideSnapshot(body, now) : previousSnapshot;
-    const snapshots = bodyChanged || !existing ? [...(existing?.snapshots ?? []), snapshot].slice(-20) : existing.snapshots;
-    const saved: GuideDocument = {
-      id: existing?.id ?? `web-guide-${Date.now()}`,
-      title: guideDraft.title.trim(),
-      category: guideDraft.category.trim() || "未分类",
-      tags: [...new Set(guideDraft.tags.map((tag) => tag.trim()).filter(Boolean))],
-      favorite: guideDraft.favorite,
-      status: guideDraft.status,
-      source: {
-        ...guideDraft.source,
-        label: guideDraft.source.label?.trim() || undefined,
-        url: guideDraft.source.kind === "url" ? guideDraft.source.url?.trim() || undefined : undefined
-      },
-      current_snapshot_id: snapshot.id,
-      snapshots,
-      created_at: existing?.created_at ?? now,
-      ...(existing ? { updated_at: now } : {})
-    };
-    setGuideDocuments((documents) => existing
-      ? documents.map((document) => document.id === saved.id ? saved : document)
-      : [saved, ...documents]);
-    setSelectedGuideDocumentId(saved.id);
-    setGuideDraft(null);
-    setEditingGuideDocumentId(null);
-    setGuideExtractionPreview(null);
-  }
-
-  function updateWebGuide(document: GuideDocument, patch: Partial<GuideDocumentDraft>) {
-    const draft = { ...toGuideDocumentDraft(document), ...patch };
-    const { body: _body, ...metadata } = draft;
-    const now = new Date().toISOString();
-    setGuideDocuments((documents) => documents.map((entry) => entry.id === document.id
-      ? { ...entry, ...metadata, source: { ...metadata.source }, updated_at: now }
-      : entry));
-  }
   const assistantContext = useMemo(
     () => fixture.createAssistantContext(snapshot, fixture.accountSummary, activePage),
     [activePage, fixture, snapshot]
@@ -533,17 +456,12 @@ function WebApp() {
           onSwitchSession={() => undefined}
           onDeleteSession={() => undefined}
           onOpenArtifact={(artifact) => {
-            if (artifact.kind === "guide_capture") {
-              setGuideDraft({
-                ...createEmptyGuideDocumentDraft(),
-                title: artifact.title,
-                body: artifact.raw_text,
-                source: { kind: "text", label: "AI 工作台整理" }
-              });
-              setEditingGuideDocumentId(null);
-              setActivePage("guides");
-              setAssistantMode(null);
-            }
+            setLocalPlanAssistantPrefill((current) => ({
+              ...artifact,
+              request_id: (current?.request_id ?? 0) + 1
+            }));
+            setActivePage("loadouts");
+            setAssistantMode(null);
           }}
         />
       )}
@@ -668,7 +586,7 @@ function WebApp() {
                 importGuideSource: async () => true,
                 acceptAssistantEquipmentTargets: () => false,
                 acceptGuideLoadoutCandidates: () => false,
-                dismissAssistantPrefill: () => undefined,
+                dismissAssistantPrefill: () => setLocalPlanAssistantPrefill(null),
                 pushApplicationLoadoutScreen: (screen: ApplicationLoadoutScreen) => {
                   setApplicationLoadoutNavigation((current) => pushApplicationLoadoutScreen(current, screen).state);
                 },
@@ -756,97 +674,11 @@ function WebApp() {
               localPlanIsExecuting={false}
               localPlanIsImportingGuide={false}
               localPlanLegacyGuideText=""
-              localPlanAssistantPrefill={null}
+              localPlanAssistantPrefill={localPlanAssistantPrefill}
               accountDataStatus={fixture.accountDataResource.status}
               accountDataSource={fixture.accountDataResource.source}
               accountDataFetchedAt={fixture.accountDataResource.fetchedAt}
               accountDataError={fixture.accountDataResource.error?.message}
-            />
-          ) : null}
-          {activePage === "guides" ? (
-            <GuideLibraryPageContentView
-              interfaceLocale={preferences.interfaceLocale}
-              model={guideWorkspace}
-              filters={guideFilters}
-              draft={guideDraft}
-              editingDocumentId={editingGuideDocumentId}
-              isLoading={false}
-              isSaving={false}
-              error=""
-              errorKind=""
-              canReadSource={false}
-              sourcePreview={null}
-              isReadingSource={false}
-              sourceError=""
-              extractionPreview={guideExtractionPreview}
-              confirmedExtraction={confirmedGuideExtraction}
-              isExtracting={false}
-              isConfirmingExtraction={false}
-              extractionError=""
-              derivedRelations={[]}
-              derivedRelationsError=""
-              actions={{
-                selectDocument: (id) => {
-                  setSelectedGuideDocumentId(id);
-                  setGuideDraft(null);
-                  setEditingGuideDocumentId(null);
-                  setGuideExtractionPreview(null);
-                },
-                filtersChange: (patch) => setGuideFilters((current) => ({ ...current, ...patch })),
-                startImportDocument: () => {
-                  setGuideDraft({ ...createEmptyGuideDocumentDraft(), source: { kind: "url" } });
-                  setEditingGuideDocumentId(null);
-                  setGuideExtractionPreview(null);
-                },
-                startNewDocument: () => {
-                  setGuideDraft(createEmptyGuideDocumentDraft());
-                  setEditingGuideDocumentId(null);
-                  setGuideExtractionPreview(null);
-                },
-                startEditingDocument: (document) => {
-                  setSelectedGuideDocumentId(document.id);
-                  setGuideDraft(toGuideDocumentDraft(document));
-                  setEditingGuideDocumentId(document.id);
-                  setGuideExtractionPreview(null);
-                },
-                draftChange: setGuideDraft,
-                saveDraft: saveWebGuideDraft,
-                cancelEditing: () => {
-                  setGuideDraft(null);
-                  setEditingGuideDocumentId(null);
-                  setGuideExtractionPreview(null);
-                },
-                toggleFavorite: (document) => updateWebGuide(document, { favorite: !document.favorite }),
-                toggleArchive: (document) => updateWebGuide(document, { status: document.status === "archived" ? "active" : "archived" }),
-                deleteDocument: (document) => {
-                  if (!window.confirm(getLocaleCopy(preferences.interfaceLocale).guides.deleteConfirmation(document.title))) return;
-                  setGuideDocuments((documents) => documents.filter((entry) => entry.id !== document.id));
-                  setGuideExtractions((entries) => entries.filter((entry) => entry.guide_document_id !== document.id));
-                  setGuideExtractionPreview(null);
-                  setSelectedGuideDocumentId("");
-                },
-                openSource: openWebGuideSource,
-                reload: () => undefined,
-                readSource: () => undefined,
-                acceptSourcePreview: () => undefined,
-                dismissSourcePreview: () => undefined,
-                previewExtraction: (document) => {
-                  if (confirmedGuideExtraction?.guide_document_id === document.id
-                    && confirmedGuideExtraction.source_snapshot_id === document.current_snapshot_id) {
-                    setGuideExtractionPreview(confirmedGuideExtraction);
-                    return;
-                  }
-                  const snapshot = document.snapshots.find((entry) => entry.id === document.current_snapshot_id) ?? document.snapshots.at(-1);
-                  if (snapshot) setGuideExtractionPreview(createGuideExtraction({ guideDocumentId: document.id, snapshot }));
-                },
-                confirmExtraction: (acceptedCandidateIds) => {
-                  if (!guideExtractionPreview) return;
-                  const confirmed = confirmGuideExtractionDraft(guideExtractionPreview, acceptedCandidateIds);
-                  setGuideExtractions((entries) => [confirmed, ...entries.filter((entry) => entry.id !== confirmed.id)]);
-                  setGuideExtractionPreview(confirmed);
-                },
-                dismissExtractionPreview: () => setGuideExtractionPreview(null)
-              }}
             />
           ) : null}
           {activePage === "library" ? (
@@ -995,26 +827,6 @@ function WebApp() {
 }
 
 createRoot(document.getElementById("root")!).render(<WebApp />);
-
-function createWebGuideSnapshot(body: string, capturedAt: string): GuideDocument["snapshots"][number] {
-  return {
-    id: `web-guide-snapshot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    body,
-    content_fingerprint: `web-preview-${body.length}-${capturedAt}`,
-    captured_at: capturedAt,
-    sections: createGuideSourceSections(body)
-  };
-}
-
-function openWebGuideSource(url: string): void {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
-    window.open(parsed.toString(), "_blank", "noopener,noreferrer");
-  } catch {
-    // The editor keeps invalid URLs from being saved; this also protects older preview data.
-  }
-}
 
 function createAccountItemDetailTarget(item: AccountItemSummary, entryLabel: string) {
   return {

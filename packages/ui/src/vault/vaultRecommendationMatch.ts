@@ -175,16 +175,36 @@ export function inferVaultRecommendationResultForSource(
   sourceId: string
 ): VaultRecommendationResult {
   const canonicalSourceId = canonicalVaultRecommendationSourceId(sourceId);
-  const summary = summaries.find((candidate) => (
+  const sourceSummaries = summaries.filter((candidate) => (
     canonicalVaultRecommendationSourceId(candidate.sourceId) === canonicalSourceId
   ));
-  if (!summary) return "uncovered";
-  if (summary.state === "uncheckable") return "uncheckable";
-  if (summary.state === "full" || summary.state === "core") return "matched";
-  if (summary.state === "close" || summary.state === "weapon_only") return "partial";
-  if (summary.state === "key_missing" || summary.state === "not_matched") return "not_matched";
-  if (summary.matched > 0) return "partial";
+  if (!sourceSummaries.length) return "uncovered";
+  if (sourceSummaries.some((summary) => summary.state === "full" || summary.state === "core")) {
+    return "matched";
+  }
+  if (sourceSummaries.some((summary) => (
+    summary.matched > 0
+    || summary.state === "close"
+    || summary.state === "weapon_only"
+  ))) {
+    return "partial";
+  }
+  if (sourceSummaries.some((summary) => summary.state === "uncheckable")) return "uncheckable";
   return "not_matched";
+}
+
+export function selectVaultRecommendationSourceSummaries(
+  summaries: readonly VaultRecommendationSourceSummary[]
+): VaultRecommendationSourceSummary[] {
+  const summariesBySource = new Map<string, VaultRecommendationSourceSummary>();
+  for (const summary of summaries) {
+    const sourceId = canonicalVaultRecommendationSourceId(summary.sourceId);
+    const current = summariesBySource.get(sourceId);
+    if (!current || isBetterSourceSummary(summary, current)) {
+      summariesBySource.set(sourceId, summary);
+    }
+  }
+  return [...summariesBySource.values()].sort(compareSourceSummaries);
 }
 
 export function buildVaultRecommendationSourceOptions(
@@ -397,6 +417,17 @@ function summaryRank(summary: VaultRecommendationSourceSummary): number {
   if (summary.state === "close" || summary.state === "weapon_only") return 2;
   if (summary.state === "key_missing" || summary.state === "not_matched") return 3;
   return 4;
+}
+
+function isBetterSourceSummary(
+  candidate: VaultRecommendationSourceSummary,
+  current: VaultRecommendationSourceSummary
+): boolean {
+  const rankDifference = summaryRank(candidate) - summaryRank(current);
+  if (rankDifference) return rankDifference < 0;
+  if (candidate.matched !== current.matched) return candidate.matched > current.matched;
+  if (candidate.available !== current.available) return candidate.available > current.available;
+  return candidate.detail.length > current.detail.length;
 }
 
 export function displayVaultRecommendationSourceLabel(sourceId: string, sourceLabel?: string): string {
