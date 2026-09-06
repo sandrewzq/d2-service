@@ -270,7 +270,7 @@
 .weapon-detail-stats { display: grid; grid-template-columns: repeat(3, minmax(104px, 1fr)); gap: 1px; margin: 0; padding: 1px; background: var(--section-divider); }
 .weapon-detail-stat-row { display: flex; min-width: 0; min-height: 44px; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; background: var(--surface-panel); }
 .weapon-detail-stat-row dt { min-width: 0; overflow: hidden; color: var(--text-muted); font-size: var(--font-caption); text-overflow: ellipsis; white-space: nowrap; }
-.weapon-detail-stat-row dd { flex: 0 0 auto; margin: 0; color: var(--text-title); font-size: 16px; font-variant-numeric: tabular-nums; font-weight: 750; line-height: 1; }
+.weapon-detail-stat-row dd { flex: 0 0 auto; margin: 0; color: var(--text-title); font-size: 16px; font-variant-numeric: tabular-nums; font-weight: 700; line-height: 1; }
 .weapon-detail-stat-row[data-pending="true"] dd { color: var(--status-pending); }
 
 .weapon-detail-source-list { display: grid; min-height: 126px; align-content: start; border-top: 1px solid var(--section-divider); }
