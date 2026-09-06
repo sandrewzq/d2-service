@@ -685,6 +685,10 @@ async function scanDesktopTarget(target, theme, server, referenceShellContract) 
       D2_VISUAL_TEST: "1",
       D2_RENDERER_URL: server.url,
       D2_DATA_DIR: desktopDataDir,
+      BUNGIE_API_KEY: "visual-api-key",
+      BUNGIE_CLIENT_ID: "visual-client-id",
+      BUNGIE_CLIENT_SECRET: "visual-client-secret",
+      BUNGIE_REDIRECT_URI: "https://127.0.0.1:28780/oauth/callback",
       D2_VISUAL_USER_DATA_DIR: join(outputDir, "electron-user-data", theme),
       D2_COLOR_MODE: theme
     }
