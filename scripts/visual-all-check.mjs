@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { _electron as electron, chromium } from "playwright";
 
@@ -195,6 +196,73 @@ function prepareDesktopData(theme) {
     features: {
       color_mode: theme
     }
+  }, null, 2), "utf8");
+  prepareDesktopManifestData();
+}
+
+function prepareDesktopManifestData() {
+  const manifestVersion = "visual-manifest";
+  const language = "zh-chs";
+  const activeDir = join(desktopDataDir, "manifest", "sqlite", language, "active");
+  const databasePath = join(activeDir, "world.sqlite");
+  const searchIndexPath = join(activeDir, "search.sqlite");
+  mkdirSync(activeDir, { recursive: true });
+
+  const database = new DatabaseSync(databasePath);
+  try {
+    database.exec(`
+      CREATE TABLE DestinyInventoryItemDefinition (id INTEGER PRIMARY KEY, json BLOB NOT NULL);
+      CREATE TABLE DestinySandboxPerkDefinition (id INTEGER PRIMARY KEY, json BLOB NOT NULL);
+      CREATE TABLE DestinyPlugSetDefinition (id INTEGER PRIMARY KEY, json BLOB NOT NULL);
+    `);
+  } finally {
+    database.close();
+  }
+
+  const searchIndex = new DatabaseSync(searchIndexPath);
+  try {
+    searchIndex.exec(`
+      CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      INSERT INTO metadata(key, value) VALUES
+        ('manifest_version', '${manifestVersion}'),
+        ('language', '${language}'),
+        ('schema_version', '3');
+      CREATE TABLE search_documents (
+        kind TEXT NOT NULL,
+        hash INTEGER NOT NULL,
+        canonical_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        search_text TEXT NOT NULL,
+        rank INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(kind, hash)
+      );
+      CREATE TABLE perk_plugs (perk_hash INTEGER NOT NULL, plug_hash INTEGER NOT NULL, PRIMARY KEY(perk_hash, plug_hash));
+      CREATE TABLE perk_related_items (perk_hash INTEGER NOT NULL, item_hash INTEGER NOT NULL, PRIMARY KEY(perk_hash, item_hash));
+      CREATE TABLE definition_enums (kind TEXT NOT NULL, enum_value INTEGER NOT NULL, hash INTEGER NOT NULL, PRIMARY KEY(kind, enum_value));
+      CREATE TABLE item_version_relation (
+        item_hash INTEGER PRIMARY KEY,
+        canonical_hash INTEGER NOT NULL,
+        relation_key TEXT NOT NULL,
+        rank INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+  } finally {
+    searchIndex.close();
+  }
+
+  writeFileSync(join(activeDir, "status.json"), JSON.stringify({
+    catalogSchemaVersion: "4",
+    activationState: "finalized",
+    manifestVersion,
+    language,
+    sourcePath: "/visual/manifest.content",
+    activatedAt: "2026-06-16T00:00:00.000Z",
+    supplementComponents: [],
+    databaseSize: statSync(databasePath).size,
+    searchIndexSize: statSync(searchIndexPath).size,
+    itemCount: 0,
+    perkCount: 0,
+    relationCount: 0
   }, null, 2), "utf8");
 }
 
