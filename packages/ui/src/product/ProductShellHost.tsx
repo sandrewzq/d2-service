@@ -167,7 +167,10 @@ export function ProductShellHost(props: ProductShellHostProps) {
         onColorModeToggle={toggleColorMode}
         onInterfaceLocaleToggle={toggleInterfaceLocale}
       >
-        <ProductWorkspacePage element="section" className="product-shell-page">
+        <ProductWorkspacePage
+          element="section"
+          className={activePage === "vault" ? "product-shell-page product-shell-page--fixed" : "product-shell-page"}
+        >
           {pageHeader ? (
             <ProductWorkspaceHeader className="product-shell-page-header" referenceId="shell.page-header" actions={pageHeader.actions}>
               {pageHeader.eyebrow ? <span className="product-workspace-eyebrow" data-ui-part="label" data-info-priority="support" data-text-tone="meta">{pageHeader.eyebrow}</span> : null}

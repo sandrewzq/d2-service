@@ -598,6 +598,10 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
   background: var(--panel);
 }
 
+.app-shell[data-active-page="vault"] .shell-content {
+  overflow: hidden;
+}
+
 /* Long-running work stays visible while the user changes pages. The dock is
  * intentionally an overlay so it never changes the shell grid or pushes page
  * content around. */

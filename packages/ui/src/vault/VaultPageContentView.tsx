@@ -114,6 +114,7 @@ const DormantVaultWorkspacePanel = memo(function DormantVaultWorkspacePanel(prop
   id: string;
   labelledBy: string;
   className: string;
+  scrollPane?: VaultWorkspaceTab;
   children: ReactNode;
 }) {
   return (
@@ -122,6 +123,7 @@ const DormantVaultWorkspacePanel = memo(function DormantVaultWorkspacePanel(prop
       role="tabpanel"
       aria-labelledby={props.labelledBy}
       className={props.className}
+      data-vault-scroll-pane={props.scrollPane}
       hidden={!props.active}
     >
       {props.children}
@@ -130,7 +132,8 @@ const DormantVaultWorkspacePanel = memo(function DormantVaultWorkspacePanel(prop
 }, (previous, next) => !previous.active && !next.active
   && previous.id === next.id
   && previous.labelledBy === next.labelledBy
-  && previous.className === next.className);
+  && previous.className === next.className
+  && previous.scrollPane === next.scrollPane);
 
 export function VaultPageContentView(props: {
   items: AccountItemSummary[];
@@ -200,6 +203,7 @@ export function VaultPageContentView(props: {
     recommendations: 0,
     duplicates: 0
   });
+  const filterScrollPositionRef = useRef(0);
   const workspaceId = useId();
   const tabIds = useMemo(() => Object.fromEntries(vaultWorkspaceTabs.map((tab) => [tab.key, `${workspaceId}-${tab.key}-tab`])) as Record<VaultWorkspaceTab, string>, [workspaceId]);
   const panelIds = useMemo(() => Object.fromEntries(vaultWorkspaceTabs.map((tab) => [tab.key, `${workspaceId}-${tab.key}-panel`])) as Record<VaultWorkspaceTab, string>, [workspaceId]);
@@ -243,13 +247,17 @@ export function VaultPageContentView(props: {
 
   useLayoutEffect(() => {
     if (typeof document === "undefined") return;
-    const scrollRoot = document.querySelector<HTMLElement>(".shell-content");
+    const scrollRoot = getVaultWorkspaceScrollRoot(panelIds, activeVaultTab);
     if (!scrollRoot) return;
     const frame = requestAnimationFrame(() => {
       scrollRoot.scrollTo({ top: workspaceScrollPositionsRef.current[activeVaultTab] ?? 0 });
+      if (activeVaultTab === "filters") {
+        document.querySelector<HTMLElement>(".vault-page .vault-filter-workbench")
+          ?.scrollTo({ top: filterScrollPositionRef.current });
+      }
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeVaultTab]);
+  }, [activeVaultTab, panelIds]);
 
   useEffect(() => {
     if (!props.locateRequest) return;
@@ -698,8 +706,11 @@ export function VaultPageContentView(props: {
 
   function switchVaultTab(tab: VaultWorkspaceTab) {
     if (typeof document !== "undefined") {
-      const scrollRoot = document.querySelector<HTMLElement>(".shell-content");
+      const scrollRoot = getVaultWorkspaceScrollRoot(panelIds, activeVaultTab);
       if (scrollRoot) workspaceScrollPositionsRef.current[activeVaultTab] = scrollRoot.scrollTop;
+      if (activeVaultTab === "filters") {
+        filterScrollPositionRef.current = document.querySelector<HTMLElement>(".vault-page .vault-filter-workbench")?.scrollTop ?? 0;
+      }
     }
     if (tab === "duplicates") setHasVisitedDuplicateTab(true);
     setActiveVaultTab(tab);
@@ -854,70 +865,72 @@ export function VaultPageContentView(props: {
 
   return (
     <div className="vault-page">
-      <div className="vault-workflow-bar" data-surface="section">
-        <div className="vault-workflow-tabs" data-ui-kind="segmented-control" role="tablist" aria-label="仓库工作台">
-          {vaultWorkspaceTabs.map((tab) => (
-            <button type="button" data-ui-kind="button" data-control-variant="quiet" role="tab" id={tabIds[tab.key]} aria-controls={panelIds[tab.key]} aria-selected={activeVaultTab === tab.key} tabIndex={activeVaultTab === tab.key ? 0 : -1} key={tab.key} className={activeVaultTab === tab.key ? "active" : ""} onClick={() => switchVaultTab(tab.key)} onKeyDown={handleVaultTabKeyDown}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        {activeVaultTab === "filters" && group === "weapons" ? (
-          <div className="vault-recommendation-filter" aria-label="按推荐来源筛选">
-            <span>推荐筛选</span>
-            <label>
-              <small>1 来源</small>
-              <select
-                aria-label="推荐来源"
-                value={recommendationSourceFilter}
-                onChange={(event) => {
-                  setRecommendationSourceFilter(event.target.value);
-                  setRecommendationFilter("all");
-                }}
-              >
-                <option value="">选择来源</option>
-                {recommendationSourceOptions.map((option) => (
-                  <option key={option.sourceId} value={option.sourceId}>
-                    {option.sourceLabel} · 覆盖 {option.count}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {recommendationSourceFilter ? (
-              <div role="group" aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}匹配结果`}>
-                <small>2 结果</small>
-                <span>
-                  {recommendationFilterOptions.map((option) => (
-                    <button
-                      type="button"
-                      key={option.key}
-                      disabled={option.count === 0}
-                      aria-pressed={recommendationFilter === option.key}
-                      onClick={() => setRecommendationFilter(option.key)}
-                    >
-                      <span>{option.label}</span><small>{option.count}</small>
-                    </button>
-                  ))}
-                </span>
-              </div>
-            ) : <small className="vault-recommendation-filter-hint">先选择来源，再按该来源结果筛选</small>}
+      <div className="vault-sticky-zone">
+        <div className="vault-workflow-bar" data-surface="section">
+          <div className="vault-workflow-tabs" data-ui-kind="segmented-control" role="tablist" aria-label="仓库工作台">
+            {vaultWorkspaceTabs.map((tab) => (
+              <button type="button" data-ui-kind="button" data-control-variant="quiet" role="tab" id={tabIds[tab.key]} aria-controls={panelIds[tab.key]} aria-selected={activeVaultTab === tab.key} tabIndex={activeVaultTab === tab.key ? 0 : -1} key={tab.key} className={activeVaultTab === tab.key ? "active" : ""} onClick={() => switchVaultTab(tab.key)} onKeyDown={handleVaultTabKeyDown}>
+                {tab.label}
+              </button>
+            ))}
           </div>
-        ) : null}
-        <div className="vault-workflow-meta">
-          {props.accountResourceStatus ? <span className={`ui-badge ${vaultResourceStatusTone(props.accountResourceStatus)}`} data-ui-kind="status-chip" data-status={props.accountResourceStatus}>{vaultResourceStatusLabel(props.accountResourceStatus)}</span> : null}
-          <span className="ui-badge status-neutral" data-ui-kind="status-chip">
-            {group === "weapons" ? `账号武器 ${accountWeaponCount} 件` : `仓库已读取 ${vaultItemCount} 件`}
-          </span>
-          <span className="ui-badge status-pending" data-ui-kind="status-chip">当前结果 {filteredItems.length} 件</span>
-          <button type="button" className={`ui-badge vault-recommendation-status-link status-${recommendationWorkflowStatus.tone}`} data-ui-kind="status-chip" data-status={recommendationWorkflowStatus.tone} onClick={() => { setActiveRecommendationView("weapons"); switchVaultTab("recommendations"); }}>{recommendationWorkflowStatus.label}</button>
-          {props.highlightedItemKeys ? <span className="ui-badge status-success" data-ui-kind="status-chip">配装命中 {loadoutMatchCount} 件</span> : null}
+          {activeVaultTab === "filters" && group === "weapons" ? (
+            <div className="vault-recommendation-filter" aria-label="按推荐来源筛选">
+              <span>推荐筛选</span>
+              <label>
+                <small>1 来源</small>
+                <select
+                  aria-label="推荐来源"
+                  value={recommendationSourceFilter}
+                  onChange={(event) => {
+                    setRecommendationSourceFilter(event.target.value);
+                    setRecommendationFilter("all");
+                  }}
+                >
+                  <option value="">选择来源</option>
+                  {recommendationSourceOptions.map((option) => (
+                    <option key={option.sourceId} value={option.sourceId}>
+                      {option.sourceLabel} · 覆盖 {option.count}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {recommendationSourceFilter ? (
+                <div role="group" aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}匹配结果`}>
+                  <small>2 结果</small>
+                  <span>
+                    {recommendationFilterOptions.map((option) => (
+                      <button
+                        type="button"
+                        key={option.key}
+                        disabled={option.count === 0}
+                        aria-pressed={recommendationFilter === option.key}
+                        onClick={() => setRecommendationFilter(option.key)}
+                      >
+                        <span>{option.label}</span><small>{option.count}</small>
+                      </button>
+                    ))}
+                  </span>
+                </div>
+              ) : <small className="vault-recommendation-filter-hint">先选择来源，再按该来源结果筛选</small>}
+            </div>
+          ) : null}
+          <div className="vault-workflow-meta">
+            {props.accountResourceStatus ? <span className={`ui-badge ${vaultResourceStatusTone(props.accountResourceStatus)}`} data-ui-kind="status-chip" data-status={props.accountResourceStatus}>{vaultResourceStatusLabel(props.accountResourceStatus)}</span> : null}
+            <span className="ui-badge status-neutral" data-ui-kind="status-chip">
+              {group === "weapons" ? `账号武器 ${accountWeaponCount} 件` : `仓库已读取 ${vaultItemCount} 件`}
+            </span>
+            <span className="ui-badge status-pending" data-ui-kind="status-chip">当前结果 {filteredItems.length} 件</span>
+            <button type="button" className={`ui-badge vault-recommendation-status-link status-${recommendationWorkflowStatus.tone}`} data-ui-kind="status-chip" data-status={recommendationWorkflowStatus.tone} onClick={() => { setActiveRecommendationView("weapons"); switchVaultTab("recommendations"); }}>{recommendationWorkflowStatus.label}</button>
+            {props.highlightedItemKeys ? <span className="ui-badge status-success" data-ui-kind="status-chip">配装命中 {loadoutMatchCount} 件</span> : null}
+          </div>
         </div>
+        {props.accountResourceError ? <p className="status-message status-error" role="alert">{props.accountResourceError}</p> : props.accountResourceMessage ? <p className={`status-message ${props.accountResourceStatus === "cached" || props.accountResourceStatus === "refreshing" ? "status-warning" : "status-ready"}`} role="status">{props.accountResourceMessage}</p> : null}
+        {(batchMessage || batchActions.batchMessage) ? <p className={(batchMessage || batchActions.batchMessage).includes("失败") ? "status-message status-error" : "status-message status-ready"}>{batchMessage || batchActions.batchMessage}</p> : null}
       </div>
-      {props.accountResourceError ? <p className="status-message status-error" role="alert">{props.accountResourceError}</p> : props.accountResourceMessage ? <p className={`status-message ${props.accountResourceStatus === "cached" || props.accountResourceStatus === "refreshing" ? "status-warning" : "status-ready"}`} role="status">{props.accountResourceMessage}</p> : null}
-      {(batchMessage || batchActions.batchMessage) ? <p className={(batchMessage || batchActions.batchMessage).includes("失败") ? "status-message status-error" : "status-message status-ready"}>{batchMessage || batchActions.batchMessage}</p> : null}
 
       {activeVaultTab === "filters" ? (
-        <div id={panelIds.filters} role="tabpanel" aria-labelledby={tabIds.filters} className="vault-workspace-panel">
+        <div id={panelIds.filters} role="tabpanel" aria-labelledby={tabIds.filters} className="vault-workspace-panel vault-browse-panel">
           <div className="vault-browse">
             <VaultFilterToolbar
               query={query}
@@ -963,7 +976,7 @@ export function VaultPageContentView(props: {
               onGroupChange={switchVaultFilterMode}
               onToggleFrameFilter={toggleFrameFilter}
             />
-            <section className="vault-results-column vault-browse-results" data-surface="section" data-contract-id="vault.results">
+            <section className="vault-results-column vault-browse-results" data-surface="section" data-contract-id="vault.results" data-vault-scroll-pane="filters">
               <VaultOrganizePanel
                 isOrganizing={isOrganizing}
                 filteredItemCount={filteredItems.length}
@@ -1031,6 +1044,7 @@ export function VaultPageContentView(props: {
           id={panelIds.duplicates}
           labelledBy={tabIds.duplicates}
           className="vault-workspace-panel"
+          scrollPane="duplicates"
           active={activeVaultTab === "duplicates"}
         >
           <div className="vault-summary-strip">
@@ -1060,7 +1074,7 @@ export function VaultPageContentView(props: {
       ) : null}
 
       {activeVaultTab === "recommendations" ? (
-        <div id={panelIds.recommendations} role="tabpanel" aria-labelledby={tabIds.recommendations} className="vault-recommendations vault-workspace-panel">
+        <div id={panelIds.recommendations} role="tabpanel" aria-labelledby={tabIds.recommendations} className="vault-recommendations vault-workspace-panel" data-vault-scroll-pane="recommendations">
           <div className="vault-recommendation-view-tabs" data-ui-kind="segmented-control" role="tablist" aria-label="推荐与目标内容">
             <button type="button" role="tab" id={recommendationTabIds.weapons} aria-controls={recommendationPanelIds.weapons} aria-selected={activeRecommendationView === "weapons"} tabIndex={activeRecommendationView === "weapons" ? 0 : -1} className={activeRecommendationView === "weapons" ? "active" : ""} onClick={() => setActiveRecommendationView("weapons")} onKeyDown={handleRecommendationViewKeyDown}>武器推荐</button>
             <button type="button" role="tab" id={recommendationTabIds.targets} aria-controls={recommendationPanelIds.targets} aria-selected={activeRecommendationView === "targets"} tabIndex={activeRecommendationView === "targets" ? 0 : -1} className={activeRecommendationView === "targets" ? "active" : ""} onClick={() => setActiveRecommendationView("targets")} onKeyDown={handleRecommendationViewKeyDown}>个人目标</button>
@@ -1100,6 +1114,19 @@ export function VaultPageContentView(props: {
       ) : null}
     </div>
   );
+}
+
+function getVaultWorkspaceScrollRoot(
+  panelIds: Record<VaultWorkspaceTab, string>,
+  tab: VaultWorkspaceTab
+): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  const page = document.querySelector<HTMLElement>(".vault-page");
+  const pane = tab === "filters"
+    ? page?.querySelector<HTMLElement>('[data-vault-scroll-pane="filters"]') ?? null
+    : document.getElementById(panelIds[tab]);
+  if (pane && getComputedStyle(pane).overflowY !== "visible") return pane;
+  return page;
 }
 
 function vaultResourceStatusLabel(status: VaultAccountResourceStatus): string {

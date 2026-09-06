@@ -34,6 +34,10 @@ import {
 
 type SettingsInitialSection = "overview" | "account" | "library" | "bungie";
 
+const ACCOUNT_AUTO_REFRESH_INTERVAL_MS = 10 * 60_000;
+const ACCOUNT_RESUME_REVALIDATE_MS = 2 * 60_000;
+const ACCOUNT_STATUS_STALE_THRESHOLD_MS = 12 * 60_000;
+
 export function useDesktopProductShell(props: {
   state: StartupState;
   onConfigChanged: () => void;
@@ -273,6 +277,46 @@ export function useDesktopProductShell(props: {
     : props.state.cards.manifest.status === "ready";
   const canRefreshAccount = props.state.cards.bungieConfig.status === "ready"
     && props.state.cards.account.status === "ready";
+  const refreshAccountRef = useRef(refreshAccountSnapshot);
+  const lastAccountLoadedAtRef = useRef(lastAccountLoadedAt);
+  refreshAccountRef.current = refreshAccountSnapshot;
+  lastAccountLoadedAtRef.current = lastAccountLoadedAt;
+
+  useEffect(() => {
+    if (isVisualCapture || !canRefreshAccount) return undefined;
+
+    const refreshIfDue = () => {
+      if (document.visibilityState !== "visible" || navigator.onLine === false) return;
+      const loadedAt = lastAccountLoadedAtRef.current;
+      if (loadedAt && Date.now() - loadedAt.getTime() < ACCOUNT_AUTO_REFRESH_INTERVAL_MS) return;
+      void refreshAccountRef.current("auto");
+    };
+    refreshIfDue();
+    const intervalId = window.setInterval(refreshIfDue, ACCOUNT_AUTO_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [canRefreshAccount, isVisualCapture]);
+
+  useEffect(() => {
+    if (isVisualCapture || !canRefreshAccount) return undefined;
+
+    const refreshAfterResume = () => {
+      if (document.visibilityState !== "visible" || navigator.onLine === false) return;
+      const loadedAt = lastAccountLoadedAtRef.current;
+      if (loadedAt && Date.now() - loadedAt.getTime() < ACCOUNT_RESUME_REVALIDATE_MS) return;
+      void refreshAccountRef.current("auto");
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshAfterResume();
+    };
+    window.addEventListener("focus", refreshAfterResume);
+    window.addEventListener("online", refreshAfterResume);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", refreshAfterResume);
+      window.removeEventListener("online", refreshAfterResume);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [canRefreshAccount, isVisualCapture]);
 
   useEffect(() => {
     if (startupStep !== "home") {
@@ -528,7 +572,7 @@ function buildShellStatus(input: {
 }): ShellStatusItem[] {
   const needsLibraryRepair = Boolean(input.manifestStatus?.missing_required_components?.length);
   const waitingForBungieConfig = !input.isBungieConfigured;
-  const accountProfileStale = isAccountProfileStale(input.accountSummary);
+  const accountSnapshotStale = isAccountSnapshotStale(input.lastAccountLoadedAt);
   const shellCopy = getLocaleCopy(input.interfaceLocale).shell;
   const appUpdateStatus = getAppUpdateShellStatus(input.appUpdateSnapshot, shellCopy.update);
 
@@ -544,8 +588,8 @@ function buildShellStatus(input: {
       key: "account",
       label: "账号",
       value: formatAccountShellStatus(input.accountSummary, input.lastAccountLoadedAt, input.isLoadingAccount, input.accountWriteSyncActivity, input.isShowingCachedAccount, input.accountError, input.accountWarning, input.canRefreshAccount),
-      tone: getAccountStatusTone(input.accountSummary, input.isLoadingAccount, input.accountWriteSyncActivity, input.isShowingCachedAccount, input.accountError, input.accountWarning, input.canRefreshAccount),
-      priority: input.accountError || input.accountWarning || accountProfileStale || input.isLoadingAccount || input.accountWriteSyncActivity.active ? "attention" : "standard",
+      tone: getAccountStatusTone(input.accountSummary, input.lastAccountLoadedAt, input.isLoadingAccount, input.accountWriteSyncActivity, input.isShowingCachedAccount, input.accountError, input.accountWarning, input.canRefreshAccount),
+      priority: input.accountError || input.accountWarning || accountSnapshotStale || input.isLoadingAccount || input.accountWriteSyncActivity.active ? "attention" : "standard",
       kind: "task",
       active: input.isLoadingAccount || input.accountWriteSyncActivity.active
     },
@@ -593,7 +637,7 @@ function formatAccountShellStatus(
   if (accountError) return "读取失败";
   if (accountWriteSyncActivity.active) {
     if (accountWriteSyncActivity.phase === "finalizing") return "正在核对最终状态";
-    if (accountWriteSyncActivity.delayed) return "等待游戏状态";
+    if (accountWriteSyncActivity.delayed) return "游戏数据延迟";
     return accountWriteSyncActivity.pendingCount > 0
       ? `${accountWriteSyncActivity.pendingCount} 项待确认`
       : "等待游戏状态";
@@ -603,9 +647,9 @@ function formatAccountShellStatus(
   if (accountSummary) {
     const loadedAt = formatTime(lastAccountLoadedAt);
     if (isShowingCachedAccount) return loadedAt ? `本地缓存 · ${loadedAt}` : "本地缓存";
-    const profileAge = getAccountProfileAge(accountSummary);
-    if (profileAge !== undefined && profileAge > ACCOUNT_PROFILE_STALE_THRESHOLD_MS) {
-      return `游戏数据延迟 · ${formatProfileAge(profileAge)}`;
+    const snapshotAge = getAccountSnapshotAge(lastAccountLoadedAt);
+    if (snapshotAge !== undefined && snapshotAge > ACCOUNT_STATUS_STALE_THRESHOLD_MS) {
+      return `待同步 · ${formatAccountAge(snapshotAge)}`;
     }
     return loadedAt ? `已核对 · ${loadedAt}` : "已核对";
   }
@@ -614,6 +658,7 @@ function formatAccountShellStatus(
 
 function getAccountStatusTone(
   accountSummary: AccountSummary | null,
+  lastAccountLoadedAt: Date | null,
   isLoadingAccount: boolean,
   accountWriteSyncActivity: AccountWriteSyncActivity,
   isShowingCachedAccount: boolean,
@@ -626,25 +671,21 @@ function getAccountStatusTone(
   if (isLoadingAccount) return "pending";
   if (isShowingCachedAccount && accountSummary) return "warning";
   if (accountWarning && accountSummary) return "warning";
-  if (isAccountProfileStale(accountSummary)) return "warning";
+  if (isAccountSnapshotStale(lastAccountLoadedAt)) return "warning";
   if (accountSummary) return "ready";
   return canRefreshAccount ? "warning" : "neutral";
 }
 
-const ACCOUNT_PROFILE_STALE_THRESHOLD_MS = 90_000;
-
-function isAccountProfileStale(accountSummary: AccountSummary | null): boolean {
-  const age = getAccountProfileAge(accountSummary);
-  return age !== undefined && age > ACCOUNT_PROFILE_STALE_THRESHOLD_MS;
+function isAccountSnapshotStale(lastAccountLoadedAt: Date | null): boolean {
+  const age = getAccountSnapshotAge(lastAccountLoadedAt);
+  return age !== undefined && age > ACCOUNT_STATUS_STALE_THRESHOLD_MS;
 }
 
-function getAccountProfileAge(accountSummary: AccountSummary | null): number | undefined {
-  if (!accountSummary?.profile_minted_at) return undefined;
-  const mintedAt = Date.parse(accountSummary.profile_minted_at);
-  return Number.isFinite(mintedAt) ? Math.max(0, Date.now() - mintedAt) : undefined;
+function getAccountSnapshotAge(lastAccountLoadedAt: Date | null): number | undefined {
+  return lastAccountLoadedAt ? Math.max(0, Date.now() - lastAccountLoadedAt.getTime()) : undefined;
 }
 
-function formatProfileAge(ageMs: number): string {
+function formatAccountAge(ageMs: number): string {
   const seconds = Math.max(1, Math.round(ageMs / 1000));
   if (seconds < 60) return `${seconds} 秒`;
   const minutes = Math.round(seconds / 60);

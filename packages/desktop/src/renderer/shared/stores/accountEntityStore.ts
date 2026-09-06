@@ -201,7 +201,12 @@ export function confirmCommittedAccountEntityPatches(
     changed = true;
   }
   if (changed) {
-    confirmedState = { ...nextConfirmed, revision: state.revision + 1 };
+    const nextAccount = nextConfirmed.account
+      && profileMintedAt
+      && verifiedProfileVersion > accountProfileVersion(nextConfirmed.account)
+      ? { ...nextConfirmed.account, profile_minted_at: profileMintedAt }
+      : nextConfirmed.account;
+    confirmedState = { ...nextConfirmed, account: nextAccount, revision: state.revision + 1 };
     state = projectCommittedAccountState(confirmedState, state, state.revision + 1);
     emitChange();
   }

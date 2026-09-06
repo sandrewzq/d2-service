@@ -86,7 +86,7 @@ function WindowedWeaponGrid(props: GridProps) {
 
   const updateWindow = useCallback(() => {
     const grid = gridRef.current;
-    const scrollRoot = grid?.closest<HTMLElement>(".shell-content");
+    const scrollRoot = getVaultGridScrollRoot(grid);
     if (!grid || !scrollRoot) return;
 
     const metrics = metricsRef.current;
@@ -128,7 +128,7 @@ function WindowedWeaponGrid(props: GridProps) {
 
   const measureGrid = useCallback(() => {
     const grid = gridRef.current;
-    const scrollRoot = grid?.closest<HTMLElement>(".shell-content");
+    const scrollRoot = getVaultGridScrollRoot(grid);
     if (!grid || !scrollRoot) return;
 
     const computedStyle = getComputedStyle(grid);
@@ -158,7 +158,7 @@ function WindowedWeaponGrid(props: GridProps) {
 
   useLayoutEffect(() => {
     const grid = gridRef.current;
-    const scrollRoot = grid?.closest<HTMLElement>(".shell-content");
+    const scrollRoot = getVaultGridScrollRoot(grid);
     if (!grid || !scrollRoot) return;
     const resizeObserver = new ResizeObserver(scheduleMeasure);
     resizeObserver.observe(scrollRoot);
@@ -199,7 +199,7 @@ function WindowedWeaponGrid(props: GridProps) {
       return;
     }
     const grid = gridRef.current;
-    const scrollRoot = grid?.closest<HTMLElement>(".shell-content");
+    const scrollRoot = getVaultGridScrollRoot(grid);
     if (!grid || !scrollRoot) return;
     const metrics = metricsRef.current;
     const row = Math.floor(index / metrics.columns);
@@ -245,6 +245,16 @@ function renderCells(props: GridProps, startIndex: number, items: AccountItemSum
       </div>
     );
   });
+}
+
+function getVaultGridScrollRoot(grid: HTMLElement | null | undefined): HTMLElement | null {
+  if (!grid) return null;
+  const resultsPane = grid.closest<HTMLElement>(".vault-results-column");
+  if (resultsPane && getComputedStyle(resultsPane).overflowY !== "visible") {
+    return resultsPane;
+  }
+  return grid.closest<HTMLElement>(".vault-page")
+    ?? grid.closest<HTMLElement>(".shell-content");
 }
 
 function handleGridKeyDown(event: KeyboardEvent<HTMLDivElement>, grid: HTMLDivElement | null, itemCount: number) {

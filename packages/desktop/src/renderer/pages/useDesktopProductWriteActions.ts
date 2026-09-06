@@ -83,10 +83,57 @@ export function useDesktopProductWriteActions(input: {
   const reloadedTerminalTaskIdsRef = useRef(new Set<string>());
   const accountWriteSyncsRef = useRef<AccountWriteSyncState[]>([]);
   const writeSyncTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const terminalRefreshQueueRef = useRef(new Map<string, {
+    sync: AccountWriteSyncState;
+    mismatchedPatches: AccountItemActionPatch[];
+  }>());
+  const terminalRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const terminalRefreshInFlightRef = useRef(false);
+  const actionLogReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { backgroundTasks } = useBackgroundTasks();
   const loadoutActionFeedback = useLoadoutActionFeedback();
 
   accountWriteSyncsRef.current = accountWriteSyncs;
+
+  function scheduleActionLogReload(): void {
+    if (actionLogReloadTimerRef.current) return;
+    actionLogReloadTimerRef.current = setTimeout(() => {
+      actionLogReloadTimerRef.current = null;
+      void input.diagnostics.loadActionLog().catch(() => undefined);
+    }, 350);
+  }
+
+  function scheduleTerminalAccountRefresh(
+    sync?: AccountWriteSyncState,
+    mismatchedPatches: AccountItemActionPatch[] = []
+  ): void {
+    if (sync) {
+      terminalRefreshQueueRef.current.set(sync.taskId, { sync, mismatchedPatches });
+    }
+    if (terminalRefreshTimerRef.current || terminalRefreshInFlightRef.current) return;
+
+    terminalRefreshTimerRef.current = setTimeout(() => {
+      terminalRefreshTimerRef.current = null;
+      const queued = [...terminalRefreshQueueRef.current.values()];
+      terminalRefreshQueueRef.current.clear();
+      if (!queued.length) return;
+
+      terminalRefreshInFlightRef.current = true;
+      void input.loadAccountSummary()
+        .catch(() => undefined)
+        .finally(() => {
+          const completedTaskIds = new Set(queued.map((entry) => entry.sync.taskId));
+          const mismatches = queued.flatMap((entry) => entry.mismatchedPatches);
+          if (mismatches.length) {
+            input.discardCommittedAccountActionPatches(mismatches);
+          }
+          setAccountWriteSyncs((current) => current.filter((entry) => !completedTaskIds.has(entry.taskId)));
+          terminalRefreshInFlightRef.current = false;
+          scheduleActionLogReload();
+          if (terminalRefreshQueueRef.current.size) scheduleTerminalAccountRefresh();
+        });
+    }, 350);
+  }
 
   useEffect(() => {
     const currentTaskIds = new Set(accountWriteSyncs.map((sync) => sync.taskId));
@@ -128,15 +175,10 @@ export function useDesktopProductWriteActions(input: {
           });
           setItemActionMessage("");
         }
-        // 即使后台任务的终态事件丢失，也用最后一次权威账号刷新收束状态。
-        // 刷新结束前继续保留全局进度，失败时保留当前缓存。
+        // 即使后台任务的终态事件丢失，也用一次合并后的权威账号刷新收束状态。
+        // 连续操作共享同一轮刷新，避免每件装备分别重建账号和仓库页面。
         reloadedTerminalTaskIdsRef.current.add(sync.taskId);
-        void input.loadAccountSummary()
-          .catch(() => undefined)
-          .finally(() => {
-            setAccountWriteSyncs((current) => current.filter((entry) => entry.taskId !== sync.taskId));
-          });
-        void input.diagnostics.loadActionLog().catch(() => undefined);
+        scheduleTerminalAccountRefresh(sync);
       }, remainingMs);
       writeSyncTimeoutsRef.current.set(sync.taskId, timer);
     }
@@ -147,6 +189,10 @@ export function useDesktopProductWriteActions(input: {
   useEffect(() => () => {
     for (const timer of writeSyncTimeoutsRef.current.values()) clearTimeout(timer);
     writeSyncTimeoutsRef.current.clear();
+    if (terminalRefreshTimerRef.current) clearTimeout(terminalRefreshTimerRef.current);
+    if (actionLogReloadTimerRef.current) clearTimeout(actionLogReloadTimerRef.current);
+    terminalRefreshTimerRef.current = null;
+    actionLogReloadTimerRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -242,23 +288,17 @@ export function useDesktopProductWriteActions(input: {
           entry.task.profile_minted_at
         );
       }
-      // 验证任务结束后用真实 Bungie 快照刷新页面。尚未反映写入的延迟
-      // Profile 会由 Account Store 重放 Pending，不能静默覆盖预计位置。
-      // 对账任务进入终态并不等于 Renderer 已经接收最终快照。保留这条
-      // 同步记录，直到权威刷新结束，避免全局进度在页面更新前消失。
-      void input.loadAccountSummary()
-        .catch(() => undefined)
-        .finally(() => {
-          if (mismatchedPatches.length) {
-            // 先让完整快照吸收已经真实反映的批量成功项，再只撤销仍与
-            // Pending 匹配的冲突项，避免批量操作在最终刷新前整体闪回。
-            input.discardCommittedAccountActionPatches(mismatchedPatches);
-          }
-          setAccountWriteSyncs((current) => current.filter((sync) => sync.taskId !== entry.sync.taskId));
-        });
-      // 对账结果会追加到操作日志；任务结束后立即拉取，避免设置页继续
-      // 只显示“请求已受理”而看不到最终“已确认/不可用”。
-      void input.diagnostics.loadActionLog().catch(() => undefined);
+      const lightweightVerificationComplete = entry.task.status === "success" && hasVerifiedProfile;
+      if (lightweightVerificationComplete || entry.task.status === "superseded") {
+        // 主进程已经返回逐实例事实，成功确认时直接提交轻量结果；被替代
+        // 的旧任务也不需要再读取整份账号。取出、装备与锁定不会改变 Roll。
+        setAccountWriteSyncs((current) => current.filter((sync) => sync.taskId !== entry.sync.taskId));
+        scheduleActionLogReload();
+      } else {
+        // mismatch、unconfirmed、blocked 等异常终态才需要权威快照；短时间
+        // 内结束的多个任务合并为一次读取，刷新后再撤销明确冲突的补丁。
+        scheduleTerminalAccountRefresh(entry.sync, mismatchedPatches);
+      }
     }
     const remainingSyncs = accountWriteSyncs.filter((sync) => !terminalTaskIds.has(sync.taskId));
     const visibleRemainingSyncs = remainingSyncs.filter((sync) => sync.surfaceFeedback);

@@ -23,7 +23,7 @@ type DiagnosticsBridge = {
   refreshDiagnostics: () => Promise<void>;
 };
 
-type AccountRefreshReason = "initial" | "manual" | "write-action";
+type AccountRefreshReason = "initial" | "manual" | "auto" | "write-action";
 
 export function useAccountWorkspace(input: {
   state: StartupState;
@@ -212,9 +212,9 @@ export function useAccountWorkspace(input: {
     setAccountError("");
     const previousSummary = getAccountSummarySnapshot();
     if (reason === "manual") setAccountSyncMessage("正在同步角色装备、背包、仓库和配装");
-    // 初次读取和用户手动同步都属于可见的前台动作。只有明确写操作触发的
-    // 对账刷新留在后台，并由写入反馈与任务 Dock 说明其进度。
-    const foreground = reason !== "write-action";
+    // 初次读取和用户手动同步属于可见的前台动作；定时、回到前台和
+    // 写操作触发的同步都在后台完成，不占用手动同步按钮的忙碌状态。
+    const foreground = reason === "initial" || reason === "manual";
     const authoritative = reason === "manual" || reason === "write-action";
     const existingRequest = accountRefreshRequestRef.current;
     if (existingRequest) {
@@ -282,19 +282,24 @@ export function useAccountWorkspace(input: {
             ? `已收到游戏数据，${pendingCount} 项操作仍在等待游戏状态确认`
             : formatAccountSyncMessage(previousSummary, summary, reason));
         }
-        communityRequestSequenceRef.current += 1;
-        recommendationScanAccountKeyRef.current = "";
-        setIsVaultCommunityMatchLoading(false);
-        setVaultRecommendationScan((current) => ({
-          phase: current.scanned_weapon_count || vaultCommunityInstanceMatch.size ? "partial" : "idle",
-          total_weapon_count: countAccountWeapons(summary),
-          scanned_weapon_count: vaultCommunityInstanceMatch.size,
-          covered_weapon_count: [...vaultCommunityInstanceMatch.values()].filter((item) => item.coverage === "covered").length,
-          retained_result_count: vaultCommunityInstanceMatch.size,
-          message: vaultCommunityInstanceMatch.size
-            ? "装备数据已更新，当前暂时显示上次推荐结果，后台正在按变化实例重新核对。"
-            : undefined
-        }));
+        const shouldRefreshCommunityMatch = !previousSummary
+          || !recommendationScanAccountKeyRef.current
+          || !hasSameWeaponRecommendationInputs(previousSummary, summary);
+        if (shouldRefreshCommunityMatch) {
+          communityRequestSequenceRef.current += 1;
+          recommendationScanAccountKeyRef.current = "";
+          setIsVaultCommunityMatchLoading(false);
+          setVaultRecommendationScan((current) => ({
+            phase: current.scanned_weapon_count || vaultCommunityInstanceMatch.size ? "partial" : "idle",
+            total_weapon_count: countAccountWeapons(summary),
+            scanned_weapon_count: vaultCommunityInstanceMatch.size,
+            covered_weapon_count: [...vaultCommunityInstanceMatch.values()].filter((item) => item.coverage === "covered").length,
+            retained_result_count: vaultCommunityInstanceMatch.size,
+            message: vaultCommunityInstanceMatch.size
+              ? "装备数据已更新，当前暂时显示上次推荐结果，后台正在按变化实例重新核对。"
+              : undefined
+          }));
+        }
         if (reason === "initial" || reason === "manual") {
           const pendingCount = getPendingCommittedAccountPatchCount();
           setActivityMessage(pendingCount
@@ -306,15 +311,21 @@ export function useAccountWorkspace(input: {
               : "装备数据已同步，最近活动会继续在后台读取");
         }
         if (reason === "initial") void refreshAccountDerivedData(summary);
-        // 推荐核对是账号快照提交后的派生任务，不阻塞账号、仓库和配装更新。
-        // 匹配服务会按账号、Roll 指纹和 revision 复用缓存，只重算新增或变化实例。
-        void loadVaultCommunityMatch(summary).catch(() => undefined);
+        // 推荐核对只依赖武器实例与 Roll。取出、存入、装备和锁定只改变
+        // 位置或状态，不再清空当前结果，也不再触发整账号推荐重算。
+        if (shouldRefreshCommunityMatch) {
+          void loadVaultCommunityMatch(summary).catch(() => undefined);
+        }
         return summary;
       } catch (error) {
         if (requestSequence !== accountRequestSequenceRef.current) return null;
         const message = error instanceof Error ? error.message : "账号数据读取失败";
         const resolvedMessage = getAccountLoadErrorMessage(input.state, message);
         if (getAccountSummarySnapshot()) {
+          if (reason === "auto") {
+            setAccountSyncMessage("自动同步暂时失败，继续显示上次装备数据");
+            return null;
+          }
           setIsShowingCachedAccount(true);
           if (reason !== "write-action") setAccountSyncMessage("同步失败，继续显示上次账号数据");
           setAccountError(`${formatAccountRefreshFailurePrefix(reason)}，仍显示上次装备数据。${resolvedMessage}`);
@@ -553,6 +564,39 @@ function countAccountWeapons(summary: AccountSummary, hashes?: ReadonlySet<numbe
   ].filter((item) => item.group_key === "weapons" && (!hashes || hashes.has(item.hash))).length;
 }
 
+function hasSameWeaponRecommendationInputs(
+  previous: AccountSummary,
+  next: AccountSummary
+): boolean {
+  const previousKeys = buildWeaponRecommendationInputKeys(previous);
+  const nextKeys = buildWeaponRecommendationInputKeys(next);
+  if (previousKeys.length !== nextKeys.length) return false;
+  return previousKeys.every((key, index) => key === nextKeys[index]);
+}
+
+function buildWeaponRecommendationInputKeys(summary: AccountSummary): string[] {
+  return [
+    ...summary.characters.flatMap((character) => [
+      ...character.equipped_items,
+      ...character.inventory_items,
+      ...character.postmaster_items
+    ]),
+    ...summary.vault.items
+  ]
+    .filter((item) => item.group_key === "weapons")
+    .map((item) => {
+      const fallbackRoll = item.socket_plugs
+        .map((plug) => `${plug.socket_index ?? ""}:${plug.hash}`)
+        .join(",");
+      return [
+        item.instance_id ?? "",
+        item.hash,
+        item.weapon_roll?.fingerprint ?? fallbackRoll
+      ].join(":");
+    })
+    .sort();
+}
+
 function mergeIncrementalRecommendationMatches(
   current: ReadonlyMap<string, VaultItemInstanceMatchInfo>,
   fresh: ReadonlyMap<string, VaultItemInstanceMatchInfo>,
@@ -584,6 +628,7 @@ function formatAccountWarningSource(source: string): string {
 }
 
 function formatAccountRefreshFailurePrefix(reason: AccountRefreshReason): string {
+  if (reason === "auto") return "自动同步装备数据失败";
   if (reason === "write-action") return "操作后同步装备数据失败";
   if (reason === "manual") return "同步装备数据失败";
   return "读取装备数据失败";

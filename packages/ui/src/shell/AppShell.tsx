@@ -138,7 +138,7 @@ export function AppShell(props: AppShellProps) {
   }, [isAssistantOpen, isAssistantOverlay]);
 
   return (
-    <main className={shellClassName} data-color-mode={props.colorMode} data-density={props.density}>
+    <main className={shellClassName} data-active-page={props.activePage} data-color-mode={props.colorMode} data-density={props.density}>
       <header className="shell-titlebar shell-topbar" data-reference-id="shell.topbar" data-shell-role="titlebar" data-ui-kind="shell-chrome">
         <div className="shell-window-brand" data-reference-id="shell.brand" data-ui-kind="product-identity">
           <span className="shell-app-mark">D2</span>
