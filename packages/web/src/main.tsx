@@ -585,7 +585,6 @@ function WebApp() {
                 executeLocalPlan: () => undefined,
                 importGuideSource: async () => true,
                 acceptAssistantEquipmentTargets: () => false,
-                acceptGuideLoadoutCandidates: () => false,
                 dismissAssistantPrefill: () => setLocalPlanAssistantPrefill(null),
                 pushApplicationLoadoutScreen: (screen: ApplicationLoadoutScreen) => {
                   setApplicationLoadoutNavigation((current) => pushApplicationLoadoutScreen(current, screen).state);
