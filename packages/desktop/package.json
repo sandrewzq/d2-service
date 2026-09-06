@@ -1,6 +1,6 @@
 {
   "name": "@d2-tools/desktop",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "private": true,
   "description": "Windows desktop app for d2-tools, a Chinese Destiny 2 companion.",
   "author": "zhangqi",

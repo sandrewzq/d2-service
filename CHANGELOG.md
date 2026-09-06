@@ -2,6 +2,40 @@
 
 这个项目使用面向玩家的更新日志。这里优先记录”玩家能感知到什么变化”，而不是逐条展开内部实现细节。
 
+## 0.0.21 - 2026-09-06
+
+### 中文
+
+#### 改进
+
+- 仓库工作台收敛为“浏览装备、看推荐、整理同名”三步流程，简化普通玩家不常用或重复的筛选项，并统一推荐来源、匹配结果和数量展示。
+- 武器卡片与详情统一显示推荐来源、Perk 1 / Perk 2 核心符合度和完整 Roll 符合度；推荐 Perk 同时保留图标和名称，命中项更加醒目。
+- 移除独立攻略库和个人知识入口，攻略内容统一进入配装流程，武器详情减少重复信息与不必要的后台读取。
+- 仓库宽屏布局固定页面标题与工作流区域，左侧筛选和右侧装备结果可独立滚动，并保留三个工作区各自的滚动位置。
+
+#### 修复
+
+- 修复约千件装备的仓库在切换推荐来源、连续滚动或后台同步时引发整个应用卡顿的问题。
+- 写后确认成功时改为只提交对应装备的轻量结果；只有异常终态才合并执行完整账号刷新，位置或锁定变化不再重算全部推荐。
+- 恢复前台定时同步与回到应用后的补同步，并区分普通快照过期和写操作确认延迟，避免状态栏过早显示“游戏数据延迟”。
+- 修复武器详情中未选中、跨版本推荐和大师属性图标缺失，以及仓库卡片、推荐列表和详情状态描述不一致的问题。
+
+### English
+
+#### Improved
+
+- Consolidated the Vault workbench into Browse, Recommendations, and Same-name Cleanup, removed low-value duplicate filters, and unified source, result, and count presentation.
+- Unified weapon cards and details around recommendation sources, Perk 1 / Perk 2 core matches, and full-roll matches, while keeping both icons and names and emphasizing matched perks.
+- Removed the standalone Guides library and personal-knowledge entry points, routed guide content through Loadouts, and reduced duplicate detail content and unnecessary background reads.
+- Fixed the Vault title and workflow area on wide screens, gave filters and equipment results independent scrolling, and retained scroll positions for each workspace.
+
+#### Fixed
+
+- Fixed application-wide lag while switching recommendation sources, continuously scrolling inventories of roughly one thousand items, or synchronizing account data in the background.
+- Changed successful post-write confirmation to commit only the affected item; full account refreshes are now coalesced for exceptional outcomes, and location or lock changes no longer recompute every recommendation.
+- Restored periodic foreground synchronization and catch-up synchronization after returning to the app, while separating stale snapshots from delayed write confirmation states.
+- Fixed missing icons for unselected, cross-version, and masterwork recommendations, and standardized recommendation wording across Vault cards, lists, and weapon details.
+
 ## 0.0.20 - 2026-09-06
 
 ### 中文
