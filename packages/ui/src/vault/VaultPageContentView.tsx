@@ -348,6 +348,12 @@ export function VaultPageContentView(props: {
   const filteredItems = recommendationFilterState.items;
   const recommendationPrimaryFilterOptions = recommendationFilterState.primaryOptions;
   const recommendationCompleteFilterOptions = recommendationFilterState.completeOptions;
+  const directRecommendationPrimaryFilterOptions = recommendationPrimaryFilterOptions.filter((option) => (
+    option.key === "all" || isVaultRecommendationMetricKey(option.key)
+  ));
+  const otherRecommendationPrimaryFilterOptions = recommendationPrimaryFilterOptions.filter((option) => (
+    option.key !== "all" && !isVaultRecommendationMetricKey(option.key)
+  ));
   const recommendationSourceIsDim = canonicalVaultRecommendationSourceId(recommendationSourceFilter) === "dim_wishlist";
   const showRecommendationCompleteFilter = Boolean(
     recommendationSourceFilter
@@ -792,6 +798,11 @@ export function VaultPageContentView(props: {
     setIsOrganizing(true);
   }
 
+  function toggleOrganizing() {
+    if (isOrganizing) setSelectedKeys(new Set());
+    setIsOrganizing((current) => !current);
+  }
+
   function requestQuickActionFocus(itemKey: string) {
     setQuickActionFocusRequest((current) => ({
       itemKey,
@@ -920,7 +931,9 @@ export function VaultPageContentView(props: {
               armorSetFilters={armorSetFilters}
               armorSetCatalogStatus={props.armorSetCatalogStatus}
               availableFrameFilters={availableFrameFilters}
+              activeFilterCount={activeFilterLabels.length}
               onQueryChange={setQuery}
+              onResetFilters={resetFilterState}
               onSortKeyChange={setSortKey}
               onTagFilterChange={setTagFilter}
               onAddArmorStatRule={addArmorStatRule}
@@ -940,12 +953,12 @@ export function VaultPageContentView(props: {
               onGroupChange={switchVaultFilterMode}
               onToggleFrameFilter={toggleFrameFilter}
             />
-            <section className={`vault-results-column vault-browse-results${group === "weapons" ? " has-recommendation-toolbar" : ""}`} data-surface="section" data-contract-id="vault.results" data-vault-scroll-pane="filters">
-              {group === "weapons" ? (
-                <div className="vault-recommendation-toolbar">
-                  <div className={`vault-recommendation-filter${showRecommendationCompleteFilter ? " has-complete-filter" : ""}`} role="group" aria-label="按推荐来源筛选">
+            <section className="vault-results-column vault-browse-results" data-surface="section" data-contract-id="vault.results" data-vault-scroll-pane="filters">
+              <div className="vault-results-command-row">
+                {group === "weapons" ? (
+                  <div className="vault-recommendation-filter" role="group" aria-label="按推荐来源筛选">
                     <label className="vault-recommendation-source-filter">
-                      <small>1 来源</small>
+                      <small>来源</small>
                       <select
                         aria-label="推荐来源"
                         value={recommendationSourceFilter}
@@ -965,9 +978,9 @@ export function VaultPageContentView(props: {
                     </label>
                     {recommendationSourceFilter ? (
                       <div className="vault-recommendation-primary-filter" role="group" aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}命中筛选`}>
-                        <small>2 {recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}</small>
+                        <small>{recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}</small>
                         <span>
-                          {recommendationPrimaryFilterOptions.map((option) => (
+                          {directRecommendationPrimaryFilterOptions.map((option) => (
                             <button
                               type="button"
                               key={option.key}
@@ -983,10 +996,30 @@ export function VaultPageContentView(props: {
                           ))}
                         </span>
                       </div>
-                    ) : <small className="vault-recommendation-filter-hint">先选择来源，再按命中数量筛选</small>}
+                    ) : null}
+                    {recommendationSourceFilter && otherRecommendationPrimaryFilterOptions.length ? (
+                      <label className="vault-recommendation-other-filter">
+                        <small>其他</small>
+                        <select
+                          aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}其他推荐状态`}
+                          value={recommendationPrimaryFilter === "all" || isVaultRecommendationMetricKey(recommendationPrimaryFilter) ? "" : recommendationPrimaryFilter}
+                          onChange={(event) => {
+                            setRecommendationPrimaryFilter((event.target.value || "all") as VaultRecommendationPrimaryFilter);
+                            setRecommendationCompleteFilter("all");
+                          }}
+                        >
+                          <option value="">选择状态</option>
+                          {otherRecommendationPrimaryFilterOptions.map((option) => (
+                            <option key={option.key} value={option.key} disabled={option.count === 0}>
+                              {option.label} · {option.count}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
                     {showRecommendationCompleteFilter ? (
                       <label className="vault-recommendation-complete-filter">
-                        <small>3 完整命中</small>
+                        <small>完整命中</small>
                         <select
                           aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}完整命中筛选`}
                           value={recommendationCompleteFilter}
@@ -1001,13 +1034,26 @@ export function VaultPageContentView(props: {
                       </label>
                     ) : null}
                   </div>
+                ) : null}
+                <div className="vault-results-command-summary" aria-live="polite">
+                  <span>{group === "weapons" ? locationFilterLabels[locationFilter] : "仓库装备"}</span>
+                  <strong>{filteredItems.length} 件</strong>
+                  <span>{activeFilterLabels.length} 项条件</span>
+                  <span>{sortLabels[sortKey]}</span>
                 </div>
-              ) : null}
+                <button
+                  type="button"
+                  className="vault-batch-toggle"
+                  data-ui-kind="button"
+                  data-control-variant={isOrganizing ? "quiet" : "secondary"}
+                  aria-expanded={isOrganizing}
+                  onClick={toggleOrganizing}
+                >
+                  {isOrganizing ? "退出批量" : "批量选择"}
+                </button>
+              </div>
               <VaultOrganizePanel
                 isOrganizing={isOrganizing}
-                resultTitle={group === "weapons" ? locationFilterLabels[locationFilter] : "仓库装备矩阵"}
-                resultMeta={sortLabels[sortKey]}
-                activeFilterLabels={activeFilterLabels}
                 filteredItemCount={filteredItems.length}
                 selectedItemCount={selectedItems.length}
                 selectedVaultItemCount={selectedVaultItems.length}
@@ -1023,11 +1069,6 @@ export function VaultPageContentView(props: {
                 protectedCleanupItemCount={cleanupActionItems.length - safeCleanupActionItems.length}
                 cleanupActionItems={safeCleanupActionItems}
                 tags={props.tags}
-                onResetFilters={resetFilterState}
-                onToggleOrganizing={() => {
-                  if (isOrganizing) setSelectedKeys(new Set());
-                  setIsOrganizing((current) => !current);
-                }}
                 onVisibleSelectionChange={selectVisibleItems}
                 onClearSelection={() => setSelectedKeys(new Set())}
                 onCleanupTargetCharacterChange={setCleanupTargetCharacterId}
@@ -1321,7 +1362,9 @@ function buildActiveFilterLabels(input: {
     input.query.trim() ? `搜索：${input.query.trim()}` : "",
     input.sortKey !== "name" ? sortLabels[input.sortKey] : "",
     input.slotFilter !== "all" ? `槽位：${input.slotFilter}` : "",
-    input.locationFilter !== "all" ? `所在位置：${locationFilterLabels[input.locationFilter]}` : "",
+    input.locationFilter !== (input.group === "weapons" ? "vault" : "all")
+      ? `所在位置：${locationFilterLabels[input.locationFilter]}`
+      : "",
     input.itemTypeFilter !== "all" ? `类型：${input.itemTypeFilter}` : "",
     input.rarityFilter !== "all" ? `稀有度：${rarityFilterLabels[input.rarityFilter]}` : "",
     input.gearTierFilter !== "all" ? `阶级：${gearTierFilterLabels[input.gearTierFilter]}` : "",

@@ -10,9 +10,6 @@ type PendingVaultWrite = "selected-junk" | "selected-transfer" | "cleanup-transf
 
 export function VaultOrganizePanel(props: {
   isOrganizing: boolean;
-  resultTitle: string;
-  resultMeta: string;
-  activeFilterLabels: readonly string[];
   filteredItemCount: number;
   selectedItemCount: number;
   selectedVaultItemCount: number;
@@ -28,8 +25,6 @@ export function VaultOrganizePanel(props: {
   protectedCleanupItemCount: number;
   cleanupActionItems: AccountItemSummary[];
   tags: VaultTags;
-  onResetFilters: () => void;
-  onToggleOrganizing: () => void;
   onVisibleSelectionChange: (mode: VaultVisibleSelectionMode) => void;
   onClearSelection: () => void;
   onCleanupTargetCharacterChange: (value: string) => void;
@@ -81,20 +76,6 @@ export function VaultOrganizePanel(props: {
 
   return (
     <>
-      <div className="vault-results-toolbar">
-        <div className="vault-results-summary">
-          <h3>{props.resultTitle}</h3>
-          <span>{props.filteredItemCount} 件 · {props.resultMeta}</span>
-        </div>
-        <div className="vault-results-context" role="group" aria-label="已生效筛选条件">
-          {props.activeFilterLabels.map((label) => <span className="ui-badge status-neutral" key={label}>{label}</span>)}
-        </div>
-        <div className="vault-results-actions">
-          <button type="button" data-ui-kind="button" data-control-variant={props.isOrganizing ? "quiet" : "secondary"} onClick={props.onToggleOrganizing}>{props.isOrganizing ? "退出批量选择" : "批量选择"}</button>
-          <button type="button" data-ui-kind="button" data-control-variant="quiet" disabled={!props.activeFilterLabels.length} onClick={props.onResetFilters}>重置筛选</button>
-        </div>
-      </div>
-
       {props.isOrganizing ? (
         <div className="vault-batch-panel">
           <div className="vault-batch-selection-tools">

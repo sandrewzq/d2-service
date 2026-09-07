@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import {
   ammoFilterLabels,
   classFilterLabels,
@@ -73,7 +73,9 @@ export function VaultFilterToolbar(props: {
   armorSetFilters: VaultArmorSetOption[];
   armorSetCatalogStatus: VaultArmorSetCatalogStatus;
   availableFrameFilters: VaultFrameOption[];
+  activeFilterCount: number;
   onQueryChange: (value: string) => void;
+  onResetFilters: () => void;
   onSortKeyChange: (value: VaultSortKey) => void;
   onTagFilterChange: (value: VaultTagFilter) => void;
   onAddArmorStatRule: () => void;
@@ -93,6 +95,7 @@ export function VaultFilterToolbar(props: {
   onGroupChange: (value: VaultGroupFilter) => void;
   onToggleFrameFilter: (key: string) => void;
 }) {
+  const queryId = useId();
   const isWeaponMode = props.group === "weapons";
   const isArmorMode = props.group === "armor";
   const visibleGroups = props.groups.filter((item) => item.key === "weapons" || item.key === "armor" || item.key === "equipment");
@@ -105,15 +108,27 @@ export function VaultFilterToolbar(props: {
 
   return (
     <aside className="vault-filter-workbench" aria-label="仓库筛选" data-surface="section" data-contract-id="vault.filters">
-      <label className="vault-filter-search">
-        <span>搜索</span>
+      <div className="vault-filter-search">
+        <div className="vault-filter-search-head">
+          <label htmlFor={queryId}>搜索</label>
+          <button
+            type="button"
+            data-ui-kind="button"
+            data-control-variant="quiet"
+            disabled={!props.activeFilterCount}
+            onClick={props.onResetFilters}
+          >
+            重置全部{props.activeFilterCount ? ` ${props.activeFilterCount}` : ""}
+          </button>
+        </div>
         <input
+          id={queryId}
           type="search"
           value={props.query}
           onChange={(event) => props.onQueryChange(event.target.value)}
           placeholder="名称、Perk、标签或备注"
         />
-      </label>
+      </div>
 
       <FilterSection title="物品范围" hint="账号总数">
         <div className="vault-filter-option-grid vault-filter-category-grid" role="group" aria-label="物品范围">

@@ -47,20 +47,23 @@
   background: transparent;
 }
 
-:where(.app-shell) .vault-recommendation-toolbar {
+:where(.app-shell) .vault-results-command-row {
   position: sticky;
   z-index: var(--vault-layer-control, 3);
   top: 0;
-  min-height: 64px;
-  padding: 7px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 5px 10px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-toolbar);
 }
 
 :where(.app-shell) .vault-recommendation-filter {
-  display: grid;
-  grid-template-columns: minmax(190px, 240px) minmax(320px, 1fr) minmax(130px, 170px);
-  gap: 10px;
+  display: flex;
+  gap: 6px;
   min-width: 0;
   align-items: end;
 }
@@ -73,13 +76,20 @@
   align-items: stretch;
 }
 
-:where(.app-shell) .vault-recommendation-primary-filter {
-  min-width: 0;
+:where(.app-shell) .vault-recommendation-source-filter {
+  flex: 0 1 174px;
 }
 
-:where(.app-shell) .vault-recommendation-filter:not(.has-complete-filter) .vault-recommendation-primary-filter,
-:where(.app-shell) .vault-recommendation-filter-hint {
-  grid-column: 2 / -1;
+:where(.app-shell) .vault-recommendation-primary-filter {
+  flex: 1 1 220px;
+}
+
+:where(.app-shell) .vault-recommendation-other-filter {
+  flex: 0 1 112px;
+}
+
+:where(.app-shell) .vault-recommendation-complete-filter {
+  flex: 0 1 108px;
 }
 
 :where(.app-shell) .vault-recommendation-filter > label > small,
@@ -93,11 +103,13 @@
 :where(.app-shell) .vault-recommendation-filter select {
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: 32px;
+  padding-inline: 7px 22px;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
   color: var(--text-body);
   background: var(--surface-panel);
+  font-size: var(--font-caption);
 }
 
 :where(.app-shell) .vault-recommendation-complete-filter select {
@@ -117,10 +129,10 @@
 :where(.app-shell) .vault-recommendation-filter button {
   display: inline-flex;
   flex: 0 0 auto;
-  min-height: 33px;
+  min-height: 31px;
   align-items: center;
   gap: 5px;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 0;
   border-right: 1px solid var(--border-subtle);
   border-radius: 0;
@@ -146,17 +158,37 @@
 }
 
 :where(.app-shell) .vault-recommendation-filter button small {
-  min-width: 18px;
+  min-width: 14px;
   color: inherit;
   font-size: var(--font-micro);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
-:where(.app-shell) .vault-recommendation-filter-hint {
-  align-self: center;
+:where(.app-shell) .vault-results-command-summary {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
   color: var(--text-muted);
   font-size: var(--font-caption);
+  white-space: nowrap;
+}
+
+:where(.app-shell) .vault-results-command-summary > * + *::before {
+  margin-right: 5px;
+  color: var(--border-strong);
+  content: "·";
+}
+
+:where(.app-shell) .vault-results-command-summary strong {
+  color: var(--text-title);
+  font-size: inherit;
+}
+
+:where(.app-shell) .vault-batch-toggle {
+  min-height: 32px;
+  padding-inline: 9px;
   white-space: nowrap;
 }
 
@@ -316,7 +348,7 @@
 }
 
 :where(.app-shell) .vault-filter-title span,
-:where(.app-shell) .vault-filter-search > span,
+:where(.app-shell) .vault-filter-search-head > label,
 :where(.app-shell) .vault-filter-field > span,
 :where(.app-shell) .vault-domain-field > span,
 :where(.app-shell) .vault-filter-scope-group > span,
@@ -1037,72 +1069,9 @@
   font-size: var(--font-row-title);
 }
 
-:where(.app-shell) .vault-results-toolbar {
-  position: sticky;
-  z-index: var(--vault-layer-control, 3);
-  top: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  min-height: 52px;
-  padding: 7px 12px;
-  border-bottom: 1px solid var(--border-subtle);
-  border-radius: 0;
-  background: var(--surface-elevated);
-  box-shadow: none;
-}
-
-:where(.app-shell) .vault-results-column.has-recommendation-toolbar .vault-results-toolbar {
-  top: 64px;
-}
-
-:where(.app-shell) .vault-results-summary {
-  display: grid;
-  gap: 1px;
-  min-width: 116px;
-}
-
-:where(.app-shell) .vault-results-summary h3 {
-  margin: 0;
-  color: var(--text-title);
-  font-size: var(--font-content);
-}
-
-:where(.app-shell) .vault-results-summary span,
 :where(.app-shell) .vault-batch-selection-summary {
   color: var(--text-muted);
   font-size: var(--font-caption);
-}
-
-:where(.app-shell) .vault-results-context,
-:where(.app-shell) .vault-results-actions {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-
-:where(.app-shell) .vault-results-context {
-  overflow: hidden;
-}
-
-:where(.app-shell) .vault-results-context .ui-badge {
-  min-height: 22px;
-  padding: 0 6px;
-  border-radius: var(--radius-indicator);
-  font-size: var(--font-caption);
-  white-space: nowrap;
-}
-
-:where(.app-shell) .vault-results-actions {
-  justify-content: flex-end;
-}
-
-:where(.app-shell) .vault-results-actions button {
-  min-height: 34px;
-  white-space: nowrap;
 }
 
 :where(.app-shell) .vault-organize-field {
@@ -2679,11 +2648,25 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-:where(.app-shell) .vault-filter-search > span,
+:where(.app-shell) .vault-filter-search-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+:where(.app-shell) .vault-filter-search-head > label,
 :where(.app-shell) .vault-filter-field > span,
 :where(.app-shell) .vault-segmented-field > span {
   color: var(--text-muted);
   font-size: var(--font-caption);
+}
+
+:where(.app-shell) .vault-filter-search-head button {
+  min-height: 24px;
+  padding: 0 5px;
+  color: var(--text-muted);
+  font-size: var(--font-micro);
 }
 
 :where(.app-shell) .vault-filter-workbench input,
@@ -4423,20 +4406,9 @@
 }
 
 @container product-workspace (max-width: 1020px) {
-  :where(.app-shell) .vault-recommendation-toolbar,
-  :where(.app-shell) .vault-results-toolbar {
-    position: static;
-  }
-
-  :where(.app-shell) .vault-recommendation-filter {
-    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
-  }
-
-  :where(.app-shell) .vault-recommendation-complete-filter {
-    grid-column: 1 / -1;
-    grid-template-columns: auto minmax(130px, 180px);
-    align-items: center;
-    justify-content: end;
+  :where(.app-shell) .vault-results-command-summary > span:first-child,
+  :where(.app-shell) .vault-results-command-summary > span:last-child {
+    display: none;
   }
 
   :where(.app-shell) .vault-browse {
@@ -4547,34 +4519,30 @@
 }
 
 @container product-workspace (max-width: 700px) {
-  :where(.app-shell) .vault-workflow-bar,
-  :where(.app-shell) .vault-recommendation-filter {
+  :where(.app-shell) .vault-workflow-bar {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  :where(.app-shell) .vault-recommendation-filter:not(.has-complete-filter) .vault-recommendation-primary-filter,
-  :where(.app-shell) .vault-recommendation-filter-hint,
-  :where(.app-shell) .vault-recommendation-complete-filter {
-    grid-column: 1;
-  }
-
-  :where(.app-shell) .vault-recommendation-complete-filter {
-    grid-template-columns: minmax(0, 1fr);
-    justify-content: stretch;
-  }
-
-  :where(.app-shell) .vault-results-toolbar {
+  :where(.app-shell) .vault-results-command-row {
+    position: static;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  :where(.app-shell) .vault-results-context {
+  :where(.app-shell) .vault-recommendation-filter {
     grid-column: 1 / -1;
-    grid-row: 2;
+    flex-wrap: wrap;
   }
 
-  :where(.app-shell) .vault-results-actions {
-    grid-column: 2;
-    grid-row: 1;
+  :where(.app-shell) .vault-recommendation-source-filter {
+    flex-basis: 150px;
+  }
+
+  :where(.app-shell) .vault-recommendation-primary-filter {
+    flex-basis: 210px;
+  }
+
+  :where(.app-shell) .vault-results-command-summary {
+    justify-self: start;
   }
 
   :where(.app-shell) .vault-results-column .vault-card-grid {
