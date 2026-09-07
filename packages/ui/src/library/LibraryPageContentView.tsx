@@ -1028,7 +1028,7 @@ export function LibraryDefinitionDialog(props: {
                 <strong>{libraryText(copy, "刷取判断")}</strong>
                 <span>{formatDropActionHint(dropAccess, communityMatch, liveEntry, copy)}</span>
               </div>
-              {(communityMatch?.available ?? 0) > 0 ? (
+              {communityMatch && (communityMatch.available ?? 0) > 0 ? (
                 <div className="library-definition-source">
                   <strong>{libraryText(copy, "社区推荐")}</strong>
                   <span>{`${formatCommunityRecommendationCount(communityMatch, copy)}${

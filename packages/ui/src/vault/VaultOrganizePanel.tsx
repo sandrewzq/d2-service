@@ -54,7 +54,7 @@ export function VaultOrganizePanel(props: {
           ? "受保护装备会保持原状态；其余装备只写入本地“清理”标签，不会自动解锁、转移或分解。"
           : "只写入本地“清理”标签，不会自动解锁、转移或分解。",
         confirmLabel: "确认标记",
-        tone: "danger" as const
+        tone: "primary" as const
       }
     : pendingWrite === "selected-transfer"
     ? {

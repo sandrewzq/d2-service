@@ -162,6 +162,8 @@ export type LiveItemAvailabilityEntry = {
 export type VaultItemMatchInfo = {
   matched?: number;
   available?: number;
+  perk_pool_count?: number;
+  combo_count?: number;
   modes?: string[];
   source_label?: string;
   sample_perks?: Array<{

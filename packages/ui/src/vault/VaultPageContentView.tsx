@@ -958,7 +958,6 @@ export function VaultPageContentView(props: {
                 {group === "weapons" ? (
                   <div className="vault-recommendation-filter" role="group" aria-label="按推荐来源筛选">
                     <label className="vault-recommendation-source-filter">
-                      <small>来源</small>
                       <select
                         aria-label="推荐来源"
                         value={recommendationSourceFilter}
@@ -968,7 +967,7 @@ export function VaultPageContentView(props: {
                           setRecommendationCompleteFilter("all");
                         }}
                       >
-                        <option value="">选择来源</option>
+                        <option value="">选择推荐来源</option>
                         {recommendationSourceOptions.map((option) => (
                           <option key={option.sourceId} value={option.sourceId}>
                             {option.sourceLabel} · 覆盖 {option.count}
@@ -978,7 +977,6 @@ export function VaultPageContentView(props: {
                     </label>
                     {recommendationSourceFilter ? (
                       <div className="vault-recommendation-primary-filter" role="group" aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}命中筛选`}>
-                        <small>{recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}</small>
                         <span>
                           {directRecommendationPrimaryFilterOptions.map((option) => (
                             <button
@@ -986,12 +984,17 @@ export function VaultPageContentView(props: {
                               key={option.key}
                               disabled={option.count === 0}
                               aria-pressed={recommendationPrimaryFilter === option.key}
+                              aria-label={option.key === "all"
+                                ? `${selectedRecommendationSource?.sourceLabel ?? "当前来源"}${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}全部，${option.count} 件`
+                                : `${selectedRecommendationSource?.sourceLabel ?? "当前来源"}${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}${formatVaultRecommendationMetricOptionLabel(option.key)}，${option.count} 件；分子为命中数，分母为要求数`}
+                              title={`${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}：${formatVaultRecommendationMetricOptionLabel(option.key)}，${option.count} 件`}
                               onClick={() => {
                                 setRecommendationPrimaryFilter(option.key);
                                 setRecommendationCompleteFilter("all");
                               }}
                             >
-                              <span>{option.label}</span><small>{option.count}</small>
+                              <span>{formatVaultRecommendationMetricOptionLabel(option.key)}</span>
+                              <small className="vault-recommendation-option-count" aria-hidden="true">{option.count}</small>
                             </button>
                           ))}
                         </span>
@@ -999,7 +1002,6 @@ export function VaultPageContentView(props: {
                     ) : null}
                     {recommendationSourceFilter && otherRecommendationPrimaryFilterOptions.length ? (
                       <label className="vault-recommendation-other-filter">
-                        <small>其他</small>
                         <select
                           aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}其他推荐状态`}
                           value={recommendationPrimaryFilter === "all" || isVaultRecommendationMetricKey(recommendationPrimaryFilter) ? "" : recommendationPrimaryFilter}
@@ -1008,7 +1010,7 @@ export function VaultPageContentView(props: {
                             setRecommendationCompleteFilter("all");
                           }}
                         >
-                          <option value="">选择状态</option>
+                          <option value="">其他状态</option>
                           {otherRecommendationPrimaryFilterOptions.map((option) => (
                             <option key={option.key} value={option.key} disabled={option.count === 0}>
                               {option.label} · {option.count}
@@ -1019,7 +1021,6 @@ export function VaultPageContentView(props: {
                     ) : null}
                     {showRecommendationCompleteFilter ? (
                       <label className="vault-recommendation-complete-filter">
-                        <small>完整命中</small>
                         <select
                           aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}完整命中筛选`}
                           value={recommendationCompleteFilter}
@@ -1027,7 +1028,7 @@ export function VaultPageContentView(props: {
                         >
                           {recommendationCompleteFilterOptions.map((option) => (
                             <option key={option.key} value={option.key} disabled={option.count === 0}>
-                              {option.label} · {option.count}
+                              {option.key === "all" ? "完整：不限" : `完整 ${option.key}`} · {option.count}
                             </option>
                           ))}
                         </select>
@@ -1045,7 +1046,7 @@ export function VaultPageContentView(props: {
                   type="button"
                   className="vault-batch-toggle"
                   data-ui-kind="button"
-                  data-control-variant={isOrganizing ? "quiet" : "secondary"}
+                  data-control-variant="secondary"
                   aria-expanded={isOrganizing}
                   onClick={toggleOrganizing}
                 >
@@ -1333,6 +1334,17 @@ function isVaultRecommendationMetricKey(
   value: Exclude<VaultRecommendationPrimaryFilter, "all">
 ): value is VaultRecommendationMetricKey {
   return value.includes("/");
+}
+
+function formatVaultRecommendationMetricOptionLabel(
+  key: VaultRecommendationPrimaryFilter
+): string {
+  if (key === "all") return "全部";
+  if (!isVaultRecommendationMetricKey(key)) return vaultRecommendationPrimaryFilterLabel(key, false);
+  const [matched, required] = key.split("/").map(Number);
+  if (matched === required) return `全中 ${key}`;
+  if (matched === 0) return `未命中 ${key}`;
+  return `命中 ${key}`;
 }
 
 function buildActiveFilterLabels(input: {

@@ -949,7 +949,9 @@ export function useLoadoutWriteActions(input: {
         requiresFullRefresh: outcome.requiresFullRefresh,
         patches: outcome.patches
       });
-      input.setLoadoutMessage(`${result.message}，页面已更新。`);
+      input.setLoadoutMessage(outcome.patches.length
+        ? `${result.message}，页面已更新。`
+        : "写入请求已受理；页面会在下次账号同步时校准。");
     } catch (error) {
       input.setLoadoutMessage(error instanceof Error ? error.message : buildLoadoutItemActionFailureMessage("equip", item.name));
     } finally {

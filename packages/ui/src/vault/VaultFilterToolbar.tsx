@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   ammoFilterLabels,
   classFilterLabels,
@@ -95,7 +95,6 @@ export function VaultFilterToolbar(props: {
   onGroupChange: (value: VaultGroupFilter) => void;
   onToggleFrameFilter: (key: string) => void;
 }) {
-  const queryId = useId();
   const isWeaponMode = props.group === "weapons";
   const isArmorMode = props.group === "armor";
   const visibleGroups = props.groups.filter((item) => item.key === "weapons" || item.key === "armor" || item.key === "equipment");
@@ -109,25 +108,31 @@ export function VaultFilterToolbar(props: {
   return (
     <aside className="vault-filter-workbench" aria-label="仓库筛选" data-surface="section" data-contract-id="vault.filters">
       <div className="vault-filter-search">
-        <div className="vault-filter-search-head">
-          <label htmlFor={queryId}>搜索</label>
-          <button
-            type="button"
-            data-ui-kind="button"
-            data-control-variant="quiet"
-            disabled={!props.activeFilterCount}
-            onClick={props.onResetFilters}
-          >
-            重置全部{props.activeFilterCount ? ` ${props.activeFilterCount}` : ""}
-          </button>
-        </div>
         <input
-          id={queryId}
           type="search"
+          aria-label="搜索仓库装备"
           value={props.query}
           onChange={(event) => props.onQueryChange(event.target.value)}
-          placeholder="名称、Perk、标签或备注"
+          placeholder="搜索名称、Perk、标签或备注"
         />
+        <button
+          type="button"
+          className="vault-filter-reset"
+          data-ui-kind="button"
+          data-control-variant="quiet"
+          data-has-active-filters={props.activeFilterCount ? "true" : "false"}
+          disabled={!props.activeFilterCount}
+          aria-label={props.activeFilterCount
+            ? `重置全部筛选，共 ${props.activeFilterCount} 项；包括左侧条件和推荐命中筛选`
+            : "当前没有需要重置的筛选条件"}
+          title={props.activeFilterCount
+            ? "清除左侧条件和推荐命中筛选"
+            : "当前没有需要重置的筛选条件"}
+          onClick={props.onResetFilters}
+        >
+          <span>重置</span>
+          <small className="vault-filter-reset-count" aria-hidden="true">{props.activeFilterCount}</small>
+        </button>
       </div>
 
       <FilterSection title="物品范围" hint="账号总数">

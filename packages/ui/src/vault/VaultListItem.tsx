@@ -211,6 +211,9 @@ export function VaultListItem(props: VaultListItemProps) {
         <div className="vault-card-quick-actions" aria-label={`${props.item.name}快捷操作`}>
           <button
             type="button"
+            data-ui-kind="button"
+            data-control-variant="quiet"
+            data-vault-action="lock"
             disabled={props.quickActionsDisabled}
             aria-busy={Boolean(activeLockQuickAction)}
             title={`一键${lockQuickActionLabel}：${props.item.name}`}
@@ -221,6 +224,9 @@ export function VaultListItem(props: VaultListItemProps) {
           {canTransfer ? (
             <button
               type="button"
+              data-ui-kind="button"
+              data-control-variant="secondary"
+              data-vault-action="transfer"
               disabled={props.quickActionsDisabled}
               aria-busy={activeQuickAction === "transfer"}
               title={`取出到当前角色${props.currentCharacterLabel ? `（${props.currentCharacterLabel}）` : ""}`}

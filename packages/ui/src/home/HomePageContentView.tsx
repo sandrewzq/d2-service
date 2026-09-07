@@ -83,7 +83,13 @@ export type HomeWeeklySummary = {
     entries?: HomeWeeklyActivityEntry[];
   }>;
   iron_banner: WeeklyIronBannerSummary;
-  public_clues: HomeDailyItem[];
+  public_clues: Array<{
+    title: string;
+    subtitle?: string;
+    description?: string;
+    source?: string;
+    weeklyActivityKind?: HomeWeeklyActivityKind;
+  }>;
 };
 export type HomeWeeklyActivityReward = {
   hash: number;
