@@ -80,7 +80,8 @@ export function HomePageItemDetailModal(props: {
       ],
       personalTargets: buildWeaponPersonalTargetViews(
         vendorDefinitionState.recommendations ?? null,
-        vendorSelectedItem
+        vendorSelectedItem,
+        "vendor_offer"
       )
     });
     if (vendorWeaponModel) {

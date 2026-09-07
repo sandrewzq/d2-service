@@ -763,12 +763,27 @@ function uniqueNumbers(values: Array<number | undefined>): number[] {
   return [...new Set(values.filter((value): value is number => typeof value === "number" && Number.isFinite(value)))];
 }
 
+type ElementalSurgeKey = "solar" | "arc" | "void" | "stasis" | "strand";
+
+type ActiveElementalSurge = {
+  key: ElementalSurgeKey;
+  hash: number;
+  name: string;
+};
+
+const elementalSurgeOrder: ElementalSurgeKey[] = ["solar", "arc", "void", "stasis", "strand"];
+
 function mapProfileActivities(
   profile: DestinyProfileActivitiesResponse | undefined,
   definitions: NonNullable<BuildWeeklyLiveDataInput["definitions"]>
 ): WeeklySummaryItem[] {
   const items: WeeklySummaryItem[] = [];
   const activityGroups = new Map<number, DestinyAvailableActivity[]>();
+  const activeSurges = new Map<ElementalSurgeKey, {
+    name: string;
+    modifierHashes: Set<number>;
+    activityHashes: Set<number>;
+  }>();
 
   for (const component of Object.values(profile?.characterActivities?.data ?? {})) {
     for (const activity of component.availableActivities ?? []) {
@@ -795,19 +810,17 @@ function mapProfileActivities(
       continue;
     }
 
-    const focusModifiers = activityFocusModifiers(activity, definitions.modifiers);
-    if (focusModifiers.length) {
-      items.push({
-        title: activityName,
-        subtitle: "焦点活动",
-        description: focusModifiers
-          .map((modifier) => modifier.displayProperties?.description?.trim())
-          .filter(Boolean)
-          .join(" · "),
-        source: "Bungie CharacterActivities + 当前 Manifest",
-        weeklyActivityKind: "weekly_bonus",
-        related_hashes: [activityHash, ...(activity.modifierHashes ?? [])]
-      });
+    if (!activityDefinition?.activityModeTypes?.includes(5)) {
+      for (const surge of activityElementalSurges(activity, definitions.modifiers)) {
+        const aggregate = activeSurges.get(surge.key) ?? {
+          name: surge.name,
+          modifierHashes: new Set<number>(),
+          activityHashes: new Set<number>()
+        };
+        aggregate.modifierHashes.add(surge.hash);
+        aggregate.activityHashes.add(activityHash);
+        activeSurges.set(surge.key, aggregate);
+      }
     }
 
     if (objectiveTexts.some(isGrandmasterVanguardAlertObjective)) {
@@ -849,6 +862,23 @@ function mapProfileActivities(
     }
   }
 
+  const orderedSurges = elementalSurgeOrder.flatMap((key) => {
+    const surge = activeSurges.get(key);
+    return surge ? [surge] : [];
+  });
+  if (orderedSurges.length) {
+    items.unshift({
+      title: orderedSurges.map((surge) => surge.name).join(" / "),
+      description: "仅对活动详情中列出对应修饰词的 PvE 内容生效；不作用于全部 PvE 或 PvP。",
+      source: "Bungie CharacterActivities modifierHashes + 当前 Manifest",
+      weeklyActivityKind: "weekly_surge",
+      related_hashes: uniqueNumbers(orderedSurges.flatMap((surge) => [
+        ...surge.modifierHashes,
+        ...surge.activityHashes
+      ]))
+    });
+  }
+
   return items;
 }
 
@@ -885,14 +915,24 @@ function inferWeeklyActivityKind(value: string): WeeklyPriorityKind | "public_cl
   return "public_clue";
 }
 
-function activityFocusModifiers(
+function activityElementalSurges(
   activity: DestinyAvailableActivity,
   modifiers: DefinitionComponentData | null | undefined
-): DefinitionRecord[] {
-  return (activity.modifierHashes ?? [])
-    .map((hash) => definitionRecord(modifiers, hash))
-    .filter((modifier): modifier is DefinitionRecord => Boolean(modifier))
-    .filter((modifier) => /焦点活动|focused activity/i.test(modifier.displayProperties?.name?.trim() ?? ""));
+): ActiveElementalSurge[] {
+  return (activity.modifierHashes ?? []).flatMap((hash) => {
+    const name = definitionRecord(modifiers, hash)?.displayProperties?.name?.trim() ?? "";
+    const key = elementalSurgeKey(name);
+    return key ? [{ key, hash, name }] : [];
+  });
+}
+
+function elementalSurgeKey(name: string): ElementalSurgeKey | undefined {
+  if (/^(?:烈日激涌|Solar Surge)$/i.test(name)) return "solar";
+  if (/^(?:电弧激涌|Arc Surge)$/i.test(name)) return "arc";
+  if (/^(?:虚空激涌|Void Surge)$/i.test(name)) return "void";
+  if (/^(?:冰影激涌|Stasis Surge)$/i.test(name)) return "stasis";
+  if (/^(?:缚丝激涌|Strand Surge)$/i.test(name)) return "strand";
+  return undefined;
 }
 
 function isPublicMilestoneOnlyClue(kind: WeeklyPriorityKind): boolean {

@@ -62,6 +62,7 @@ export type {
   WeaponSocketPlugLike,
   WeaponRecommendation,
   WeaponRecommendationMatch,
+  WeaponRecommendationPerkCandidate,
   WeaponSourceEntry,
   WeaponStatTrack,
   WeaponVendorOfferSummary

@@ -11,7 +11,8 @@ import {
   type WeaponPerkSelectionColumn,
   type WeaponPerkColumnRole,
   type WeaponDetailObjectContext,
-  type WeaponDetailSources
+  type WeaponDetailSources,
+  type WeaponRecommendationPerkCandidate
 } from "@d2-tools/app/items";
 import type {
   AccountItemPlugSummary,
@@ -20,7 +21,11 @@ import type {
   WeaponStatKey,
   WeaponStatSummary
 } from "@d2-tools/core/account/summary";
-import type { WeaponRecommendation as CommunityWeaponRecommendation } from "@d2-tools/core/community-perks";
+import type {
+  PerkRef,
+  RecommendationSourceRequirement,
+  WeaponRecommendation as CommunityWeaponRecommendation
+} from "@d2-tools/core/community-perks";
 import type { ItemReleaseSummary } from "@d2-tools/core/items/release";
 import type { VaultTags } from "@d2-tools/core/vault/tags";
 import type { EquipmentTargetStore } from "@d2-tools/core/targets/equipmentTargets";
@@ -309,22 +314,64 @@ export function buildWeaponRecommendationViews(
     ...(item.socket_plugs ?? []).map((plug) => plug.hash),
     ...(item.sockets ?? []).flatMap((socket) => socket.reusable_plugs.map((plug) => plug.hash))
   ]);
-  const builtin = (classification.kind === "fixed" && !isFixedExotic ? [] : recommendation?.combos ?? [])
+  const sourceRecords = (recommendation?.source_records ?? [])
+    .filter((record) => record.source_id !== "dim_voltron" && record.source_id !== "dim_wishlist")
+    .map((record) => {
+      const requirements = record.requirements.filter((requirement) => requirement.candidate_names.length > 0);
+      const matched = requirements.filter((requirement) => (
+        requirement.candidates.some((candidate) => availableHashes.has(candidate.hash))
+      )).length;
+      const perkOptions = requirements
+        .map((requirement) => ({
+          column_key: requirement.label,
+          names: requirement.candidate_names,
+          candidates: buildSourceRequirementCandidates(requirement)
+        }));
+      const masterworkNames = requirements
+        .filter((requirement) => requirement.slot === "masterwork")
+        .flatMap((requirement) => requirement.candidate_names);
+      const purposeLabel = recommendationPurposeSummary(record.purposes);
+      return {
+        id: `source:${record.rule_stable_id}`,
+        mode: record.purposes[0] ?? "general",
+        purposes: record.purposes,
+        presentation: "perk_pool" as const,
+        title: requirements.length ? `${purposeLabel} Perk 池` : `${purposeLabel} 武器推荐`,
+        reason: record.note || recommendation?.disclaimer || "按来源原始栏位展示推荐候选。",
+        source: "builtin" as const,
+        source_label: record.source_label,
+        ...(record.page_updated_at ? { updated_at: record.page_updated_at } : {}),
+        ...(record.source_url ? { external_url: record.source_url } : {}),
+        perk_options: isFixedExotic ? [] : perkOptions,
+        masterwork_names: isFixedExotic ? [] : masterworkNames,
+        mod_names: [],
+        match: item.instance_id && !isFixedExotic
+          ? matchRecommendation(item, matched, requirements.length)
+          : "not_applicable" as const,
+        match_notes: item.instance_id && !isFixedExotic
+          ? recommendationMatchNotes(item, matched, requirements.length)
+          : []
+      };
+    });
+  const explicitCombos = (classification.kind === "fixed" && !isFixedExotic ? [] : recommendation?.combos ?? [])
     .filter((combo) => combo.source === "local_community")
     .map((combo, index) => {
       const matched = combo.perks.filter((perk) => availableHashes.has(perk.hash)).length;
       return {
         id: `${combo.source}:${combo.mode}:${index}`,
         mode: combo.mode,
-        title: combo.note || (isFixedExotic ? `${combo.mode.toUpperCase()} 异域使用说明` : `${combo.mode.toUpperCase()} 推荐 Roll`),
+        purposes: [combo.mode],
+        presentation: "combo" as const,
+        title: combo.note || (isFixedExotic ? `${combo.mode.toUpperCase()} 异域使用说明` : `${combo.mode.toUpperCase()} 完整组合`),
         reason: isFixedExotic
           ? "该社区来源仅作为固定配置异域的使用说明，不参与随机 Roll 匹配。"
           : recommendation?.disclaimer || "依据本地知识与愿望单比较当前配置。",
         source: "builtin" as const,
-        source_label: "社区推荐",
+        source_label: recommendation?.source_label || "社区推荐",
         perk_options: isFixedExotic ? [] : combo.perks.map((perk, perkIndex) => ({
           column_key: `Perk ${perkIndex + 1}`,
-          names: [perk.name]
+          names: [perk.name],
+          candidates: [recommendationPerkCandidate(perk)]
         })),
         masterwork_names: [],
         mod_names: [],
@@ -334,15 +381,71 @@ export function buildWeaponRecommendationViews(
           : recommendationMatchNotes(item, matched, combo.perks.length)
       };
     });
-  return builtin;
+  return [...sourceRecords, ...explicitCombos];
+}
+
+function recommendationPurposeSummary(
+  purposes: ReadonlyArray<"pve" | "pvp" | "general">
+): string {
+  const labels = purposes.map((purpose) => purpose === "pve" ? "PVE" : purpose === "pvp" ? "PVP" : "通用");
+  return [...new Set(labels)].join(" / ") || "通用";
+}
+
+function buildSourceRequirementCandidates(
+  requirement: RecommendationSourceRequirement
+): WeaponRecommendationPerkCandidate[] {
+  return requirement.candidate_names.map((name) => {
+    const matches = requirement.candidates.filter((candidate) => (
+      sameRecommendationCandidateName(candidate.name, name)
+      || sameRecommendationCandidateName(candidate.englishName, name)
+    ));
+    const visual = [...matches].sort((left, right) => (
+      recommendationPerkVisualScore(right) - recommendationPerkVisualScore(left)
+    ))[0];
+    const hashes = [...new Set(matches.map((candidate) => candidate.hash))];
+    return {
+      ...(visual ? recommendationPerkCandidate(visual) : {}),
+      name,
+      ...(hashes.length ? { hash: visual?.hash ?? hashes[0], hashes } : {}),
+      ...(matches.length === 0 ? { unresolved: true } : {})
+    };
+  });
+}
+
+function recommendationPerkCandidate(perk: PerkRef): WeaponRecommendationPerkCandidate {
+  return {
+    hash: perk.hash,
+    hashes: [perk.hash],
+    name: perk.name,
+    ...(perk.englishName ? { englishName: perk.englishName } : {}),
+    ...(perk.description ? { description: perk.description } : {}),
+    ...(perk.icon ? { icon: perk.icon } : {})
+  };
+}
+
+function recommendationPerkVisualScore(perk: PerkRef): number {
+  return (perk.icon ? 4 : 0) + (perk.description ? 2 : 0) + (perk.englishName ? 1 : 0);
+}
+
+function sameRecommendationCandidateName(left: string | undefined, right: string | undefined): boolean {
+  const normalizedLeft = normalizeRecommendationCandidateName(left);
+  return Boolean(normalizedLeft) && normalizedLeft === normalizeRecommendationCandidateName(right);
+}
+
+function normalizeRecommendationCandidateName(value: string | undefined): string {
+  return normalizePerkVariantName((value ?? "")
+    .replace(/^\s*\d+\s*阶\s*[：:]\s*/u, "")
+    .replace(/^\s*大师杰作\s*[：:]\s*/u, ""));
 }
 
 export function buildWeaponPersonalTargetViews(
   recommendation: CommunityWeaponRecommendation | null,
-  item: SelectedItemDetail
+  item: SelectedItemDetail,
+  contextKind: WeaponDetailObjectContext["kind"] = item.instance_id ? "account_instance" : "definition"
 ): WeaponDetailViewModel["personal_targets"] {
   const classification = classifyWeaponConfiguration(item);
   const isFixedExotic = classification.isExotic && classification.kind === "fixed";
+  const isDefinition = contextKind === "definition";
   const availableHashes = new Set([
     ...(item.socket_plugs ?? []).map((plug) => plug.hash),
     ...(item.sockets ?? []).flatMap((socket) => socket.reusable_plugs.map((plug) => plug.hash))
@@ -360,40 +463,58 @@ export function buildWeaponPersonalTargetViews(
   const matchedComboCount = dimCombos.filter(({ matched, requirements }) => (
     requirements.length > 0 && matched === requirements.length
   )).length;
-  const visibleCombos = dimCombos
-    .filter(({ matched, requirements }) => (
-      matchedComboCount === 0 || (requirements.length > 0 && matched === requirements.length)
-    ))
-    .sort((left, right) => compareDimDetailComboProgress(left, right))
+  const visibleCombos = (isDefinition
+    ? [...dimCombos]
+    : dimCombos
+      .filter(({ matched, requirements }) => (
+        matchedComboCount === 0 || (requirements.length > 0 && matched === requirements.length)
+      ))
+      .sort((left, right) => compareDimDetailComboProgress(left, right)))
     .slice(0, 3);
   return visibleCombos.map(({ combo, index, diagnosticPerks, requirements, matched }, visibleIndex) => {
     const visibleSummary = matchedComboCount > 0
       ? `当前 Roll 符合 DIM 的 ${matchedComboCount} 套推荐，下面显示其中 ${visibleCombos.length} 套。`
       : `当前 Roll 未完全符合 DIM 推荐，下面显示最接近的 ${visibleCombos.length} 套。`;
+    const definitionSummary = dimCombos.length > visibleCombos.length
+      ? `DIM 原始数据共提供 ${dimCombos.length} 套完整组合，当前展示前 ${visibleCombos.length} 套。`
+      : `DIM 原始数据提供 ${dimCombos.length} 套完整组合。`;
     return {
       id: `dim:${combo.mode}:${index}`,
       mode: combo.mode,
-      title: combo.note || (isFixedExotic ? "固定配置收藏记录" : `${combo.mode.toUpperCase()} DIM 目标`),
-      reason: isFixedExotic
-        ? "该 DIM 条目只作为固定配置异域的收藏与来源记录，不执行随机 Roll 匹配。"
-        : visibleIndex === 0
-          ? `${visibleSummary} 这是用户导入的 DIM 愿望单目标，不属于应用默认推荐。`
-          : "这是用户导入的 DIM 愿望单目标，不属于应用默认推荐。",
+      purposes: [combo.mode],
+      presentation: "combo" as const,
+      title: isFixedExotic ? "固定配置收藏记录" : `${combo.mode.toUpperCase()} DIM 完整组合`,
+      reason: isDefinition
+        ? visibleIndex === 0
+          ? [definitionSummary, combo.note].filter(Boolean).join(" ")
+          : combo.note || "DIM 原生 Wishlist 明确给出的完整组合。"
+        : isFixedExotic
+          ? "该 DIM 条目只作为固定配置异域的收藏与来源记录，不执行随机 Roll 匹配。"
+          : visibleIndex === 0
+            ? `${visibleSummary} 这是用户导入的 DIM 愿望单目标，不属于应用默认推荐。`
+            : "这是用户导入的 DIM 愿望单目标，不属于应用默认推荐。",
       source: "dim" as const,
-      source_label: "DIM 愿望单",
+      source_label: "DIM社区愿望单",
       perk_options: isFixedExotic ? [] : combo.perks.map((perk, perkIndex) => ({
         column_key: dimDiagnosticSlotLabel(diagnosticPerks?.[perkIndex]?.slot_candidates[0]) ?? `项目 ${perkIndex + 1}`,
-        names: [perk.name]
+        names: [perk.name],
+        candidates: [{
+          ...recommendationPerkCandidate(perk),
+          hashes: diagnosticPerks?.[perkIndex]?.resolved_hashes
+            ?? [diagnosticPerks?.[perkIndex]?.resolved_hash ?? perk.hash]
+        }]
       })),
       masterwork_names: [],
       mod_names: [],
-      match: isFixedExotic ? "not_applicable" as const : matchRecommendation(item, matched, requirements.length),
-      match_notes: isFixedExotic
-        ? ["固定异域不执行 DIM 随机 Roll 匹配；保留此条愿望单作为收藏与来源记录。"]
-        : [
-            ...recommendationMatchNotes(item, matched, requirements.length),
-            ...(combo.dim_diagnostic ? [combo.dim_diagnostic.message] : [])
-          ]
+      match: isDefinition || isFixedExotic ? "not_applicable" as const : matchRecommendation(item, matched, requirements.length),
+      match_notes: isDefinition
+        ? []
+        : isFixedExotic
+          ? ["固定异域不执行 DIM 随机 Roll 匹配；保留此条愿望单作为收藏与来源记录。"]
+          : [
+              ...recommendationMatchNotes(item, matched, requirements.length),
+              ...(combo.dim_diagnostic ? [combo.dim_diagnostic.message] : [])
+            ]
     };
   });
 }
@@ -442,6 +563,8 @@ export function buildEquipmentTargetWeaponViews(
     return [{
       id: target.id,
       mode: target.mode,
+      purposes: [target.mode],
+      presentation: "combo" as const,
       title: target.name,
       reason: `${target.source.label}；只作为目标证据，不会自动修改装备。`,
       source: "user" as const,
@@ -449,7 +572,8 @@ export function buildEquipmentTargetWeaponViews(
       updated_at: target.updated_at,
       perk_options: target.perk_requirements.map((perk, index) => ({
         column_key: `Perk ${index + 1}`,
-        names: [perk.perk_name]
+        names: [perk.perk_name],
+        candidates: [{ hash: perk.perk_hash, hashes: [perk.perk_hash], name: perk.perk_name }]
       })),
       masterwork_names: [],
       mod_names: [],

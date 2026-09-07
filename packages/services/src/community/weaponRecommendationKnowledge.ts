@@ -17,7 +17,6 @@ import type {
 } from "@d2-tools/core/manifest/definitions";
 import type {
   CommunityPerkSource,
-  PerkCombo,
   PerkRef,
   RecommendationRequirementSlot,
   RecommendationSourceRecord,
@@ -485,47 +484,28 @@ export function createWeaponRecommendationKnowledgeSource(dataDir: string): Comm
         item_hash,
         ...matching.flatMap((recommendation) => recommendation.item_hashes)
       ], options);
-      const combos: PerkCombo[] = [];
       const weaponLevelRecommendations: NonNullable<WeaponRecommendation["weapon_level_recommendations"]> = [];
       // DIM Voltron 必须由原生 Wishlist 解析器保留一行一个完整组合。
-      // CSV 中的 dim_voltron 行只是阅读汇总，不能把多个组合候选池重新拼成 Roll。
+      // 四个人工来源 CSV 保存的是逐栏候选池，也不能把不同栏位做笛卡尔积拼成 Roll。
       const matchableRecommendations = matching.filter((recommendation) => recommendation.source_id !== "dim_voltron");
       const sourceRecords = matchableRecommendations.map((recommendation) => buildSourceRecord(recommendation, perkMap));
       const resolvedSourceLabels = new Set(matchableRecommendations.map((recommendation) => recommendation.source_label));
       for (const recommendation of matchableRecommendations) {
         const perk1Names = recommendation.requirements.perk1;
         const perk2Names = recommendation.requirements.perk2;
-        if (perk1Names.length === 0 && perk2Names.length === 0) {
-          for (const mode of recommendation.purpose) {
-            weaponLevelRecommendations.push({
-              source: "local_community",
-              mode,
-              source_label: recommendation.source_label,
-              note: recommendationNote(recommendation)
-            });
-          }
-          continue;
-        }
-        const first = resolveRecommendedPerks(perk1Names, perkMap);
-        const second = resolveRecommendedPerks(perk2Names, perkMap);
-        if (first.length === 0 || second.length === 0) continue;
+        if (perk1Names.length > 0 || perk2Names.length > 0) continue;
         for (const mode of recommendation.purpose) {
-          for (const perk1 of first) {
-            for (const perk2 of second) {
-              combos.push({
-                perks: [perk1, perk2],
-                source: "local_community",
-                mode,
-                note: recommendationNote(recommendation)
-              });
-            }
-          }
+          weaponLevelRecommendations.push({
+            source: "local_community",
+            mode,
+            source_label: recommendation.source_label,
+            note: recommendationNote(recommendation)
+          });
         }
       }
-      if (combos.length === 0 && weaponLevelRecommendations.length === 0 && sourceRecords.length === 0) return null;
+      if (weaponLevelRecommendations.length === 0 && sourceRecords.length === 0) return null;
 
       const modes = [
-        ...combos.map((combo) => combo.mode),
         ...weaponLevelRecommendations.map((entry) => entry.mode),
         ...sourceRecords.flatMap((record) => record.purposes)
       ];
@@ -533,14 +513,14 @@ export function createWeaponRecommendationKnowledgeSource(dataDir: string): Comm
       return {
         item_hash,
         item_name: itemDefinition?.displayProperties?.name ?? options.item_name ?? matching[0].weapon_name,
-        combos: uniqueCombos(combos),
+        combos: [],
         matched_modes: [...new Set(modes)],
-        ...(combos.length ? { individual_perks: uniquePerks(combos) } : {}),
+        individual_perks: uniqueSourceRecordPerks(sourceRecords),
         ...(weaponLevelRecommendations.length ? { weapon_level_recommendations: weaponLevelRecommendations } : {}),
         source_records: sourceRecords,
         sample_size: matchableRecommendations.length,
         source_label: [...resolvedSourceLabels].join(" / "),
-        disclaimer: "来自应用内置的本地武器推荐知识库，推荐按官方武器身份汇总，并以当前实例实际 Perk 判断。"
+        disclaimer: "来自应用内置的本地武器推荐知识库，推荐按官方武器身份汇总，并保留来源原始的逐栏候选池。"
       };
     }
   };
@@ -1053,18 +1033,13 @@ function recommendationNote(recommendation: KnowledgeRecommendation): string | u
     .join("；") || undefined;
 }
 
-function uniqueCombos(combos: PerkCombo[]): PerkCombo[] {
-  const seen = new Set<string>();
-  return combos.filter((combo) => {
-    const key = `${combo.mode}:${combo.perks.map((perk) => perk.hash).join(",")}:${combo.note ?? ""}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function uniquePerks(combos: PerkCombo[]): PerkRef[] {
-  return [...new Map(combos.flatMap((combo) => combo.perks).map((perk) => [perk.hash, perk])).values()];
+function uniqueSourceRecordPerks(records: RecommendationSourceRecord[]): PerkRef[] {
+  return [...new Map<number, PerkRef>(
+    records
+      .flatMap((record) => record.requirements)
+      .flatMap((requirement) => requirement.candidates)
+      .map((perk) => [perk.hash, perk] as const)
+  ).values()];
 }
 
 function uniqueById(values: KnowledgeRecommendation[]): KnowledgeRecommendation[] {

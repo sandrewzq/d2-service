@@ -27,13 +27,13 @@ export function VaultItemSections(props: {
   openingItemKey?: string;
   currentCharacterId?: string;
   currentCharacterLabel?: string;
-  activeQuickAction?: { itemKey: string; action: "lock" | "transfer" } | null;
+  activeQuickAction?: { itemKey: string; action: "lock" | "unlock" | "transfer" } | null;
   quickActionsDisabled?: boolean;
   focusRequest?: { itemKey: string; requestId: number } | null;
   emptyMessage?: string;
   onSelectItem: (item: AccountItemSummary) => void;
   onToggleSelected: (item: AccountItemSummary) => void;
-  onQuickAction?: (item: AccountItemSummary, action: "lock" | "transfer") => void | Promise<void>;
+  onQuickAction?: (item: AccountItemSummary, action: "lock" | "unlock" | "transfer") => void | Promise<void>;
 }) {
   const sectionListRef = useRef<HTMLDivElement>(null);
   const totalItemCount = useMemo(
@@ -94,7 +94,7 @@ export function VaultItemSections(props: {
   onQuickActionRef.current = props.onQuickAction;
   const handleSelectItem = useCallback((item: AccountItemSummary) => onSelectItemRef.current(item), []);
   const handleToggleSelected = useCallback((item: AccountItemSummary) => onToggleSelectedRef.current(item), []);
-  const handleQuickAction = useCallback((item: AccountItemSummary, action: "lock" | "transfer") => onQuickActionRef.current?.(item, action), []);
+  const handleQuickAction = useCallback((item: AccountItemSummary, action: "lock" | "unlock" | "transfer") => onQuickActionRef.current?.(item, action), []);
   const renderCard = useCallback((item: AccountItemSummary, index: number) => {
     const { tagValue, isLoadoutMatch, sourceSummaries, additionalSourceCount } = buildCardItem(item);
     return (

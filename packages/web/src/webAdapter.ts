@@ -85,7 +85,7 @@ export const unavailableHomeSnapshot: WebHomeSnapshot = {
       nightfall: { status: "warning", title: "日落数据不可用", detail: "Web 服务未连接", entries: [] },
       rotating_raid: { status: "warning", title: "轮换突袭不可用", detail: "Web 服务未连接" },
       rotating_dungeon: { status: "warning", title: "轮换地牢不可用", detail: "Web 服务未连接" },
-      weekly_bonus: { status: "warning", title: "周常加成不可用", detail: "Web 服务未连接" },
+      weekly_surge: { status: "warning", title: "活动激涌不可用", detail: "Web 服务未连接" },
       special_event: { status: "warning", title: "限时活动不可用", detail: "Web 服务未连接" }
     },
     iron_banner: {

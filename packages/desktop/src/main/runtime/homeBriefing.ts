@@ -135,7 +135,7 @@ async function buildHomeBriefing(
     ? buildWeeklySummary(now, weeklyLiveData)
     : cached.weekly;
   return {
-    version: 5,
+    version: 6,
     context_key: contextKey,
     saved_at: now.toISOString(),
     fetched_at: snapshot.fetchedAt,

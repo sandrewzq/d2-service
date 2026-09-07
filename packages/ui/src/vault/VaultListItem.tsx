@@ -19,11 +19,11 @@ type VaultListItemProps = {
   isOpening?: boolean;
   currentCharacterId?: string;
   currentCharacterLabel?: string;
-  activeQuickAction?: { itemKey: string; action: "lock" | "transfer" } | null;
+  activeQuickAction?: { itemKey: string; action: "lock" | "unlock" | "transfer" } | null;
   quickActionsDisabled?: boolean;
   onSelectItem: (item: AccountItemSummary) => void;
   onToggleSelected: (item: AccountItemSummary) => void;
-  onQuickAction?: (item: AccountItemSummary, action: "lock" | "transfer") => void | Promise<void>;
+  onQuickAction?: (item: AccountItemSummary, action: "lock" | "unlock" | "transfer") => void | Promise<void>;
 };
 
 export function VaultListItem(props: VaultListItemProps) {
@@ -65,6 +65,12 @@ export function VaultListItem(props: VaultListItemProps) {
   const activeQuickAction = props.activeQuickAction?.itemKey === itemKey ? props.activeQuickAction.action : undefined;
   const canUseQuickActions = Boolean(props.item.instance_id && props.onQuickAction);
   const canTransfer = canUseQuickActions && getItemSourceKind(props.item) === "vault" && Boolean(props.currentCharacterId);
+  const lockQuickAction = props.item.locked ? "unlock" : "lock";
+  const lockQuickActionLabel = props.item.locked ? "解锁" : "加锁";
+  const activeLockQuickAction = activeQuickAction === "lock" || activeQuickAction === "unlock"
+    ? activeQuickAction
+    : undefined;
+  const activeLockQuickActionLabel = activeLockQuickAction === "unlock" ? "解锁" : "加锁";
   const cardContent = isWeapon ? <>
       <div className="vault-weapon-identity">
         {visual}
@@ -205,12 +211,12 @@ export function VaultListItem(props: VaultListItemProps) {
         <div className="vault-card-quick-actions" aria-label={`${props.item.name}快捷操作`}>
           <button
             type="button"
-            disabled={props.item.locked || props.quickActionsDisabled}
-            aria-busy={activeQuickAction === "lock"}
-            title={props.item.locked ? "这件装备已经锁定" : `一键加锁：${props.item.name}`}
-            onClick={() => void props.onQuickAction?.(props.item, "lock")}
+            disabled={props.quickActionsDisabled}
+            aria-busy={Boolean(activeLockQuickAction)}
+            title={`一键${lockQuickActionLabel}：${props.item.name}`}
+            onClick={() => void props.onQuickAction?.(props.item, lockQuickAction)}
           >
-            {activeQuickAction === "lock" ? "加锁中" : props.item.locked ? "已锁定" : "加锁"}
+            {activeLockQuickAction ? `${activeLockQuickActionLabel}中` : lockQuickActionLabel}
           </button>
           {canTransfer ? (
             <button

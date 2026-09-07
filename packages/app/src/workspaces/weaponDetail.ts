@@ -246,9 +246,21 @@ export type WeaponRecommendationMatch = "full" | "partial" | "none" | "not_appli
 
 export type WeaponRecommendationSource = "user" | "builtin" | "external" | "dim";
 
+export type WeaponRecommendationPerkCandidate = {
+  hash?: number;
+  hashes?: number[];
+  name: string;
+  englishName?: string;
+  description?: string;
+  icon?: string;
+  unresolved?: boolean;
+};
+
 export type WeaponRecommendation = {
   id: string;
   mode: WeaponRecommendationMode;
+  purposes?: WeaponRecommendationMode[];
+  presentation: "combo" | "perk_pool";
   title: string;
   reason: string;
   source: WeaponRecommendationSource;
@@ -258,6 +270,7 @@ export type WeaponRecommendation = {
   perk_options: Array<{
     column_key: string;
     names: string[];
+    candidates?: WeaponRecommendationPerkCandidate[];
   }>;
   masterwork_names: string[];
   mod_names: string[];

@@ -24,7 +24,7 @@ export type VaultCleanupActions = {
   characters: Array<{ character_id: string; class_name: string; light?: number }>;
   currentCharacterId?: string;
   currentCharacterLabel?: string;
-  onLockItem: (item: AccountItemSummary, targetCharacterId: string) => Promise<string>;
+  onLockItem: (item: AccountItemSummary, targetCharacterId: string, state?: boolean) => Promise<string>;
   onBatchUnlock: (items: AccountItemSummary[], targetCharacterId: string) => Promise<string>;
   onBatchTransferToCharacter: (items: AccountItemSummary[], targetCharacterId: string) => Promise<BatchItemActionResult>;
 };

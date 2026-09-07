@@ -10,6 +10,9 @@ type PendingVaultWrite = "selected-junk" | "selected-transfer" | "cleanup-transf
 
 export function VaultOrganizePanel(props: {
   isOrganizing: boolean;
+  resultTitle: string;
+  resultMeta: string;
+  activeFilterLabels: readonly string[];
   filteredItemCount: number;
   selectedItemCount: number;
   selectedVaultItemCount: number;
@@ -25,6 +28,7 @@ export function VaultOrganizePanel(props: {
   protectedCleanupItemCount: number;
   cleanupActionItems: AccountItemSummary[];
   tags: VaultTags;
+  onResetFilters: () => void;
   onToggleOrganizing: () => void;
   onVisibleSelectionChange: (mode: VaultVisibleSelectionMode) => void;
   onClearSelection: () => void;
@@ -76,16 +80,26 @@ export function VaultOrganizePanel(props: {
         : null;
 
   return (
-    <div className="vault-organize-panel">
-      <div className="vault-organize-bar">
-        <button type="button" data-ui-kind="button" data-control-variant={props.isOrganizing ? "quiet" : "secondary"} onClick={props.onToggleOrganizing}>{props.isOrganizing ? "退出批量选择" : "批量选择"}</button>
-        <span className="vault-organize-hint">{props.isOrganizing ? props.selectionSummary : "先用筛选得到目标装备，再批量选择当前结果。"}</span>
+    <>
+      <div className="vault-results-toolbar">
+        <div className="vault-results-summary">
+          <h3>{props.resultTitle}</h3>
+          <span>{props.filteredItemCount} 件 · {props.resultMeta}</span>
+        </div>
+        <div className="vault-results-context" role="group" aria-label="已生效筛选条件">
+          {props.activeFilterLabels.map((label) => <span className="ui-badge status-neutral" key={label}>{label}</span>)}
+        </div>
+        <div className="vault-results-actions">
+          <button type="button" data-ui-kind="button" data-control-variant={props.isOrganizing ? "quiet" : "secondary"} onClick={props.onToggleOrganizing}>{props.isOrganizing ? "退出批量选择" : "批量选择"}</button>
+          <button type="button" data-ui-kind="button" data-control-variant="quiet" disabled={!props.activeFilterLabels.length} onClick={props.onResetFilters}>重置筛选</button>
+        </div>
       </div>
 
       {props.isOrganizing ? (
         <div className="vault-batch-panel">
           <div className="vault-batch-selection-tools">
             <strong>{props.isBatchSaving && props.activeBatchAction ? `${props.activeBatchAction}...` : `已选 ${props.selectedItemCount} 件`}</strong>
+            <span className="vault-batch-selection-summary">{props.selectionSummary}</span>
             <button type="button" disabled={!props.filteredItemCount || props.isBatchSaving} onClick={() => props.onVisibleSelectionChange("replace")}>选择当前结果 {props.filteredItemCount}</button>
             <button type="button" data-ui-kind="button" data-control-variant="quiet" disabled={!props.selectedItemCount || props.isBatchSaving} onClick={props.onClearSelection}>清空选择</button>
           </div>
@@ -107,20 +121,22 @@ export function VaultOrganizePanel(props: {
         </div>
       ) : null}
 
-      <div className="vault-cleanup-boundary">
-        <p>本地状态只保存在应用内。已标记 {props.markedCleanupItemCount} 件清理装备{props.protectedCleanupItemCount ? `，其中 ${props.protectedCleanupItemCount} 件受保护、不进入转移列表` : ""}；转移不会自动拆解，仍需在游戏内逐件确认。</p>
-        {cleanupTransferCount && props.cleanupCharacters.length ? (
-          <span className="vault-cleanup-transfer-tools">
-            <label className="compact-field vault-organize-field">
-              <span>接收角色</span>
-              <select aria-label="清理装备接收角色" value={props.cleanupTargetCharacterId} onChange={(event) => props.onCleanupTargetCharacterChange(event.target.value)}>
-                {props.cleanupCharacters.map((character) => <option key={character.character_id} value={character.character_id}>{character.class_name} / 光等 {character.light ?? "-"}</option>)}
-              </select>
-            </label>
-            <button type="button" data-ui-kind="button" data-control-variant="primary" aria-busy={props.isBatchSaving} disabled={!canWrite || props.isBatchSaving} onClick={() => setPendingWrite("cleanup-transfer")}>转移清理装备 {cleanupTransferCount}</button>
-          </span>
-        ) : null}
-      </div>
+      {props.markedCleanupItemCount ? (
+        <div className="vault-cleanup-boundary">
+          <p>本地状态只保存在应用内。已标记 {props.markedCleanupItemCount} 件清理装备{props.protectedCleanupItemCount ? `，其中 ${props.protectedCleanupItemCount} 件受保护、不进入转移列表` : ""}；转移不会自动拆解，仍需在游戏内逐件确认。</p>
+          {cleanupTransferCount && props.cleanupCharacters.length ? (
+            <span className="vault-cleanup-transfer-tools">
+              <label className="compact-field vault-organize-field">
+                <span>接收角色</span>
+                <select aria-label="清理装备接收角色" value={props.cleanupTargetCharacterId} onChange={(event) => props.onCleanupTargetCharacterChange(event.target.value)}>
+                  {props.cleanupCharacters.map((character) => <option key={character.character_id} value={character.character_id}>{character.class_name} / 光等 {character.light ?? "-"}</option>)}
+                </select>
+              </label>
+              <button type="button" data-ui-kind="button" data-control-variant="primary" aria-busy={props.isBatchSaving} disabled={!canWrite || props.isBatchSaving} onClick={() => setPendingWrite("cleanup-transfer")}>转移清理装备 {cleanupTransferCount}</button>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {props.cleanupActionItems.length ? (
         <details className="vault-cleanup-locator">
@@ -150,6 +166,6 @@ export function VaultOrganizePanel(props: {
           {pendingWriteCopy.detail}
         </ConfirmationDialog>
       ) : null}
-    </div>
+    </>
   );
 }

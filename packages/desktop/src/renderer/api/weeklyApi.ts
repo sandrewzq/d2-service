@@ -10,7 +10,7 @@ export type WeeklyPriorityKind =
   | "nightfall"
   | "rotating_raid"
   | "rotating_dungeon"
-  | "weekly_bonus"
+  | "weekly_surge"
   | "special_event";
 
 export type WeeklySummaryPriority = {

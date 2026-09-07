@@ -108,7 +108,12 @@ export function useVaultWriteActions(input: {
     );
   }
 
-  async function handleVaultItemLock(item: AccountItemSummary, targetCharacterId: string): Promise<string> {
+  async function handleVaultItemLock(
+    item: AccountItemSummary,
+    targetCharacterId: string,
+    state = true
+  ): Promise<string> {
+    const actionLabel = state ? "加锁" : "解锁";
     if (!input.accountSummary) {
       throw new Error("请先同步装备数据。");
     }
@@ -116,26 +121,26 @@ export function useVaultWriteActions(input: {
       throw new Error(buildVaultCleanupNoTargetMessage());
     }
     if (!item.instance_id) {
-      throw new Error("这件装备缺少实例 ID，无法加锁。");
+      throw new Error(`这件装备缺少实例 ID，无法${actionLabel}。`);
     }
-    if (item.locked) return "这件装备已经锁定。";
+    if (item.locked === state) return `这件装备已经${state ? "锁定" : "解锁"}。`;
 
     const account = input.accountSummary;
     input.setIsRunningItemAction(true);
-    input.setItemActionMessage(`正在加锁：${item.name}`);
+    input.setItemActionMessage(`正在${actionLabel}：${item.name}`);
     try {
       const result = await api.setItemLockState({
         membership_type: account.membership_type,
         character_id: targetCharacterId,
         item_id: item.instance_id,
         item_name: item.name,
-        state: true
+        state
       });
       if (result.account_patch) {
         input.applyAcceptedAccountActionPatches([result.account_patch]);
       }
       void input.diagnostics.loadActionLog().catch(() => undefined);
-      const message = result.message || `已提交加锁：${item.name}`;
+      const message = result.message || `已提交${actionLabel}：${item.name}`;
       return result.account_patch
         ? message
         : `${message} 页面会在下次账号同步时校准。`;

@@ -154,6 +154,8 @@ export interface CommunityPerkSource {
 export type VaultItemMatchInfo = {
   matched: number;
   available: number;
+  perk_pool_count?: number;
+  combo_count?: number;
   modes: Array<"pve" | "pvp" | "general">;
   sample_perks?: PerkRef[];
   source_label?: string;

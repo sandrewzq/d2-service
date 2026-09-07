@@ -1031,7 +1031,7 @@ export function LibraryDefinitionDialog(props: {
               {(communityMatch?.available ?? 0) > 0 ? (
                 <div className="library-definition-source">
                   <strong>{libraryText(copy, "社区推荐")}</strong>
-                  <span>{`${communityMatch?.available} ${libraryText(copy, "个组合")}${
+                  <span>{`${formatCommunityRecommendationCount(communityMatch, copy)}${
                     formatCommunityPerkPreview(communityMatch?.sample_perks)
                       ? ` · ${formatCommunityPerkPreview(communityMatch?.sample_perks)}`
                       : ""
@@ -1044,6 +1044,17 @@ export function LibraryDefinitionDialog(props: {
       </section>
     </div>
   );
+}
+
+function formatCommunityRecommendationCount(
+  match: VaultItemMatchInfo,
+  copy: LibraryCopy
+): string {
+  const parts = [
+    match.perk_pool_count ? `${match.perk_pool_count} ${libraryText(copy, "个 Perk 池")}` : undefined,
+    match.combo_count ? `${match.combo_count} ${libraryText(copy, "个组合")}` : undefined
+  ].filter((part): part is string => Boolean(part));
+  return parts.join(" · ") || `${match.available} ${libraryText(copy, "条推荐")}`;
 }
 
 const vendorArmorStatDefinitions = [
@@ -1277,7 +1288,7 @@ function formatDropActionHint(
 
   if (access === "available") {
     return hasCommunityRolls
-      ? libraryText(copy, "优先复查：来源字段可确认，且已有社区推荐组合；仍需以当前游戏内入口为准。")
+      ? libraryText(copy, "优先复查：来源字段可确认，且已有社区推荐资料；仍需以当前游戏内入口为准。")
       : libraryText(copy, "来源字段可确认；建议先核对当前游戏内入口，再决定是否刷取。");
   }
   if (access === "rotation") {

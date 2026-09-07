@@ -10,6 +10,7 @@ import type {
   WeaponPerkPoolColumn,
   WeaponPerkSelectionColumn,
   WeaponRecommendation,
+  WeaponRecommendationPerkCandidate,
   WeaponSourceEntry,
   WeaponStatTrack
 } from "@d2-tools/app/items";
@@ -222,7 +223,7 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
               className={section === item.key ? "is-active" : undefined}
               onClick={() => changeSection(item.key)}
             >
-              {item.label}
+              {item.key === "recommendations" && model.context.kind === "definition" ? "推荐资料" : item.label}
             </button>
           ))}
         </div>
@@ -952,6 +953,7 @@ function RecommendationSection(props: {
 }) {
   const { model } = props;
   const isFixedExotic = model.identity.is_exotic && model.configuration.kind === "fixed";
+  const isDefinition = model.context.kind === "definition";
   const panelId = useId();
   const targetsBySource: Record<WeaponTargetSource, WeaponRecommendation[]> = {
     dim: model.personal_targets.filter((target) => target.source === "dim"),
@@ -990,7 +992,15 @@ function RecommendationSection(props: {
   };
   return (
     <>
-      <SectionHeading eyebrow="推荐判断" title="这件武器的推荐 Roll" description={isFixedExotic ? "固定异域不进行随机 Roll 核对；攻略推荐、我的推荐和 DIM 只保留拥有状态、催化剂进度与使用建议。" : "先看各来源的核心 Perk 与完整匹配，再按需展开逐栏依据；DIM 作为最低权重辅助来源固定放在最后。"} />
+      <SectionHeading
+        eyebrow={isDefinition ? "推荐资料" : "推荐判断"}
+        title={isDefinition ? "这把武器的来源推荐" : "这件武器的推荐 Roll"}
+        description={isDefinition
+          ? "按数据源原始形式展示：完整组合保持组合，分栏候选保持 Perk 池；这里不进行玩家 Roll 命中核对。"
+          : isFixedExotic
+            ? "固定异域不进行随机 Roll 核对；攻略推荐、我的推荐和 DIM 只保留拥有状态、催化剂进度与使用建议。"
+            : "先看各来源的核心 Perk 与完整匹配，再按需展开逐栏依据；DIM 作为最低权重辅助来源固定放在最后。"}
+      />
       {sourceOrder.length ? <div className="weapon-detail-target-tabs" data-ui-kind="segmented-control" role="tablist" aria-label="选择推荐 Roll 来源">
         {([
           ["community", "攻略推荐"],
@@ -1012,7 +1022,9 @@ function RecommendationSection(props: {
           </button>
         ))}
       </div> : null}
-      {!sourceOrder.length ? <EmptyState text={evidence?.status === "loading" ? "正在读取这把武器的推荐 Roll。" : "这把武器暂时没有可核对的推荐 Roll。"} /> : props.source === "community" && evidence ? (
+      {!sourceOrder.length ? <EmptyState text={isDefinition
+        ? "这把武器暂时没有来源推荐资料。"
+        : evidence?.status === "loading" ? "正在读取这把武器的推荐 Roll。" : "这把武器暂时没有可核对的推荐 Roll。"} /> : props.source === "community" && evidence ? (
         <div
           id={`${panelId}-panel`}
           className="weapon-detail-recommendations"
@@ -1040,7 +1052,7 @@ function RecommendationSection(props: {
         >
           {targets.map((target) => <RecommendationCard key={target.id} model={model} recommendation={target} />)}
         </div>
-      ) : <div id={`${panelId}-panel`} role="tabpanel" aria-labelledby={`${panelId}-${props.source}`}><EmptyState text="当前来源没有可显示的推荐 Roll。" /></div>}
+      ) : <div id={`${panelId}-panel`} role="tabpanel" aria-labelledby={`${panelId}-${props.source}`}><EmptyState text={isDefinition ? "当前来源没有可显示的推荐资料。" : "当前来源没有可显示的推荐 Roll。"} /></div>}
     </>
   );
 }
@@ -1268,9 +1280,12 @@ function recommendationSourceOrder(sourceId: string): number {
 
 function RecommendationCard(props: { model: WeaponDetailViewModel; recommendation: WeaponRecommendation }) {
   const { model, recommendation } = props;
-  const hasObject = model.context.kind !== "definition";
+  const isDefinition = model.context.kind === "definition";
+  const hasObject = !isDefinition;
   const perkMatches = recommendation.perk_options.map((option) => {
-    const candidates = option.names.map((name) => recommendationTargetPerk(model, option.column_key, name));
+    const candidates = option.candidates?.length
+      ? option.candidates.map((candidate) => recommendationTargetPerk(model, option.column_key, candidate.name, candidate))
+      : option.names.map((name) => recommendationTargetPerk(model, option.column_key, name));
     return {
       ...option,
       candidates,
@@ -1281,15 +1296,22 @@ function RecommendationCard(props: { model: WeaponDetailViewModel; recommendatio
   const masterworkMatch = hasObject && recommendation.masterwork_names.some((name) => sameLabel(name, model.upgrades.masterwork?.name));
   const modMatch = hasObject && recommendation.mod_names.some((name) => sameLabel(name, model.upgrades.mod?.name));
   const isFixedExotic = model.identity.is_exotic && model.configuration.kind === "fixed";
+  const sourcePurposeLabel = (recommendation.purposes?.length ? recommendation.purposes : [recommendation.mode])
+    .map((mode) => mode === "pve" ? "PVE" : mode === "pvp" ? "PVP" : "通用")
+    .filter((mode, index, values) => values.indexOf(mode) === index)
+    .join(" / ");
+  const presentationLabel = recommendation.presentation === "perk_pool" ? "Perk 池" : "完整组合";
   return (
     <article className="weapon-detail-recommendation">
       <header>
         <div>
           <h4>{recommendation.title}</h4>
-          <p>{recommendation.source_label} · {recommendation.mode.toUpperCase()}{recommendation.updated_at ? ` · ${formatUpdatedAt(recommendation.updated_at)}` : ""}</p>
+          <p>{recommendation.source_label} · {sourcePurposeLabel}{recommendation.updated_at ? ` · ${formatUpdatedAt(recommendation.updated_at)}` : ""}</p>
         </div>
         <div className="weapon-detail-recommendation-heading-status">
-          {!isFixedExotic && perkMatches.length ? (
+          {isDefinition ? (
+            <span className="ui-badge status-neutral" data-ui-kind="status-chip">{presentationLabel}</span>
+          ) : !isFixedExotic && perkMatches.length ? (
             <span className={`ui-badge ${recommendationMatchBadgeClass(recommendation.match)}`} data-ui-kind="status-chip">
               {recommendation.match === "full"
                 ? "完整符合"
@@ -1305,10 +1327,10 @@ function RecommendationCard(props: { model: WeaponDetailViewModel; recommendatio
       {perkMatches.length ? (
         <div className="weapon-detail-recommendation-combo" data-recommendation-source={recommendation.source}>
           {perkMatches.map((option) => (
-            <section key={option.column_key} data-match-state={!hasObject ? "unknown" : option.owned ? "match" : "different"}>
+            <section key={option.column_key} data-match-state={isDefinition ? undefined : option.owned ? "match" : "different"}>
               <header>
                 <strong>{option.column_key}</strong>
-                <span>{!hasObject ? "仅供查看" : option.owned ? "符合" : "不符"}</span>
+                <span>{isDefinition ? recommendation.presentation === "perk_pool" ? "候选池" : "组合要求" : option.owned ? "符合" : "不符"}</span>
               </header>
               <div className="weapon-detail-recommendation-perks" role="group" aria-label={`${option.column_key}推荐候选`}>
                 {option.candidates.map((candidate) => (
@@ -1319,26 +1341,26 @@ function RecommendationCard(props: { model: WeaponDetailViewModel; recommendatio
                     active={hasObject && candidate.active}
                     muted={hasObject && option.owned && !candidate.hit}
                     unknown={!candidate.icon}
-                    contextLabel={recommendation.source === "dim" ? "DIM 组合要求" : "推荐候选"}
-                    visibleStatusLabel={!hasObject
-                      ? "推荐候选"
+                    contextLabel={recommendation.source === "dim" ? "DIM 组合要求" : recommendation.presentation === "perk_pool" ? "来源候选池" : "完整组合要求"}
+                    visibleStatusLabel={isDefinition
+                      ? recommendation.presentation === "perk_pool" ? "候选" : "组合要求"
                       : candidate.hit
                         ? candidate.active ? "命中 · 当前" : "命中"
                         : "推荐候选"}
-                    statusLabel={!hasObject
-                      ? "当前查看的不是账号装备"
+                    statusLabel={isDefinition
+                      ? recommendation.presentation === "perk_pool" ? "数据源在该栏给出的候选项" : "数据源明确给出的完整组合项"
                       : candidate.hit
                         ? candidate.active ? "本件已拥有，当前已启用" : "本件已拥有，当前未启用"
                         : "本件没有这个推荐项"}
                   />
                 ))}
               </div>
-              {option.names.length > 1 ? <small>满足其中一个即可</small> : null}
+              {recommendation.presentation === "perk_pool" && option.names.length > 1 ? <small>满足其中一个即可</small> : null}
             </section>
           ))}
         </div>
       ) : <p className="weapon-detail-match-empty">{isFixedExotic ? "固定异域不使用随机 Perk 目标；此处保留来源说明和使用建议。" : "该来源没有指定随机 Perk 目标。"}</p>}
-      <div className="weapon-detail-match-summary">
+      {!isDefinition ? <div className="weapon-detail-match-summary">
         {isFixedExotic ? (
           <>
             <span>配置：固定 Perk · 不执行 Roll 命中</span>
@@ -1352,7 +1374,7 @@ function RecommendationCard(props: { model: WeaponDetailViewModel; recommendatio
             <span>武器模组：{recommendation.mod_names.length ? matchFactLabel(hasObject, modMatch) : "未指定"}</span>
           </>
         )}
-      </div>
+      </div> : null}
     </article>
   );
 }
@@ -1664,21 +1686,31 @@ function recommendationOwnedPerk(
 function recommendationTargetPerk(
   model: WeaponDetailViewModel,
   columnKey: string,
-  targetName: string
+  targetName: string,
+  sourceCandidate?: WeaponRecommendationPerkCandidate
 ): RecommendationPerkVisual {
   const matchedColumn = model.configuration.selection_columns.find((column) => (
     sameLabel(column.key, columnKey) || sameLabel(column.label, columnKey)
   ));
   const selectionCandidates = matchedColumn?.candidates
     ?? model.configuration.selection_columns.flatMap((column) => column.candidates);
-  const ownedMatches = selectionCandidates.filter((candidate) => weaponPerkMatchesTarget(model, candidate, targetName));
+  const sourceHashes = new Set([
+    ...(sourceCandidate?.hashes ?? []),
+    sourceCandidate?.hash
+  ].filter((hash): hash is number => Boolean(hash)));
+  const ownedMatches = selectionCandidates.filter((candidate) => (
+    sourceHashes.has(candidate.hash) || weaponPerkMatchesTarget(model, candidate, targetName)
+  ));
   const visual = findWeaponPerkVisual(model, undefined, targetName) ?? ownedMatches[0];
   return {
-    key: `target:${normalizedLabel(columnKey)}:${normalizedLabel(targetName)}`,
-    hash: visual?.hash,
-    name: visual?.name ?? targetName,
-    description: visual?.description,
-    icon: visual?.icon,
+    key: `target:${normalizedLabel(columnKey)}:${normalizedLabel(targetName)}:${[...sourceHashes].join(",")}`,
+    hash: sourceCandidate?.hash ?? visual?.hash,
+    hashes: sourceCandidate?.hashes,
+    name: sourceCandidate?.name ?? visual?.name ?? targetName,
+    englishName: sourceCandidate?.englishName,
+    description: sourceCandidate?.description ?? visual?.description,
+    icon: sourceCandidate?.icon ?? visual?.icon,
+    unresolved: sourceCandidate?.unresolved,
     hit: ownedMatches.length > 0,
     active: ownedMatches.some((candidate) => candidate.selected)
   };

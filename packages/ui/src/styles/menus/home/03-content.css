@@ -1132,11 +1132,15 @@
   }
 }
 
-/* 铁旗与本周活动焦点共用一行；首页只保留活动决策信息。 */
+/* 铁旗与本周活动激涌共用一行；首页只保留活动决策信息。 */
 :where(.app-shell) .weekly-signal-grid {
   grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
   align-items: stretch;
   gap: 8px;
+}
+
+:where(.app-shell) .weekly-signal-grid.is-single-primary > .iron-banner-card {
+  grid-column: 1 / -1;
 }
 
 :where(.app-shell) .home-special-event-signal {

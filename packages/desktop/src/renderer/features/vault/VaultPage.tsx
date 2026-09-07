@@ -53,7 +53,7 @@ export function VaultPage(props: {
   onConfigureBungie: () => void;
   onLoginBungie: () => void;
   onSaveTagBatch: (inputs: SaveVaultTagInput[]) => void | Promise<void>;
-  onLockItem: (item: AccountItemSummary, targetCharacterId: string) => Promise<string>;
+  onLockItem: (item: AccountItemSummary, targetCharacterId: string, state?: boolean) => Promise<string>;
   onBatchUnlock: (items: AccountItemSummary[], targetCharacterId: string) => Promise<string>;
   onBatchTransferToCharacter: (items: AccountItemSummary[], targetCharacterId: string) => Promise<BatchItemActionResult>;
   onOpenItem: (item: AccountItemSummary) => void;

@@ -16,7 +16,7 @@ export type HomeDailyItem = {
   subtitle?: string;
   description?: string;
   source?: string;
-  weeklyActivityKind?: HomeWeeklyActivityKind;
+  weeklyActivityKind?: HomeDailyActivityKind;
   related_hashes?: number[];
   rewards?: HomeWeeklyActivityReward[];
   iconUrl?: string;
@@ -36,7 +36,8 @@ export type HomeDailyItem = {
   vendorLocation?: string;
   items?: HomeDailyItem[];
 };
-export type HomeWeeklyActivityKind = "nightfall" | "rotating_raid" | "rotating_dungeon" | "weekly_bonus" | "special_event" | "public_clue";
+export type HomeWeeklyActivityKind = "nightfall" | "rotating_raid" | "rotating_dungeon" | "weekly_surge" | "special_event" | "public_clue";
+export type HomeDailyActivityKind = HomeWeeklyActivityKind | "weekly_bonus";
 export type HomeDailySource = {
   status: HomeTone | "pending";
   message: string;
@@ -65,7 +66,7 @@ export type HomeWeeklyPriorityKind =
   | "nightfall"
   | "rotating_raid"
   | "rotating_dungeon"
-  | "weekly_bonus"
+  | "weekly_surge"
   | "special_event";
 export type HomeWeeklySummary = {
   weekly_reset: {
@@ -225,6 +226,8 @@ function HomePageContent(props: {
     && !props.dailyError
     && !props.isLoadingDaily
     && props.dailyResourceStatus === "ready";
+  const showWeeklySurge = showAccountGatedRotations
+    && priorities?.weekly_surge?.status === "ready";
   const activities = [
     { kind: "nightfall", label: homeText(props.copy, "日落打击"), priority: priorities?.nightfall },
     ...(showAccountGatedRotations && priorities?.rotating_raid?.status === "ready" ? [
@@ -265,8 +268,8 @@ function HomePageContent(props: {
           {refreshEntries.map((entry) => <HomeRefreshCell key={entry.key} entry={entry} />)}
         </div>
       </section>
-      <section className="home-content-band home-signals-band" data-surface="section" aria-label="限时活动与本周活动焦点">
-        <div className="weekly-signal-grid" data-surface="content-stack">
+      <section className="home-content-band home-signals-band" data-surface="section" aria-label="限时活动与本周活动激涌">
+        <div className={`weekly-signal-grid${showWeeklySurge ? "" : " is-single-primary"}`} data-surface="content-stack">
           <IronBannerCard
             summary={props.weeklySummary?.iron_banner}
             selectedCharacterId={props.selectedCharacterId}
@@ -274,7 +277,9 @@ function HomePageContent(props: {
             copy={props.copy}
             onNavigate={props.onNavigate}
           />
-          <HomeSignal copy={props.copy} label={homeText(props.copy, "本周活动焦点")} emptyLabel={homeText(props.copy, "暂无")} priority={priorities?.weekly_bonus} />
+          {showWeeklySurge ? (
+            <HomeSignal copy={props.copy} label={homeText(props.copy, "本周活动激涌")} priority={priorities.weekly_surge} />
+          ) : null}
           {priorities?.special_event?.status === "ready" ? (
             <HomeSignal copy={props.copy} className="home-special-event-signal" label={homeText(props.copy, "限时活动")} priority={priorities.special_event} />
           ) : null}
@@ -426,7 +431,7 @@ function buildRefreshEntries(
 ): HomeRefreshEntry[] {
   return [
     { key: "daily", label: homeText(copy, "每日更新"), moment: `下次：${resetMoment(daily?.daily_reset, homeText(copy, "时间待确认"), locale)}`, countdown: `倒计时：${resetCountdown(daily?.daily_reset, clock, copy)}`, impact: homeText(copy, "今日轮换、遗失区域") },
-    { key: "weekly", label: homeText(copy, "每周更新"), moment: `下次：${resetMoment(weekly?.weekly_reset ?? daily?.weekly_reset, homeText(copy, "时间待确认"), locale)}`, countdown: `倒计时：${resetCountdown(weekly?.weekly_reset ?? daily?.weekly_reset, clock, copy)}`, impact: homeText(copy, "日落、轮换、活动焦点") }
+    { key: "weekly", label: homeText(copy, "每周更新"), moment: `下次：${resetMoment(weekly?.weekly_reset ?? daily?.weekly_reset, homeText(copy, "时间待确认"), locale)}`, countdown: `倒计时：${resetCountdown(weekly?.weekly_reset ?? daily?.weekly_reset, clock, copy)}`, impact: homeText(copy, "日落、轮换、活动激涌") }
   ];
 }
 

@@ -4,7 +4,7 @@ export type WeeklyPriorityKind =
   | "nightfall"
   | "rotating_raid"
   | "rotating_dungeon"
-  | "weekly_bonus"
+  | "weekly_surge"
   | "special_event";
 
 export type WeeklySummaryItem = {
@@ -140,9 +140,9 @@ const priorityLabels: Record<WeeklyPriorityKind, { pendingTitle: string; pending
     pendingTitle: "轮换地牢待确认",
     pendingDetail: "确认后展示可刷奖励状态。"
   },
-  weekly_bonus: {
-    pendingTitle: "暂无已确认的活动焦点",
-    pendingDetail: "只展示 Bungie 活动修饰词明确标记为“焦点活动”的内容。"
+  weekly_surge: {
+    pendingTitle: "本周活动激涌待确认",
+    pendingDetail: "登录 Bungie 后读取当前活动实际返回的元素激涌。"
   },
   special_event: {
     pendingTitle: "暂无可确认特殊活动",
@@ -169,7 +169,7 @@ export function buildWeeklySummary(
       nightfall: buildPriority("nightfall", items),
       rotating_raid: buildPriority("rotating_raid", items),
       rotating_dungeon: buildPriority("rotating_dungeon", items),
-      weekly_bonus: buildPriority("weekly_bonus", items),
+      weekly_surge: buildPriority("weekly_surge", items),
       special_event: buildPriority("special_event", items)
     },
     iron_banner: liveData.iron_banner ?? createUnavailableIronBanner(),

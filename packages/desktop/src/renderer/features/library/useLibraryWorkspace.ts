@@ -61,6 +61,8 @@ export function useLibraryWorkspace(input: { vendorSourcePaths?: Map<number, str
           map.set(item.hash, {
             matched: item.matched,
             available: item.available,
+            ...(item.perk_pool_count !== undefined ? { perk_pool_count: item.perk_pool_count } : {}),
+            ...(item.combo_count !== undefined ? { combo_count: item.combo_count } : {}),
             modes: item.modes,
             sample_perks: item.sample_perks,
             source_label: item.source_label

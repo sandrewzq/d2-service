@@ -57,7 +57,7 @@ export type HomeDashboardWeeklyPriorityKind =
   | "nightfall"
   | "rotating_raid"
   | "rotating_dungeon"
-  | "weekly_bonus"
+  | "weekly_surge"
   | "special_event";
 
 export type HomeDashboardWeeklyActivityReward = {

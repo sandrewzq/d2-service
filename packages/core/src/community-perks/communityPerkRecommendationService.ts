@@ -127,6 +127,8 @@ export class CommunityPerkRecommendationService {
       const itemsForHash = items.filter((item) => item.hash === hash);
       const matchedComboIndexes = new Set<number>();
       const matchedModes = new Set<"pve" | "pvp" | "general">();
+      const perkPoolCount = rec.source_records?.length ?? 0;
+      const comboCount = rec.combos.length;
 
       for (let index = 0; index < rec.combos.length; index++) {
         const combo = rec.combos[index];
@@ -143,7 +145,9 @@ export class CommunityPerkRecommendationService {
 
       result.set(hash, {
         matched: matchedComboIndexes.size,
-        available: rec.combos.length,
+        available: perkPoolCount + comboCount,
+        perk_pool_count: perkPoolCount,
+        combo_count: comboCount,
         modes: Array.from(matchedModes.size ? matchedModes : new Set(rec.matched_modes)),
         sample_perks: previewPerks(rec),
         source_label: rec.source_label
