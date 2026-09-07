@@ -602,40 +602,68 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
   overflow: hidden;
 }
 
-/* Long-running work stays visible while the user changes pages. The dock is
- * intentionally an overlay so it never changes the shell grid or pushes page
- * content around. */
+/* Long-running work stays available in the top status strip and settings.
+ * This overlay is only a temporary, dismissible notification for state changes. */
 .shell-background-task-dock {
   position: fixed;
-  z-index: var(--layer-popover);
+  z-index: calc(var(--layer-popover) - 1);
+  top: calc(var(--topbar-height) + 12px);
   right: 16px;
-  bottom: 16px;
   width: min(420px, calc(100vw - 32px));
   min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: stretch;
+  overflow: hidden;
   border: 1px solid var(--control-border);
   border-radius: var(--radius-frame);
   background: var(--panel);
   box-shadow: var(--shadow-overlay);
 }
 
-.shell-background-task-dock > button {
+.shell-background-task-open {
   display: block;
   width: 100%;
   min-width: 0;
   min-height: 58px;
   padding: 10px 12px;
   border: 0;
-  border-radius: inherit;
+  border-radius: 0;
   color: var(--body);
   background: transparent;
   text-align: left;
 }
 
-.shell-background-task-dock > button:hover,
-.shell-background-task-dock > button:focus-visible {
+.shell-background-task-open:hover,
+.shell-background-task-open:focus-visible,
+.shell-background-task-dismiss:hover,
+.shell-background-task-dismiss:focus-visible {
   color: var(--text);
   background: var(--hover-bg);
   box-shadow: none;
+}
+
+.shell-background-task-dismiss {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  width: 28px;
+  height: 28px;
+  margin: 8px 8px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: transparent;
+}
+
+.shell-background-task-dismiss svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .app-shell.assistant-open .shell-background-task-dock {
@@ -1115,8 +1143,8 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
 
   .shell-background-task-dock,
   .app-shell.assistant-open .shell-background-task-dock {
+    top: calc(var(--topbar-height) + 8px);
     right: 12px;
-    bottom: 12px;
     width: min(420px, calc(100vw - 24px));
   }
 }

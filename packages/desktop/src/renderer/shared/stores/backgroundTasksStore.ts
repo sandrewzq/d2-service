@@ -37,9 +37,18 @@ export function ensureBackgroundTasksStoreStarted(): void {
 }
 
 function publish(nextTasks: BackgroundTaskSnapshot[]): void {
+  if (hasSameTaskSnapshots(tasks, nextTasks)) return;
   tasks = nextTasks;
   revision += 1;
   for (const listener of listeners) {
     listener();
   }
+}
+
+function hasSameTaskSnapshots(
+  current: readonly BackgroundTaskSnapshot[],
+  next: readonly BackgroundTaskSnapshot[]
+): boolean {
+  if (current.length !== next.length) return false;
+  return current.every((task, index) => JSON.stringify(task) === JSON.stringify(next[index]));
 }

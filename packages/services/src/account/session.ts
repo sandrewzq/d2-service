@@ -156,7 +156,7 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
   let sessionEpoch = 0;
   let membershipCache: MembershipCache | undefined;
   let membershipInFlight: Promise<MembershipCache> | undefined;
-  let profileCache: ProfileCache | undefined;
+  const profileCaches = new Map<string, ProfileCache>();
   let profileInFlight: ProfileRequest | undefined;
   let snapshot: AccountSnapshot | undefined = options.initialSnapshot;
   let snapshotInFlight: SnapshotRequest | undefined;
@@ -310,7 +310,7 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
       }
       if (input.scope === "profile") {
         sessionEpoch += 1;
-        profileCache = undefined;
+        profileCaches.clear();
         profileInFlight = undefined;
         return;
       }
@@ -396,7 +396,7 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
 
   function clearAccountCaches(): void {
     sessionEpoch += 1;
-    profileCache = undefined;
+    profileCaches.clear();
     profileInFlight = undefined;
     snapshot = undefined;
     snapshotInFlight = undefined;
@@ -473,14 +473,18 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
     diagnoseSnapshotRefresh = false
   ): Promise<DestinyProfileResponse> {
     const membershipKey = `${membership.membershipType}:${membership.membershipId}`;
+    const cachedProfile = findReusableProfileCache(
+      profileCaches,
+      membershipKey,
+      requestedComponents,
+      now()
+    );
     if (!forceRefresh
-      && profileCache?.membershipKey === membershipKey
-      && now() < profileCache.freshUntil
-      && isSuperset(profileCache.components, requestedComponents)) {
+      && cachedProfile) {
       if (diagnoseSnapshotRefresh) {
         reportDiagnostic({ stage: "profile", outcome: "cache-hit", duration_ms: 0 });
       }
-      return profileCache.profile;
+      return cachedProfile.profile;
     }
     if (profileInFlight?.membershipKey === membershipKey) {
       if (forceRefresh && !profileInFlight.forceRefresh) {
@@ -515,12 +519,9 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
       );
     }
 
+    // 每次请求只携带调用方明确要求的组件。缓存可以作为读取超集复用，
+    // 但绝不能反向污染新的请求 URL，否则三组件写后确认会退化为完整 Profile。
     const components = new Set(requestedComponents);
-    if (profileCache?.membershipKey === membershipKey) {
-      for (const component of profileCache.components) {
-        components.add(component);
-      }
-    }
     const componentQuery = [...components].sort((left, right) => left - right).join(",");
     const requestEpoch = sessionEpoch;
     const startedAt = performance.now();
@@ -533,12 +534,14 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
           { forceRefresh }
         );
         assertActiveRequest(accessToken, requestEpoch);
-        const existingProfile = profileCache?.membershipKey === membershipKey
-          ? profileCache
-          : undefined;
+        const existingProfile = findReusableProfileCache(
+          profileCaches,
+          membershipKey,
+          components
+        );
         if (existingProfile
           && isSuperset(existingProfile.components, components)
-          && isProfileNotNewer(profile, existingProfile.profile)) {
+          && isProfileOlder(profile, existingProfile.profile)) {
           if (diagnoseSnapshotRefresh) {
             reportDiagnostic({
               stage: "profile",
@@ -548,12 +551,16 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
           }
           return existingProfile.profile;
         }
-        profileCache = {
+        // Bungie 可能在相同 minted timestamp 下返回已经变化的组件内容。
+        // 新读取到的组件事实必须淘汰同账号旧版本或同版本的其他缓存，
+        // 否则后续完整快照仍可能复用写操作前的位置数据。
+        pruneSupersededProfileCaches(profileCaches, membershipKey, components, profile);
+        profileCaches.set(profileComponentCacheKey(membershipKey, components), {
           membershipKey,
           components,
           profile,
           freshUntil: now() + profileTtlMs
-        };
+        });
         if (diagnoseSnapshotRefresh) {
           reportDiagnostic({
             stage: "profile",
@@ -856,14 +863,14 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
   }
 }
 
-function isProfileNotNewer(
+function isProfileOlder(
   incoming: DestinyProfileResponse,
   current: DestinyProfileResponse
 ): boolean {
   const incomingVersion = profileVersion(incoming.responseMintedTimestamp);
   const currentVersion = profileVersion(current.responseMintedTimestamp);
   return currentVersion > 0
-    && (incomingVersion === 0 || incomingVersion <= currentVersion);
+    && (incomingVersion === 0 || incomingVersion < currentVersion);
 }
 
 function accountProfileVersion(account: Pick<AccountSummary, "profile_minted_at">): number {
@@ -913,6 +920,52 @@ function isSuperset(values: ReadonlySet<number>, requested: ReadonlySet<number>)
     if (!values.has(value)) return false;
   }
   return true;
+}
+
+function profileComponentCacheKey(
+  membershipKey: string,
+  components: ReadonlySet<number>
+): string {
+  return `${membershipKey}:${[...components].sort((left, right) => left - right).join(",")}`;
+}
+
+function findReusableProfileCache(
+  caches: ReadonlyMap<string, ProfileCache>,
+  membershipKey: string,
+  requestedComponents: ReadonlySet<number>,
+  currentTime?: number
+): ProfileCache | undefined {
+  let best: ProfileCache | undefined;
+  for (const cache of caches.values()) {
+    if (cache.membershipKey !== membershipKey) continue;
+    if (currentTime !== undefined && currentTime >= cache.freshUntil) continue;
+    if (!isSuperset(cache.components, requestedComponents)) continue;
+    const cacheVersion = profileVersion(cache.profile.responseMintedTimestamp);
+    const bestVersion = best ? profileVersion(best.profile.responseMintedTimestamp) : -1;
+    if (!best
+      || cacheVersion > bestVersion
+      || (cacheVersion === bestVersion && cache.components.size < best.components.size)) {
+      best = cache;
+    }
+  }
+  return best;
+}
+
+function pruneSupersededProfileCaches(
+  caches: Map<string, ProfileCache>,
+  membershipKey: string,
+  incomingComponents: ReadonlySet<number>,
+  incomingProfile: DestinyProfileResponse
+): void {
+  const incomingVersion = profileVersion(incomingProfile.responseMintedTimestamp);
+  const incomingKey = profileComponentCacheKey(membershipKey, incomingComponents);
+  for (const [key, cache] of caches) {
+    if (cache.membershipKey !== membershipKey || key === incomingKey) continue;
+    const cachedVersion = profileVersion(cache.profile.responseMintedTimestamp);
+    if (incomingVersion > 0 && (cachedVersion === 0 || cachedVersion <= incomingVersion)) {
+      caches.delete(key);
+    }
+  }
 }
 
 function detailKey(input: AccountItemDetailQuery): string {

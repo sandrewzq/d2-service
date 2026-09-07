@@ -767,9 +767,9 @@ function ItemDetailInstanceActions(input: {
             <strong>{actionFeedback.status === "submitting"
               ? "正在提交装备操作"
               : actionFeedback.status === "refreshing"
-                ? "Bungie 已受理，正在确认"
+                ? "Bungie 已受理，正在同步"
                 : actionFeedback.status === "syncing"
-                  ? "请求成功，后台确认中"
+                  ? "同步中"
                 : actionFeedback.status === "success"
                   ? "游戏内状态已更新"
                   : "操作未完成"}</strong>

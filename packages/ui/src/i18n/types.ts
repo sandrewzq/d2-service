@@ -52,6 +52,8 @@ export type ShellCopy = {
     failedSummary: (count: number) => string;
     recentSummary: string;
     openAll: string;
+    openDetails: string;
+    dismiss: string;
     fallbackTitle: string;
     status: {
       idle: string;

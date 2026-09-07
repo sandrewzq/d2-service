@@ -8,7 +8,7 @@ export const accountCopy: Record<InterfaceLocale, LocaleCopy["account"]> = {
         "打开中": "打开中",
         "同步中": "同步中",
         "装备操作": "装备",
-        "写入已完成，正在后台对账": "写入已完成，正在后台对账",
+        "写入已完成，正在同步游戏状态": "写入已完成，正在同步游戏状态",
         "件最高光等装备？": "件最高光等装备？",
         "预计达到": "预计达到",
         "Bungie 返回后按逐项结果更新页面，失败项保持原状态。": "Bungie 返回后按逐项结果更新页面，失败项保持原状态。",
@@ -39,7 +39,7 @@ export const accountCopy: Record<InterfaceLocale, LocaleCopy["account"]> = {
       inline: {
         "同步中": "Syncing",
         "装备操作": "Equip",
-        "写入已完成，正在后台对账": "The write completed and is reconciling in the background.",
+        "写入已完成，正在同步游戏状态": "The write completed and is syncing game state.",
         "件最高光等装备？": "highest-Power items?",
         "预计达到": "expected",
         "Bungie 返回后按逐项结果更新页面，失败项保持原状态。": "The page updates from Bungie's per-item result; failed items keep their previous state.",

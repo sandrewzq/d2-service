@@ -982,7 +982,7 @@ function renderAccountItemCard(
       ? {
           kind: "pending",
           label: accountText(props.copy, "同步中"),
-          description: accountText(props.copy, "写入已完成，正在后台对账")
+          description: accountText(props.copy, "写入已完成，正在同步游戏状态")
         }
       : item.isLoadoutMatch
       ? {

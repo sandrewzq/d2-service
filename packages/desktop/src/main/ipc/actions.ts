@@ -964,9 +964,11 @@ function describeEquipFailure(status: number): string {
 }
 
 const latestWriteVerificationByScope = new Map<string, string>();
+const recentWriteVerificationReads = new Map<string, Promise<DestinyProfileResponse>>();
 const accountWriteVerificationWaits = [750, 2_000, 5_000, 10_000, 20_000] as const;
-const accountWriteMismatchMessage = "Bungie Profile 已返回更新版本，但目标实例状态仍与本次写入不一致。";
-const accountWriteUnconfirmedMessage = "Bungie 已受理写入，但在有限次数对账内仍未返回可确认的新状态。";
+const accountWriteVerificationReadReuseMs = 350;
+const accountWriteMismatchMessage = "Bungie 已返回新数据，但目标装备状态与本次操作不一致。";
+const accountWriteUnconfirmedMessage = "Bungie 已受理操作，但在本次同步窗口内仍无法定位目标装备的新状态。";
 
 function startAccountWriteVerification(input: AccountWriteVerificationInput) {
   const verificationKeys = getAccountWriteVerificationScopes(input).map((scope) => [
@@ -984,8 +986,8 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
   return startBackgroundTask({
     type: "account-write-sync",
     dedupeKey: input.operation_id,
-    title: "确认游戏内物品状态",
-    message: `写入已完成，正在后台对账 ${input.expected_patches.length} 项变化。`,
+    title: "同步游戏内物品状态",
+    message: `写入已完成，正在同步 ${input.expected_patches.length} 项变化。`,
     run: async (context) => {
       const config = loadConfig();
       const startedAt = performance.now();
@@ -1014,7 +1016,10 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
 
         const requestStartedAt = performance.now();
         try {
-          const profile = await getAccountProfileComponents(components, "refresh");
+          const profile = await readAccountWriteVerificationProfile(
+            `${input.membership_type}:${input.destiny_membership_id}`,
+            components
+          );
           const reflectedPatches = input.expected_patches
             .filter((patch) => isAccountWriteVerificationPatchReflected(profile, patch));
           const contradictedPatches = input.expected_patches
@@ -1093,8 +1098,8 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
 
           if (reflected) {
             appendAccountWriteVerificationLog(config.data.data_dir, input, "verified", input.failed_count > 0
-              ? `已确认 ${matchedCount}/${input.accepted_count} 项变化已在游戏内生效，另有 ${input.failed_count} 项提交失败。`
-              : `已确认 ${matchedCount} 项变化已在游戏内生效。`);
+              ? `已同步 ${matchedCount}/${input.accepted_count} 项变化，另有 ${input.failed_count} 项提交失败。`
+              : `已同步 ${matchedCount} 项变化。`);
             for (const verificationKey of verificationKeys) {
               if (latestWriteVerificationByScope.get(verificationKey) === input.operation_id) {
                 latestWriteVerificationByScope.delete(verificationKey);
@@ -1108,8 +1113,8 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
               attempt,
               progress_percent: 100,
               message: input.failed_count > 0
-                ? `已确认 ${matchedCount}/${input.accepted_count} 项变化，另有 ${input.failed_count} 项提交失败。`
-                : `已确认 ${matchedCount} 项变化已在游戏内生效。`
+                ? `已同步 ${matchedCount}/${input.accepted_count} 项变化，另有 ${input.failed_count} 项提交失败。`
+                : `已同步 ${matchedCount} 项变化。`
             });
             return;
           }
@@ -1119,8 +1124,8 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
             attempt,
             progress_percent: undefined,
             message: elapsedMs >= 30_000
-              ? "写入已完成，Bungie Profile 更新较慢；应用会继续后台对账。"
-              : `写入已完成，正在后台对账（已匹配 ${matchedCount}/${input.expected_patches.length}）。`
+              ? "写入已完成，Bungie Profile 更新较慢；应用会继续同步。"
+              : `写入已完成，正在同步（已匹配 ${matchedCount}/${input.expected_patches.length}）。`
           });
         } catch (error) {
           if (error instanceof Error && (
@@ -1156,19 +1161,46 @@ function startAccountWriteVerification(input: AccountWriteVerificationInput) {
               config.data.data_dir,
               input,
               "unavailable",
-              `写入请求已受理，但后台对账不可用：${classified.message}`
+              `写入请求已受理，但状态同步不可用：${classified.message}`
             );
-            throw new Error(`写入已完成，但后台对账已暂停：${classified.message}`);
+            throw new Error(`写入已完成，但状态同步已暂停：${classified.message}`);
           }
           context.update({
             status: "retrying",
             attempt,
-            message: `写入已完成，后台对账暂时不可用；应用会自动重试。${classified.message}`
+            message: `写入已完成，状态同步暂时不可用；应用会自动重试。${classified.message}`
           });
         }
       }
     }
   });
+}
+
+function readAccountWriteVerificationProfile(
+  accountKey: string,
+  components: readonly number[]
+): Promise<DestinyProfileResponse> {
+  const key = `${accountKey}:${[...components].sort((left, right) => left - right).join(",")}`;
+  const existing = recentWriteVerificationReads.get(key);
+  if (existing) return existing;
+
+  const promise = getAccountProfileComponents(components, "refresh");
+  recentWriteVerificationReads.set(key, promise);
+  void promise.then(
+    () => {
+      setTimeout(() => {
+        if (recentWriteVerificationReads.get(key) === promise) {
+          recentWriteVerificationReads.delete(key);
+        }
+      }, accountWriteVerificationReadReuseMs);
+    },
+    () => {
+      if (recentWriteVerificationReads.get(key) === promise) {
+        recentWriteVerificationReads.delete(key);
+      }
+    }
+  );
+  return promise;
 }
 
 function appendAccountWriteVerificationLog(

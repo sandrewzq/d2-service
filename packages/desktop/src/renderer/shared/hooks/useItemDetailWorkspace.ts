@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AccountOperationFeedbackView } from "@d2-tools/app/account";
 import { api } from "../../api/client";
 import type { ActionLogType } from "@d2-tools/core/actions/log";
-import type { AccountItemActionPatch, AccountItemDetail, AccountItemSummary, AccountSummary, AccountWriteVerificationInput, ActionDebugTraceInput, DimWishlist, ItemActionResult, ItemAiAdviceResult, ItemSearchResult, LibraryHistory, LocalTargetRules, VaultTags, VaultTagValue, WeaponRecommendation } from "../../api/types";
+import type { AccountItemActionPatch, AccountItemDetail, AccountItemSummary, AccountSummary, ActionDebugTraceInput, DimWishlist, ItemActionResult, ItemAiAdviceResult, ItemSearchResult, LibraryHistory, LocalTargetRules, VaultTags, VaultTagValue, WeaponRecommendation } from "../../api/types";
 import type { LiveItemAvailabilityEntry } from "@d2-tools/core/items/liveAvailability";
 import {
   buildWishlistInsightText,
@@ -47,12 +47,7 @@ export function useItemDetailWorkspace(input: {
   setAccountOperationFeedback: (feedback: AccountOperationFeedbackView | undefined) => void;
   setIsRunningItemAction: (isRunning: boolean) => void;
   setItemActionMessage: (message: string) => void;
-  loadAccountSummary: () => Promise<void>;
-  applyCommittedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
-  startAccountWriteVerification: (
-    input: AccountWriteVerificationInput,
-    options?: { surfaceFeedback?: boolean }
-  ) => Promise<void>;
+  applyAcceptedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
   onRecentHistoryChanged: (history: LibraryHistory) => void;
 }) {
   const [communityRecommendations, setCommunityRecommendations] = useState<WeaponRecommendation | null>(null);
@@ -590,8 +585,6 @@ export function useItemDetailWorkspace(input: {
     if (!selectedItem || !input.accountSummary) {
       return { ok: false, refreshed: false, message: "装备详情已关闭或账号数据不可用。" };
     }
-    const accountSummary = input.accountSummary;
-
     if (!selectedItem.instance_id) {
       const message = "这个物品没有实例 ID，不能执行 Bungie 写操作。";
       publishMessage(message);
@@ -629,48 +622,23 @@ export function useItemDetailWorkspace(input: {
       const operationId = result.diagnostics?.operation_id ?? fallbackOperationId;
       const accountPatch = result.account_patch ?? options?.expectedAccountPatch;
       if (accountPatch) {
-        input.applyCommittedAccountActionPatches([accountPatch]);
+        input.applyAcceptedAccountActionPatches([accountPatch]);
         recordWriteActionDebug({
           ...debugBase,
           operation_id: operationId,
-          phase: "account-confirmation-registered",
+          phase: "account-patch-applied",
           elapsed_ms: performance.now() - actionStartedAt,
-          reflected: false,
-          message: "Bungie 写结果已提交，账号 Store 已显示预计状态并等待 Profile 确认"
+          reflected: true,
+          message: "Bungie 写接口已受理，账号 Store 已提交单件局部变化"
         });
-        const message = `${result.message}，正在确认游戏内状态...`;
+        const message = result.message;
         publishMessage(message);
         input.setAccountOperationFeedback({
-          tone: "pending",
-          phase: "syncing",
+          tone: "success",
+          phase: "confirmed",
           itemInstanceIds: [accountPatch.item_instance_id],
           message
         });
-        recordWriteActionDebug({
-          ...debugBase,
-          operation_id: operationId,
-          phase: "verification-start",
-          elapsed_ms: performance.now() - actionStartedAt,
-          message: "已启动非阻塞 Profile 对账"
-        });
-        void input.startAccountWriteVerification({
-          operation_id: operationId,
-          membership_type: accountSummary.membership_type,
-          destiny_membership_id: accountSummary.destiny_membership_id,
-          character_id: "character_id" in accountPatch
-            ? accountPatch.character_id
-            : selectedActionCharacterId,
-          character_name: accountSummary.characters.find((character) => (
-            character.character_id === ("character_id" in accountPatch
-              ? accountPatch.character_id
-              : selectedActionCharacterId)
-          ))?.class_name,
-          item_name: selectedItem.name,
-          baseline_profile_minted_at: accountSummary.profile_minted_at,
-          expected_patches: [accountPatch],
-          accepted_count: 1,
-          failed_count: 0
-        }, { surfaceFeedback: false });
         void input.diagnostics.loadActionLog().catch(() => undefined);
         return { ok: true, refreshed: false, message };
       }
@@ -705,15 +673,17 @@ export function useItemDetailWorkspace(input: {
           };
         }
       } else {
-        await input.loadAccountSummary();
         closeSelectedItemDetail();
-        publishMessage(result.message);
+        publishMessage(`${result.message} 页面会在下次账号同步时校准。`);
       }
       void input.diagnostics.loadActionLog().catch(() => undefined);
+      const completionMessage = options?.keepDetailOpen
+        ? "已从 Bungie 读取并确认服务器最新配置。"
+        : `${result.message} 页面会在下次账号同步时校准。`;
       return {
         ok: true,
-        refreshed: true,
-        message: options?.keepDetailOpen ? "已从 Bungie 读取并确认服务器最新配置。" : result.message
+        refreshed: options?.keepDetailOpen === true,
+        message: completionMessage
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : `${label}失败`;

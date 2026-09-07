@@ -1,5 +1,6 @@
 import { SettingsPage } from "../../features/settings/SettingsPage";
 import { api } from "../../api/client";
+import { useBackgroundTasks } from "../../shared/hooks/useBackgroundTasks";
 import { useAccountSummaryStore } from "../../shared/stores/accountEntityStore";
 import { useDesktopMenuSession } from "./DesktopMenuProviderContext";
 
@@ -8,6 +9,8 @@ export function SettingsMenuProvider() {
   const diagnostics = session.diagnostics;
   const account = session.account;
   const accountSummary = useAccountSummaryStore();
+  // 完整任务历史只在设置页实际挂载时订阅。
+  const { backgroundTasks } = useBackgroundTasks();
 
   return (
     <SettingsPage
@@ -29,7 +32,7 @@ export function SettingsMenuProvider() {
       isAiConfigured={session.home.isAiConfigured}
       onRefreshAccount={session.refreshAccountManually}
       onReauthorizeAccount={() => void account.loginBungie()}
-      backgroundTasks={diagnostics.backgroundTasks}
+      backgroundTasks={backgroundTasks}
       actionLog={diagnostics.actionLog}
       actionLogResultFilter={diagnostics.actionLogResultFilter}
       actionLogTypeFilter={diagnostics.actionLogTypeFilter}

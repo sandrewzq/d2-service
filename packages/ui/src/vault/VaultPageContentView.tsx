@@ -818,7 +818,7 @@ export function VaultPageContentView(props: {
       }
     }
     setBatchMessage([
-      successCount ? `已提交 ${successCount} 件装备加锁，正在后台确认。` : "没有装备成功提交加锁。",
+      successCount ? `已加锁 ${successCount} 件装备。` : "没有装备成功加锁。",
       failures.length ? `${failures.length} 件失败：${failures.slice(0, 3).join("；")}${failures.length > 3 ? "；其余失败请查看应用日志" : ""}` : ""
     ].filter(Boolean).join(" "));
     batchActions.setActiveBatchAction("");
@@ -846,13 +846,13 @@ export function VaultPageContentView(props: {
     try {
       if (action === "lock") {
         await props.cleanupActions.onLockItem(item, targetCharacterId);
-        setBatchMessage(`已提交加锁：${item.name}，正在后台确认。`);
+        setBatchMessage(`已加锁：${item.name}`);
       } else {
         const result = await props.cleanupActions.onBatchTransferToCharacter([item], targetCharacterId);
         if (!result.success_count) {
           throw new Error(result.failure_messages?.[0] || result.message || "Bungie 未接受这次取出操作");
         }
-        setBatchMessage(`已提交取出到${props.cleanupActions.currentCharacterLabel ?? "当前角色"}：${item.name}，正在后台确认。`);
+        setBatchMessage(`已取出到${props.cleanupActions.currentCharacterLabel ?? "当前角色"}：${item.name}`);
       }
       if (fallbackItem) requestQuickActionFocus(getVaultSelectionItemKey(fallbackItem));
     } catch (error) {

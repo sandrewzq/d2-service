@@ -1,10 +1,12 @@
-import type { BackgroundTaskSnapshot as SharedBackgroundTaskSnapshot } from "../../shared/backgroundTasks";
 import type {
   AssetCacheTaskCompletion,
-  AssetCacheTaskInput
+  AssetCacheTaskInput,
+  BackgroundTaskSnapshot as SharedBackgroundTaskSnapshot,
+  BackgroundTaskType as SharedBackgroundTaskType
 } from "../../shared/backgroundTasks";
 
 export type BackgroundTaskSnapshot = SharedBackgroundTaskSnapshot;
+export type BackgroundTaskType = SharedBackgroundTaskType;
 
 export type BackgroundTaskApi = {
   getBackgroundTasks(): Promise<BackgroundTaskSnapshot[]>;

@@ -6,7 +6,6 @@ import {
   type AccountItemActionPatch,
   type AccountItemSummary,
   type AccountSummary,
-  type AccountWriteVerificationInput,
   type BatchItemActionResult,
   type BuildGuideLoadoutDraft,
   type ItemActionResult,
@@ -78,12 +77,7 @@ export function useLoadoutWriteActions(input: {
   setItemActionMessage: (message: string) => void;
   setAccountOperationFeedback: (feedback: AccountOperationFeedbackView | undefined) => void;
   setIsRunningItemAction: (isRunning: boolean) => void;
-  applyCommittedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
-  startHighestPowerVerification: (
-    input: AccountWriteVerificationInput,
-    options?: { surfaceFeedback?: boolean }
-  ) => Promise<void>;
-  loadAccountSummary: () => Promise<void>;
+  applyAcceptedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
   openItemDetail: (item: AccountItemSummary, source?: SelectedItemSource) => void | Promise<void>;
 }) {
   // 配装页可能从模板条目、迁移计划等多个入口同时打开同一实例。
@@ -112,45 +106,35 @@ export function useLoadoutWriteActions(input: {
   }
 
   function applyAcceptedAccountPatches(patches: readonly AccountItemActionPatch[]): void {
-    // Bungie 写接口成功后立即更新页面预计位置，并保留逐实例 Pending。
-    // 后续 Profile 只负责确认或纠正，不能用延迟快照静默覆盖这次成功写入。
-    if (patches.length) input.applyCommittedAccountActionPatches(patches);
+    // Bungie 写接口成功后立即提交局部状态。需要“转移后装备”的步骤
+    // 继续由主进程 wait_for_character_inventory 做针对性前置确认。
+    if (patches.length) input.applyAcceptedAccountActionPatches(patches);
   }
 
-  function finishWriteActionsInBackground(options: {
+  function finishAcceptedWriteActions(options: {
     requiresFullRefresh: boolean;
     patches?: readonly AccountItemActionPatch[];
-    characterId?: string;
-    characterName?: string;
     failedCount?: number;
-    operationId?: string;
   }): void {
-    const account = input.accountSummary;
     const patches = collapseAccountWritePatches(options.patches ?? []);
-    if (account && patches.length && options.characterId) {
+    if (patches.length) {
       applyAcceptedAccountPatches(patches);
-      const message = options.failedCount
-        ? `请求已受理，正在确认 ${patches.length} 项变化；另有 ${options.failedCount} 项失败。`
-        : `请求已受理，正在确认 ${patches.length} 项游戏内变化。`;
       input.setAccountOperationFeedback({
-        tone: options.failedCount ? "warning" : "pending",
-        phase: options.failedCount ? "partial" : "syncing",
+        tone: options.failedCount || options.requiresFullRefresh ? "warning" : "success",
+        phase: options.failedCount || options.requiresFullRefresh ? "partial-confirmed" : "confirmed",
         itemInstanceIds: patches.map((patch) => patch.item_instance_id),
-        message
+        message: options.failedCount
+          ? `已应用 ${patches.length} 项变化，另有 ${options.failedCount} 项失败。`
+          : options.requiresFullRefresh
+            ? `已应用 ${patches.length} 项变化；其余已受理变化会在下次账号同步后显示。`
+            : `已应用 ${patches.length} 项变化。`
       });
-      void input.startHighestPowerVerification({
-        operation_id: options.operationId ?? createLoadoutWriteOperationId(),
-        membership_type: account.membership_type,
-        destiny_membership_id: account.destiny_membership_id,
-        character_id: options.characterId,
-        character_name: options.characterName,
-        baseline_profile_minted_at: account.profile_minted_at,
-        expected_patches: patches,
-        accepted_count: patches.length,
-        failed_count: options.failedCount ?? 0
-      }, { surfaceFeedback: false });
     } else if (options.requiresFullRefresh) {
-      void input.loadAccountSummary().catch(() => undefined);
+      input.setAccountOperationFeedback({
+        tone: "warning",
+        phase: "partial-confirmed",
+        message: "写入已由 Bungie 受理；页面会在下次账号同步时校准。"
+      });
     }
     void input.diagnostics.loadActionLog().catch(() => undefined);
   }
@@ -205,7 +189,6 @@ export function useLoadoutWriteActions(input: {
     });
     input.setIsRunningItemAction(true);
     let hasSuccessfulWrite = false;
-    let verificationCharacter: AccountSummary["characters"][number] | undefined;
     const acceptedWritePatches: AccountItemActionPatch[] = [];
     const operationId = createHighestPowerOperationId();
 
@@ -224,7 +207,6 @@ export function useLoadoutWriteActions(input: {
         input.setAccountOperationFeedback({ tone: "error", phase: "failed", message });
         return;
       }
-      verificationCharacter = targetCharacter;
       const plan = createHighestPowerEquipPlan({
         character: targetCharacter,
         vaultItems: account.vault.items
@@ -387,47 +369,24 @@ export function useLoadoutWriteActions(input: {
       });
       input.setLoadoutMessage(resultMessage);
       input.setAccountOperationFeedback({
-        tone: failedSteps > 0 ? "warning" : "pending",
-        phase: failedSteps > 0 ? "partial" : "syncing",
+        tone: failedSteps > 0 ? "warning" : "success",
+        phase: failedSteps > 0 ? "partial-confirmed" : "confirmed",
         itemInstanceIds: finalExpectedPatches.map((patch) => patch.item_instance_id),
         message: resultMessage
       });
-      void input.startHighestPowerVerification({
-        operation_id: operationId,
-        membership_type: account.membership_type,
-        destiny_membership_id: account.destiny_membership_id,
-        character_id: targetCharacter.character_id,
-        character_name: targetCharacter.class_name,
-        baseline_profile_minted_at: account.profile_minted_at,
-        expected_patches: finalExpectedPatches,
-        accepted_count: finalExpectedPatches.length,
-        failed_count: failedSteps
-      }, { surfaceFeedback: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "装备最高光等失败";
-      const account = input.accountSummary;
       const finalAcceptedPatches = collapseAccountWritePatches(acceptedWritePatches);
-      if (account && verificationCharacter && finalAcceptedPatches.length) {
+      if (finalAcceptedPatches.length) {
         applyAcceptedAccountPatches(finalAcceptedPatches);
-        const partialMessage = `最高光等部分受理：正在确认 ${finalAcceptedPatches.length} 项变化；后续步骤失败：${message}`;
+        const partialMessage = `最高光等已应用 ${finalAcceptedPatches.length} 项变化；后续步骤失败：${message}`;
         input.setLoadoutMessage(partialMessage);
         input.setAccountOperationFeedback({
           tone: "warning",
-          phase: "partial",
+          phase: "partial-confirmed",
           itemInstanceIds: finalAcceptedPatches.map((patch) => patch.item_instance_id),
           message: partialMessage
         });
-        void input.startHighestPowerVerification({
-          operation_id: operationId,
-          membership_type: account.membership_type,
-          destiny_membership_id: account.destiny_membership_id,
-          character_id: verificationCharacter.character_id,
-          character_name: verificationCharacter.class_name,
-          baseline_profile_minted_at: account.profile_minted_at,
-          expected_patches: finalAcceptedPatches,
-          accepted_count: finalAcceptedPatches.length,
-          failed_count: 1
-        }, { surfaceFeedback: false });
       } else {
         input.setLoadoutMessage(message);
         input.setAccountOperationFeedback({ tone: "error", phase: "failed", message });
@@ -471,17 +430,12 @@ export function useLoadoutWriteActions(input: {
       const result = await run();
       const outcome = applySuccessfulWriteResult(result);
       const patches = [...outcome.patches, ...expectedPatches];
-      const hasEquipPatch = patches.some((patch) => patch.kind === "equip");
       input.setLoadoutMessage(patches.length
-        ? hasEquipPatch
-          ? `${result.message}，正在确认游戏内状态。`
-          : `${result.message}，页面已更新。`
-        : "写入请求已受理，正在后台刷新账号数据。");
-      finishWriteActionsInBackground({
+        ? `${result.message}，页面已更新。`
+        : "写入请求已受理；页面会在下次账号同步时校准。");
+      finishAcceptedWriteActions({
         requiresFullRefresh: outcome.requiresFullRefresh,
-        patches,
-        characterId: character.character_id,
-        characterName: character.class_name
+        patches
       });
     } catch (error) {
       input.setLoadoutMessage(error instanceof Error ? error.message : `${label}失败`);
@@ -634,7 +588,6 @@ export function useLoadoutWriteActions(input: {
     let requiresFullRefresh = false;
     let operationFailed = false;
     const acceptedPatches: AccountItemActionPatch[] = [];
-    const operationId = createLoadoutWriteOperationId();
 
     try {
       let targetTransferCount = 0;
@@ -742,20 +695,15 @@ export function useLoadoutWriteActions(input: {
         prepStepCount,
         blockedCount: transferPlan.blocked.length
       });
-      input.setLoadoutMessage(`${resultSummary}${acceptedPatches.some((patch) => patch.kind === "equip")
-        ? " 正在确认游戏内状态。"
-        : " 页面已更新。"}`);
+      input.setLoadoutMessage(`${resultSummary} 页面已更新。`);
     } catch (error) {
       operationFailed = true;
       input.setLoadoutMessage(error instanceof Error ? error.message : "缺失件转移失败");
     } finally {
-      if (hasSuccessfulWrite) finishWriteActionsInBackground({
+      if (hasSuccessfulWrite) finishAcceptedWriteActions({
         requiresFullRefresh,
         patches: acceptedPatches,
-        characterId: targetCharacter.character_id,
-        characterName: targetCharacter.class_name,
-        failedCount: operationFailed ? 1 : 0,
-        operationId
+        failedCount: operationFailed ? 1 : 0
       });
       input.setIsRunningItemAction(false);
       input.setItemActionMessage("");
@@ -807,7 +755,6 @@ export function useLoadoutWriteActions(input: {
     let hasSuccessfulWrite = false;
     let requiresFullRefresh = false;
     const acceptedPatches: AccountItemActionPatch[] = [];
-    const operationId = createLoadoutWriteOperationId();
 
     try {
       let targetTransferCount = 0;
@@ -944,20 +891,15 @@ export function useLoadoutWriteActions(input: {
         autoEquipCount,
         prepStepCount
       });
-      input.setLoadoutMessage(`${resultSummary}${acceptedPatches.some((patch) => patch.kind === "equip")
-        ? " 正在确认游戏内状态。"
-        : " 页面已更新。"}`);
+      input.setLoadoutMessage(`${resultSummary} 页面已更新。`);
       actionSucceeded = true;
     } catch (error) {
       input.setLoadoutMessage(error instanceof Error ? error.message : buildLoadoutItemActionFailureMessage("transfer", item.name));
     } finally {
-      if (hasSuccessfulWrite) finishWriteActionsInBackground({
+      if (hasSuccessfulWrite) finishAcceptedWriteActions({
         requiresFullRefresh,
         patches: acceptedPatches,
-        characterId: targetCharacter.character_id,
-        characterName: targetCharacter.class_name,
-        failedCount: actionSucceeded ? 0 : 1,
-        operationId
+        failedCount: actionSucceeded ? 0 : 1
       });
       input.setIsRunningItemAction(false);
       input.setItemActionMessage("");
@@ -1003,15 +945,11 @@ export function useLoadoutWriteActions(input: {
         item_name: sourceItem.name
       });
       const outcome = applySuccessfulWriteResult(result);
-      finishWriteActionsInBackground({
+      finishAcceptedWriteActions({
         requiresFullRefresh: outcome.requiresFullRefresh,
-        patches: outcome.patches,
-        characterId: template.character_id,
-        characterName: account.characters.find((character) => character.character_id === template.character_id)?.class_name
+        patches: outcome.patches
       });
-      input.setLoadoutMessage(outcome.patches.some((patch) => patch.kind === "equip")
-        ? `${result.message}，正在确认游戏内状态。`
-        : `${result.message}，页面已更新。`);
+      input.setLoadoutMessage(`${result.message}，页面已更新。`);
     } catch (error) {
       input.setLoadoutMessage(error instanceof Error ? error.message : buildLoadoutItemActionFailureMessage("equip", item.name));
     } finally {
@@ -1092,12 +1030,6 @@ function collapseAccountWritePatches(
   const finalPatchByItem = new Map<string, AccountItemActionPatch>();
   for (const patch of patches) finalPatchByItem.set(patch.item_instance_id, patch);
   return [...finalPatchByItem.values()];
-}
-
-function createLoadoutWriteOperationId(): string {
-  return typeof globalThis.crypto?.randomUUID === "function"
-    ? globalThis.crypto.randomUUID()
-    : `loadout-write-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 async function equipHighestPowerSingleItem(

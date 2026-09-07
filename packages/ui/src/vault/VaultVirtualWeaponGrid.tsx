@@ -176,7 +176,7 @@ function WindowedWeaponGrid(props: GridProps) {
 
   useLayoutEffect(() => {
     scheduleMeasure();
-  }, [props.items, scheduleMeasure]);
+  }, [props.items.length, scheduleMeasure]);
 
   useLayoutEffect(() => {
     const index = pendingFocusIndexRef.current;

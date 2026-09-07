@@ -7,15 +7,11 @@ import type { AccountItemActionPatch, AccountSummary, ActivityHistorySummary, Di
 import { createEmptyEquipmentTargetStore } from "@d2-tools/core/targets/equipmentTargets";
 import { services } from "../../api/services";
 import {
-  applyCommittedAccountEntityPatches,
-  confirmCommittedAccountEntityPatches,
-  discardCommittedAccountEntityPatches,
+  applyAccountEntityPatches,
   getAccountStoreRevision,
-  getPendingCommittedAccountPatchCount,
   getAccountSummarySnapshot,
   replaceAccountSummary,
-  useAccountSummaryStore,
-  usePendingCommittedAccountPatchCount
+  useAccountSummaryStore
 } from "../../shared/stores/accountEntityStore";
 import { formatBungieLoginError } from "./loginErrors";
 
@@ -38,7 +34,6 @@ export function useAccountWorkspace(input: {
   const [manifestError, setManifestError] = useState("");
   const [isInitializingManifest, setIsInitializingManifest] = useState(false);
   const accountSummary = useAccountSummaryStore();
-  const pendingCommittedAccountPatchCount = usePendingCommittedAccountPatchCount();
   const [vaultTags, setVaultTags] = useState<VaultTags>({ items: {} });
   const [localTargetRules, setLocalTargetRules] = useState<LocalTargetRules>({
     action_policy: "notify_only",
@@ -101,10 +96,6 @@ export function useAccountWorkspace(input: {
       if (!acceptedSummary) return;
       setIsShowingCachedAccount(false);
       setLastAccountLoadedAt(new Date());
-      const pendingCount = getPendingCommittedAccountPatchCount();
-      setAccountSyncMessage(pendingCount
-        ? `已收到游戏数据，${pendingCount} 项操作仍在等待游戏状态确认`
-        : "装备数据已从游戏更新");
     });
   }, []);
 
@@ -137,19 +128,11 @@ export function useAccountWorkspace(input: {
     return acceptedSummary;
   }
 
-  function applyCommittedAccountActionPatches(patches: readonly AccountItemActionPatch[]) {
-    applyCommittedAccountEntityPatches(patches);
-  }
-
-  function discardCommittedAccountActionPatches(patches: readonly AccountItemActionPatch[]) {
-    discardCommittedAccountEntityPatches(patches);
-  }
-
-  function confirmCommittedAccountActionPatches(
-    patches: readonly AccountItemActionPatch[],
-    profileMintedAt?: string
-  ) {
-    confirmCommittedAccountEntityPatches(patches, profileMintedAt);
+  function applyAcceptedAccountActionPatches(patches: readonly AccountItemActionPatch[]) {
+    // 与 DIM 一致：Bungie 写接口明确成功后，直接把单件变化提交到本地
+    // 确认态。后续正常 Profile 前进时再以服务器事实自然校准。
+    applyAccountEntityPatches(patches);
+    setAccountSyncMessage("");
   }
 
   async function loginBungie() {
@@ -276,11 +259,12 @@ export function useAccountWorkspace(input: {
         summary = acceptedSummary;
         setIsShowingCachedAccount(false);
         setLastAccountLoadedAt(new Date());
-        if (reason !== "write-action") {
-          const pendingCount = getPendingCommittedAccountPatchCount();
-          setAccountSyncMessage(pendingCount
-            ? `已收到游戏数据，${pendingCount} 项操作仍在等待游戏状态确认`
-            : formatAccountSyncMessage(previousSummary, summary, reason));
+        if (reason === "manual") {
+          setAccountSyncMessage(formatAccountSyncMessage(previousSummary, summary, reason));
+        } else if (reason === "initial" || reason === "auto") {
+          // 初始与静默同步只更新数据和时间，不保留绿色成功横幅。
+          // 玩家刚完成的单件操作因此不会与历史同步成功提示重复。
+          setAccountSyncMessage("");
         }
         const shouldRefreshCommunityMatch = !previousSummary
           || !recommendationScanAccountKeyRef.current
@@ -301,14 +285,11 @@ export function useAccountWorkspace(input: {
           }));
         }
         if (reason === "initial" || reason === "manual") {
-          const pendingCount = getPendingCommittedAccountPatchCount();
-          setActivityMessage(pendingCount
-            ? `已收到游戏数据；${pendingCount} 项操作仍在等待确认，页面继续保留写入成功后的预计位置`
-            : reason === "manual"
-              ? hasSameProfileVersion(previousSummary, summary)
-                ? "装备数据已同步，游戏中的内容没有变化"
-                : "装备数据已从游戏更新"
-              : "装备数据已同步，最近活动会继续在后台读取");
+          setActivityMessage(reason === "manual"
+            ? hasSameProfileVersion(previousSummary, summary)
+              ? "装备数据已同步，游戏中的内容没有变化"
+              : "装备数据已从游戏更新"
+            : "装备数据已同步，最近活动会继续在后台读取");
         }
         if (reason === "initial") void refreshAccountDerivedData(summary);
         // 推荐核对只依赖武器实例与 Roll。取出、存入、装备和锁定只改变
@@ -505,11 +486,8 @@ export function useAccountWorkspace(input: {
     manifestError,
     isInitializingManifest,
     accountSummary,
-    pendingCommittedAccountPatchCount,
     setAccountSummary: setAccountSummaryState,
-    applyCommittedAccountActionPatches,
-    confirmCommittedAccountActionPatches,
-    discardCommittedAccountActionPatches,
+    applyAcceptedAccountActionPatches,
     vaultTags,
     setVaultTags,
     localTargetRules,

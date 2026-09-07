@@ -42,6 +42,8 @@ export const shellCopy: Record<InterfaceLocale, LocaleCopy["shell"]> = {
         failedSummary: (count) => `${count} 个需要处理`,
         recentSummary: "最近后台任务",
         openAll: "查看全部",
+        openDetails: "查看任务详情",
+        dismiss: "收起通知",
         fallbackTitle: "后台任务",
         status: {
           idle: "空闲",
@@ -117,6 +119,8 @@ export const shellCopy: Record<InterfaceLocale, LocaleCopy["shell"]> = {
         failedSummary: (count) => `${count} needs attention`,
         recentSummary: "Recent background tasks",
         openAll: "View all",
+        openDetails: "View task details",
+        dismiss: "Dismiss notification",
         fallbackTitle: "Background task",
         status: {
           idle: "Idle",

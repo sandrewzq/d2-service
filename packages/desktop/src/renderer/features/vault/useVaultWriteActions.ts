@@ -1,5 +1,5 @@
 import { api } from "../../api/client";
-import type { AccountItemActionPatch, AccountItemSummary, AccountSummary, AccountWriteVerificationInput, BatchItemActionResult, ItemActionResult, VaultTags, VaultTagValue } from "../../api/types";
+import type { AccountItemActionPatch, AccountItemSummary, AccountSummary, BatchItemActionResult, ItemActionResult, VaultTags, VaultTagValue } from "../../api/types";
 import { services } from "../../api/services";
 import {
   buildVaultBatchTransferProgressMessage,
@@ -21,12 +21,7 @@ export function useVaultWriteActions(input: {
   setAccountError: (message: string) => void;
   setIsRunningItemAction: (isRunning: boolean) => void;
   setItemActionMessage: (message: string) => void;
-  loadAccountSummary: () => Promise<void>;
-  applyCommittedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
-  startAccountWriteVerification: (
-    input: AccountWriteVerificationInput,
-    options?: { surfaceFeedback?: boolean }
-  ) => Promise<void>;
+  applyAcceptedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
 }) {
   async function saveVaultTag(item: AccountItemSummary, tag: VaultTagValue) {
     try {
@@ -58,8 +53,6 @@ export function useVaultWriteActions(input: {
     if (!input.accountSummary) {
       return "请先同步装备数据。";
     }
-    const account = input.accountSummary;
-
     if (!targetCharacterId) {
       return buildVaultCleanupNoTargetMessage();
     }
@@ -85,25 +78,18 @@ export function useVaultWriteActions(input: {
         }
       }
       if (accountPatches.length) {
-        input.applyCommittedAccountActionPatches(accountPatches);
-        void input.startAccountWriteVerification(createVaultVerificationInput({
-          account,
-          characterId: targetCharacterId,
-          patches: accountPatches,
-          failedCount
-        }), { surfaceFeedback: false });
-      }
-      if (successCount > accountPatches.length) {
-        void input.loadAccountSummary().catch((error) => {
-          input.setAccountError(error instanceof Error ? error.message : "操作完成，但刷新账号数据失败");
-        });
+        input.applyAcceptedAccountActionPatches(accountPatches);
       }
       void input.diagnostics.loadActionLog().catch(() => undefined);
     } finally {
       input.setIsRunningItemAction(false);
     }
 
-    return buildVaultCleanupWriteResultMessage({ label, successCount, failedCount });
+    const resultMessage = buildVaultCleanupWriteResultMessage({ label, successCount, failedCount });
+    const missingPatchCount = Math.max(0, successCount - accountPatches.length);
+    return missingPatchCount
+      ? `${resultMessage} 另有 ${missingPatchCount} 项会在下次账号同步后显示。`
+      : resultMessage;
   }
 
   async function handleVaultCleanupUnlock(items: AccountItemSummary[], targetCharacterId: string): Promise<string> {
@@ -146,20 +132,13 @@ export function useVaultWriteActions(input: {
         state: true
       });
       if (result.account_patch) {
-        input.applyCommittedAccountActionPatches([result.account_patch]);
-        void input.startAccountWriteVerification(createVaultVerificationInput({
-          account,
-          characterId: targetCharacterId,
-          patches: [result.account_patch],
-          failedCount: 0
-        }), { surfaceFeedback: false });
-      } else {
-        void input.loadAccountSummary().catch((error) => {
-          input.setAccountError(error instanceof Error ? error.message : "加锁已受理，但刷新账号数据失败");
-        });
+        input.applyAcceptedAccountActionPatches([result.account_patch]);
       }
       void input.diagnostics.loadActionLog().catch(() => undefined);
-      return result.message || `已提交加锁：${item.name}`;
+      const message = result.message || `已提交加锁：${item.name}`;
+      return result.account_patch
+        ? message
+        : `${message} 页面会在下次账号同步时校准。`;
     } finally {
       input.setIsRunningItemAction(false);
       input.setItemActionMessage("");
@@ -201,21 +180,16 @@ export function useVaultWriteActions(input: {
         }))
       });
       if (result.account_patches.length) {
-        input.applyCommittedAccountActionPatches(result.account_patches);
-        void input.startAccountWriteVerification(createVaultVerificationInput({
-          account,
-          characterId: targetCharacterId,
-          patches: result.account_patches,
-          failedCount: result.failed_count
-        }), { surfaceFeedback: false });
-      }
-      if (result.success_count > result.account_patches.length) {
-        void input.loadAccountSummary().catch((error) => {
-          input.setAccountError(error instanceof Error ? error.message : "操作完成，但刷新账号数据失败");
-        });
+        input.applyAcceptedAccountActionPatches(result.account_patches);
       }
       void input.diagnostics.loadActionLog().catch(() => undefined);
-      return result;
+      const missingPatchCount = Math.max(0, result.success_count - result.account_patches.length);
+      return missingPatchCount
+        ? {
+            ...result,
+            message: `${result.message} 另有 ${missingPatchCount} 项会在下次账号同步后显示。`
+          }
+        : result;
     } catch (error) {
       throw error instanceof Error ? error : new Error("批量转移失败");
     } finally {
@@ -231,29 +205,4 @@ export function useVaultWriteActions(input: {
     handleVaultCleanupUnlock,
     handleVaultCleanupTransfer
   };
-}
-
-function createVaultVerificationInput(input: {
-  account: AccountSummary;
-  characterId: string;
-  patches: AccountItemActionPatch[];
-  failedCount: number;
-}): AccountWriteVerificationInput {
-  return {
-    operation_id: createVaultOperationId(),
-    membership_type: input.account.membership_type,
-    destiny_membership_id: input.account.destiny_membership_id,
-    character_id: input.characterId,
-    character_name: input.account.characters.find((character) => character.character_id === input.characterId)?.class_name,
-    baseline_profile_minted_at: input.account.profile_minted_at,
-    expected_patches: input.patches,
-    accepted_count: input.patches.length,
-    failed_count: input.failedCount
-  };
-}
-
-function createVaultOperationId(): string {
-  return typeof globalThis.crypto?.randomUUID === "function"
-    ? globalThis.crypto.randomUUID()
-    : `vault-write-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

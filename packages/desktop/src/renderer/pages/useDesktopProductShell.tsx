@@ -100,10 +100,7 @@ export function useDesktopProductShell(props: {
   });
   const {
     accountSummary,
-    applyCommittedAccountActionPatches,
-    confirmCommittedAccountActionPatches,
-    discardCommittedAccountActionPatches,
-    pendingCommittedAccountPatchCount,
+    applyAcceptedAccountActionPatches,
     vaultTags,
     setVaultTags,
     accountError,
@@ -122,9 +119,6 @@ export function useDesktopProductShell(props: {
     refreshAccountSnapshot
   } = accountWorkspace;
   const refreshAccountAfterWrite = () => refreshAccountSnapshot("write-action");
-  const reloadAccountAfterWrite = async () => {
-    await refreshAccountSnapshot("write-action");
-  };
   const vendorsWorkspace = useVendorsWorkspace({
     accountSummary,
     selectedCharacterId,
@@ -182,10 +176,7 @@ export function useDesktopProductShell(props: {
   const localLoadoutPlans = useLocalLoadoutPlans({ refreshAccount: refreshAccountAfterWrite });
   const writeActions = useDesktopProductWriteActions({
     accountSummary,
-    applyCommittedAccountActionPatches,
-    confirmCommittedAccountActionPatches,
-    discardCommittedAccountActionPatches,
-    pendingCommittedAccountPatchCount,
+    applyAcceptedAccountActionPatches,
     diagnostics,
     vaultTags,
     setVaultTags,
@@ -195,7 +186,6 @@ export function useDesktopProductShell(props: {
     itemDetailCacheScopeKey,
     recommendationRevision: accountWorkspace.vaultRecommendationScan.recommendation_revision,
     setAccountError,
-    loadAccountSummary: reloadAccountAfterWrite,
     loadoutLibrary,
     onRecentHistoryChanged: library.setLibraryHistory
   });
@@ -636,11 +626,11 @@ function formatAccountShellStatus(
   if (accountError && accountSummary) return "同步失败 · 显示上次装备数据";
   if (accountError) return "读取失败";
   if (accountWriteSyncActivity.active) {
-    if (accountWriteSyncActivity.phase === "finalizing") return "正在核对最终状态";
+    if (accountWriteSyncActivity.phase === "finalizing") return "正在完成同步";
     if (accountWriteSyncActivity.delayed) return "游戏数据延迟";
     return accountWriteSyncActivity.pendingCount > 0
-      ? `${accountWriteSyncActivity.pendingCount} 项待确认`
-      : "等待游戏状态";
+      ? `同步中 · ${accountWriteSyncActivity.pendingCount}`
+      : "同步中";
   }
   if (isLoadingAccount) return accountSummary ? "正在同步装备数据" : "正在读取装备数据";
   if (accountWarning && accountSummary) return "增强数据异常";

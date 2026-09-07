@@ -383,6 +383,7 @@ function BackgroundTaskDock(props: {
   interfaceLocale: "zh-CN" | "en-US";
   onOpenTask?: (task: NonNullable<AppShellLayoutProps["backgroundTasks"]>[number]) => void;
 }) {
+  const [dismissedNoticeKey, setDismissedNoticeKey] = useState("");
   const visibleTasks = [
     selectUpdateTaskForDock(props.tasks, "app"),
     selectUpdateTaskForDock(props.tasks, "manifest")
@@ -394,7 +395,25 @@ function BackgroundTaskDock(props: {
     return (left.started_at ?? left.created_at ?? left.updated_at ?? "").localeCompare(right.started_at ?? right.created_at ?? right.updated_at ?? "");
   });
   const task = visibleTasks[0];
-  if (!task) return null;
+  const taskStatus = task?.status;
+  const noticeKey = task ? backgroundTaskNoticeKey(task) : "";
+  const isDismissed = Boolean(noticeKey && dismissedNoticeKey === noticeKey);
+
+  useEffect(() => {
+    if (!taskStatus) {
+      if (dismissedNoticeKey) setDismissedNoticeKey("");
+      return;
+    }
+    if (isDismissed || taskStatus === "failed" || taskStatus === "blocked") return;
+
+    const timeout = window.setTimeout(
+      () => setDismissedNoticeKey(noticeKey),
+      taskStatus === "retrying" ? 10_000 : 8_000
+    );
+    return () => window.clearTimeout(timeout);
+  }, [dismissedNoticeKey, isDismissed, noticeKey, taskStatus]);
+
+  if (!task || isDismissed) return null;
 
   const progress = task.progress_percent === undefined ? undefined : Math.round(task.progress_percent);
   const statusLabel = task.status === "running" && progress !== undefined
@@ -413,7 +432,13 @@ function BackgroundTaskDock(props: {
 
   return (
     <aside className="shell-background-task-dock" data-reference-id="shell.background-task-dock" data-ui-kind="background-task-dock" data-status={task.status} aria-label={props.copy.ariaLabel}>
-      <button type="button" onClick={() => props.onOpenTask?.(task)} aria-label={`${props.copy.title}：${task.title}`}>
+      <button
+        className="shell-background-task-open"
+        type="button"
+        title={props.copy.openDetails}
+        aria-label={`${props.copy.openDetails}：${task.title}`}
+        onClick={() => props.onOpenTask?.(task)}
+      >
         <SystemUpdateProgress
           variant="dock"
           icon="↻"
@@ -430,8 +455,27 @@ function BackgroundTaskDock(props: {
           progressBytesPerSecond={task.progress_bytes_per_second}
         />
       </button>
+      <button
+        className="shell-background-task-dismiss"
+        type="button"
+        title={props.copy.dismiss}
+        aria-label={props.copy.dismiss}
+        onClick={() => setDismissedNoticeKey(noticeKey)}
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
+      </button>
     </aside>
   );
+}
+
+function backgroundTaskNoticeKey(task: NonNullable<AppShellLayoutProps["backgroundTasks"]>[number]): string {
+  const identity = task.task_id ?? task.id ?? task.type ?? task.title;
+  const category = task.status === "retrying"
+    ? "retrying"
+    : task.status === "failed" || task.status === "blocked"
+      ? task.status
+      : "active";
+  return `${identity}:${category}`;
 }
 
 function selectUpdateTaskForDock(
