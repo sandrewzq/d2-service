@@ -738,7 +738,7 @@ export function createWebSettingsPageModel(input: {
 export const webAssistantInitialMessages: AiAssistantMessageView[] = [
   {
     role: "assistant",
-    text: "Web 入口已接入共享 AI 助手界面。当前会根据所在页面使用账号与公开情报作为上下文，后续由 Web provider 提供真实账号和 AI 服务。"
+    text: "Web 入口已接入共享 AI 助手界面。当前会根据所在页面使用账号与首页情报作为上下文，后续由 Web provider 提供真实账号和 AI 服务。"
   }
 ];
 

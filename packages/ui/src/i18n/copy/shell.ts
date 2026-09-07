@@ -18,10 +18,6 @@ export const shellCopy: Record<InterfaceLocale, LocaleCopy["shell"]> = {
       },
       toolstripAriaLabel: "全局工具",
       navigationAriaLabel: "主导航",
-      sidebar: {
-        collapse: "收起侧栏",
-        expand: "展开侧栏"
-      },
       assistantPanelAriaLabel: "AI 助手抽屉",
       windowControlsAriaLabel: "窗口控制",
       windowControls: {
@@ -95,10 +91,6 @@ export const shellCopy: Record<InterfaceLocale, LocaleCopy["shell"]> = {
       },
       toolstripAriaLabel: "Global tools",
       navigationAriaLabel: "Primary navigation",
-      sidebar: {
-        collapse: "Collapse sidebar",
-        expand: "Expand sidebar"
-      },
       assistantPanelAriaLabel: "AI assistant drawer",
       windowControlsAriaLabel: "Window controls",
       windowControls: {

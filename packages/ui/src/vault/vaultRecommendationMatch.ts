@@ -16,6 +16,14 @@ export type VaultRecommendationSourceSummary = {
   state: "full" | "core" | "close" | "key_missing" | "not_matched" | "weapon_only" | "uncheckable";
   matched: number;
   available: number;
+  matchedPerkCount: number;
+  perkRequirementCount: number;
+  uncheckablePerkCount: number;
+  matchedRequirementCount: number;
+  requirementCount: number;
+  uncheckableRequirementCount: number;
+  dimBestMatchedRequirementCount: number;
+  dimBestRequirementCount: number;
   unit: "item" | "combo";
   purposes: Array<"pve" | "pvp" | "general">;
   resultText: string;
@@ -29,6 +37,26 @@ export type VaultRecommendationSummaryIndex = ReadonlyMap<
 >;
 
 export type VaultRecommendationResult = "matched" | "partial" | "not_matched" | "uncheckable" | "uncovered";
+
+export type VaultRecommendationMetricKey = `${number}/${number}`;
+export type VaultRecommendationPrimaryFilter =
+  | "all"
+  | VaultRecommendationMetricKey
+  | "unrequired"
+  | "uncheckable"
+  | "uncovered";
+export type VaultRecommendationCompleteFilter = "all" | VaultRecommendationMetricKey;
+
+export type VaultRecommendationFilterFact = {
+  kind: "curated" | "dim";
+  primaryKey: Exclude<VaultRecommendationPrimaryFilter, "all">;
+  completeKey?: VaultRecommendationMetricKey;
+};
+
+export type VaultRecommendationFilterFactIndex = ReadonlyMap<
+  string,
+  ReadonlyMap<string, VaultRecommendationFilterFact>
+>;
 
 export type VaultRecommendationSourceOption = {
   sourceId: string;
@@ -117,6 +145,14 @@ function buildDimInstanceSummary(
     state,
     matched: match.matched_combo_count,
     available: match.combo_count,
+    matchedPerkCount: 0,
+    perkRequirementCount: 0,
+    uncheckablePerkCount: 0,
+    matchedRequirementCount: match.best_matched_requirement_count,
+    requirementCount: match.best_requirement_count,
+    uncheckableRequirementCount: state === "uncheckable" ? Math.max(1, match.best_requirement_count - match.best_matched_requirement_count) : 0,
+    dimBestMatchedRequirementCount: match.best_matched_requirement_count,
+    dimBestRequirementCount: match.best_requirement_count,
     unit: "combo",
     purposes: match.modes,
     resultText,
@@ -207,6 +243,81 @@ export function selectVaultRecommendationSourceSummaries(
   return [...summariesBySource.values()].sort(compareSourceSummaries);
 }
 
+export function buildVaultRecommendationFilterFactIndex(
+  summaryIndex: VaultRecommendationSummaryIndex
+): Map<string, Map<string, VaultRecommendationFilterFact>> {
+  const factIndex = new Map<string, Map<string, VaultRecommendationFilterFact>>();
+  for (const [instanceKey, summaries] of summaryIndex) {
+    const factsBySource = new Map<string, VaultRecommendationFilterFact>();
+    for (const summary of selectVaultRecommendationSourceSummaries(summaries)) {
+      const sourceId = canonicalVaultRecommendationSourceId(summary.sourceId);
+      factsBySource.set(sourceId, recommendationFilterFactFromSummary(summary));
+    }
+    if (factsBySource.size) factIndex.set(instanceKey, factsBySource);
+  }
+  return factIndex;
+}
+
+export function getVaultRecommendationFilterFact(
+  factIndex: VaultRecommendationFilterFactIndex,
+  instanceKey: string,
+  sourceId: string
+): VaultRecommendationFilterFact | undefined {
+  return factIndex.get(instanceKey)?.get(canonicalVaultRecommendationSourceId(sourceId));
+}
+
+export function vaultRecommendationPrimaryFilterLabel(
+  filter: VaultRecommendationPrimaryFilter,
+  isDim: boolean
+): string {
+  if (filter === "all") return "全部";
+  if (filter === "unrequired") return isDim ? "未指定组合" : "未要求";
+  if (filter === "uncheckable") return "无法判断";
+  if (filter === "uncovered") return "未收录";
+  return filter;
+}
+
+export function compareVaultRecommendationMetricKeys(
+  left: VaultRecommendationMetricKey,
+  right: VaultRecommendationMetricKey
+): number {
+  const [leftMatched = 0, leftRequired = 1] = left.split("/").map(Number);
+  const [rightMatched = 0, rightRequired = 1] = right.split("/").map(Number);
+  const ratioDifference = rightMatched * leftRequired - leftMatched * rightRequired;
+  return ratioDifference
+    || rightRequired - leftRequired
+    || rightMatched - leftMatched;
+}
+
+function recommendationFilterFactFromSummary(
+  summary: VaultRecommendationSourceSummary
+): VaultRecommendationFilterFact {
+  if (isDimRecommendationSource(summary.sourceId)) {
+    return {
+      kind: "dim",
+      primaryKey: summary.state === "uncheckable"
+        ? "uncheckable"
+        : summary.dimBestRequirementCount > 0
+          ? `${summary.dimBestMatchedRequirementCount}/${summary.dimBestRequirementCount}`
+          : "unrequired"
+    };
+  }
+  const primaryKey: VaultRecommendationFilterFact["primaryKey"] = summary.perkRequirementCount === 0
+    ? summary.state === "uncheckable" && summary.requirementCount > 0
+      ? "uncheckable"
+      : "unrequired"
+    : summary.uncheckablePerkCount > 0
+      ? "uncheckable"
+      : `${summary.matchedPerkCount}/${summary.perkRequirementCount}`;
+  return {
+    kind: "curated",
+    primaryKey,
+    ...(summary.requirementCount > 0
+      ? { completeKey: `${summary.matchedRequirementCount}/${summary.requirementCount}` as VaultRecommendationMetricKey }
+      : {})
+  };
+}
+
 export function buildVaultRecommendationSourceOptions(
   summaryGroups: ReadonlyArray<readonly VaultRecommendationSourceSummary[]>,
   managedSources: readonly VaultRecommendationManagedSourceOptionInput[] = []
@@ -295,6 +406,16 @@ function sourceMatchSummary(source: RecommendationSourceMatch): VaultRecommendat
     state: source.state,
     matched: presentation.matchedRequirementCount,
     available: presentation.requirementCount,
+    matchedPerkCount: presentation.matchedPerkCount,
+    perkRequirementCount: presentation.perkRequirementCount,
+    uncheckablePerkCount: source.slots.filter((slot) => (
+      (slot.slot === "perk1" || slot.slot === "perk2") && slot.state === "uncheckable"
+    )).length,
+    matchedRequirementCount: presentation.matchedRequirementCount,
+    requirementCount: presentation.requirementCount,
+    uncheckableRequirementCount: presentation.uncheckableRequirementCount,
+    dimBestMatchedRequirementCount: 0,
+    dimBestRequirementCount: 0,
     unit: "item",
     purposes: source.purposes,
     resultText: presentation.summary,
@@ -320,6 +441,14 @@ function buildDimWishlistSummary(
       state: "weapon_only",
       matched: 0,
       available: 0,
+      matchedPerkCount: 0,
+      perkRequirementCount: 0,
+      uncheckablePerkCount: 0,
+      matchedRequirementCount: 0,
+      requirementCount: 0,
+      uncheckableRequirementCount: 0,
+      dimBestMatchedRequirementCount: 0,
+      dimBestRequirementCount: 0,
       unit: "combo",
       purposes: [...new Set(weaponOnlyRules.map((rule) => rule.mode))],
       resultText: "仅推荐武器 · 未指定组合",
@@ -361,6 +490,14 @@ function buildDimWishlistSummary(
       state: "weapon_only",
       matched: 0,
       available: comboRules.length,
+      matchedPerkCount: 0,
+      perkRequirementCount: 0,
+      uncheckablePerkCount: 0,
+      matchedRequirementCount: bestRule?.matched_requirement_count ?? 0,
+      requirementCount: bestRule?.requirement_count ?? 0,
+      uncheckableRequirementCount: 0,
+      dimBestMatchedRequirementCount: bestRule?.matched_requirement_count ?? 0,
+      dimBestRequirementCount: bestRule?.requirement_count ?? 0,
       unit: "combo",
       purposes,
       resultText: combinationResultText,
@@ -375,6 +512,14 @@ function buildDimWishlistSummary(
     state: matched > 0 ? "full" : isClose ? "close" : "not_matched",
     matched,
     available: comboRules.length,
+    matchedPerkCount: 0,
+    perkRequirementCount: 0,
+    uncheckablePerkCount: 0,
+    matchedRequirementCount: bestRule?.matched_requirement_count ?? 0,
+    requirementCount: bestRule?.requirement_count ?? 0,
+    uncheckableRequirementCount: 0,
+    dimBestMatchedRequirementCount: bestRule?.matched_requirement_count ?? 0,
+    dimBestRequirementCount: bestRule?.requirement_count ?? 0,
     unit: "combo",
     purposes,
     resultText: combinationResultText,

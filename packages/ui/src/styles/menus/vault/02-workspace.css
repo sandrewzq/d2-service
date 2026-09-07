@@ -73,6 +73,10 @@
   gap: 5px;
 }
 
+:where(.app-shell) .vault-recommendation-primary-filter {
+  flex: 1 1 auto;
+}
+
 :where(.app-shell) .vault-recommendation-filter > label > small,
 :where(.app-shell) .vault-recommendation-filter > div > small {
   color: var(--text-muted);
@@ -88,6 +92,10 @@
   border-radius: var(--radius-control);
   color: var(--text-body);
   background: var(--surface-panel);
+}
+
+:where(.app-shell) .vault-recommendation-complete-filter select {
+  min-width: 112px;
 }
 
 :where(.app-shell) .vault-recommendation-filter > div > span {
@@ -1988,7 +1996,8 @@
 }
 
 :where(.app-shell) .vault-evidence-filters > span,
-:where(.app-shell) .vault-evidence-source-filter > span {
+:where(.app-shell) .vault-evidence-source-filter > span,
+:where(.app-shell) .vault-evidence-complete-filter > span {
   color: var(--text-muted);
   font-size: var(--font-caption);
   font-weight: 700;
@@ -2005,13 +2014,23 @@
   gap: 4px;
 }
 
-:where(.app-shell) .vault-evidence-source-filter select {
+:where(.app-shell) .vault-evidence-complete-filter {
+  display: grid;
+  gap: 4px;
+}
+
+:where(.app-shell) .vault-evidence-source-filter select,
+:where(.app-shell) .vault-evidence-complete-filter select {
   min-width: 220px;
   min-height: 32px;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
   color: var(--text-body);
   background: var(--surface-panel);
+}
+
+:where(.app-shell) .vault-evidence-complete-filter select {
+  min-width: 150px;
 }
 
 :where(.app-shell) .vault-evidence-filters button {
@@ -2040,7 +2059,7 @@
 
 :where(.app-shell) .vault-evidence-result-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(100px, 0.45fr) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(210px, 0.8fr) minmax(220px, 1fr) auto;
   gap: 12px;
   align-items: center;
   min-height: 58px;
@@ -2400,6 +2419,13 @@
 
   :where(.app-shell) .vault-recommendation-filter select,
   :where(.app-shell) .vault-recommendation-filter > div > span {
+    width: 100%;
+  }
+
+  :where(.app-shell) .vault-evidence-source-filter,
+  :where(.app-shell) .vault-evidence-complete-filter,
+  :where(.app-shell) .vault-evidence-source-filter select,
+  :where(.app-shell) .vault-evidence-complete-filter select {
     width: 100%;
   }
 

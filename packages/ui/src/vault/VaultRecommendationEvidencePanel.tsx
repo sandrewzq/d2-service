@@ -17,11 +17,17 @@ import {
 } from "./VaultWishlistManager.js";
 import {
   canonicalVaultRecommendationSourceId,
+  compareVaultRecommendationMetricKeys,
+  getVaultRecommendationFilterFact,
   getVaultCommunityInstanceKey,
   inferVaultRecommendationResult,
   inferVaultRecommendationResultForSource,
   selectVaultRecommendationSourceSummaries,
-  vaultSourceRecommendationResultLabel,
+  vaultRecommendationPrimaryFilterLabel,
+  type VaultRecommendationCompleteFilter,
+  type VaultRecommendationFilterFactIndex,
+  type VaultRecommendationMetricKey,
+  type VaultRecommendationPrimaryFilter,
   type VaultRecommendationSourceOption,
   type VaultRecommendationSourceSummary,
   type VaultRecommendationSummaryIndex,
@@ -35,8 +41,6 @@ export type VaultRecommendationSourceState = {
   customRulesLoadError?: string;
 };
 
-export type VaultRecommendationEvidenceFilter = VaultRecommendationResult | "all";
-
 export function VaultRecommendationEvidencePanel(props: {
   items: AccountItemSummary[];
   tags: VaultTags;
@@ -47,15 +51,17 @@ export function VaultRecommendationEvidencePanel(props: {
   sourceState?: VaultRecommendationSourceState;
   managedSources?: readonly VaultRecommendationManagedSource[];
   sourceOptions: readonly VaultRecommendationSourceOption[];
-  resultByItemKey: ReadonlyMap<string, VaultRecommendationResult>;
+  filterFactByInstance: VaultRecommendationFilterFactIndex;
   activeSourceId: string;
-  activeFilter: VaultRecommendationEvidenceFilter;
+  activePrimaryFilter: VaultRecommendationPrimaryFilter;
+  activeCompleteFilter: VaultRecommendationCompleteFilter;
   wishlistActions?: VaultWishlistActions;
   managementLocked?: boolean;
   canOrganizeItem?: (item: AccountItemSummary) => boolean;
   onCopyAuditReport?: () => void | Promise<void>;
   onActiveSourceChange: (sourceId: string) => void;
-  onActiveFilterChange: (filter: VaultRecommendationEvidenceFilter) => void;
+  onActivePrimaryFilterChange: (filter: VaultRecommendationPrimaryFilter) => void;
+  onActiveCompleteFilterChange: (filter: VaultRecommendationCompleteFilter) => void;
   onOpenItem: (item: AccountItemSummary) => void;
   onOrganizeItem?: (item: AccountItemSummary) => void;
 }) {
@@ -90,21 +96,22 @@ export function VaultRecommendationEvidencePanel(props: {
     && !hasManagedSource
     && (!hasConfiguredSource || recommendationUnavailable);
   const selectedSource = props.sourceOptions.find((option) => option.sourceId === props.activeSourceId);
-  const filterOptions = useMemo(
-    () => recommendationFilterOptions(rows, props.activeSourceId, props.resultByItemKey),
-    [props.activeSourceId, props.resultByItemKey, rows]
-  );
-  const filteredRows = useMemo(
-    () => props.activeSourceId
-      ? rows.filter((row) => matchesRecommendationFilter(row, props.activeFilter, props.resultByItemKey))
-      : [],
-    [props.activeFilter, props.activeSourceId, props.resultByItemKey, rows]
-  );
+  const sourceIsDim = canonicalVaultRecommendationSourceId(props.activeSourceId) === "dim_wishlist";
+  const filterState = useMemo(() => buildRecommendationEvidenceFilterState({
+    rows,
+    factIndex: props.filterFactByInstance,
+    sourceId: props.activeSourceId,
+    primaryFilter: props.activePrimaryFilter,
+    completeFilter: props.activeCompleteFilter,
+    communityInstanceMatch: props.communityInstanceMatch,
+    recommendationScanComplete: recommendationScan?.phase === "complete"
+  }), [props.activeCompleteFilter, props.activePrimaryFilter, props.activeSourceId, props.communityInstanceMatch, props.filterFactByInstance, recommendationScan?.phase, rows]);
+  const filteredRows = filterState.rows;
   const visibleRows = filteredRows.slice(0, visibleLimit);
 
   useEffect(() => {
     setVisibleLimit(200);
-  }, [props.activeFilter, props.activeSourceId]);
+  }, [props.activeCompleteFilter, props.activePrimaryFilter, props.activeSourceId]);
 
   return (
     <section className="vault-evidence-panel" data-surface="section" aria-label="推荐 Roll 匹配">
@@ -139,8 +146,8 @@ export function VaultRecommendationEvidencePanel(props: {
 
       <div className="vault-recommendation-workflow" data-ui-kind="callout" data-status="neutral">
         <span><strong>1 选择来源</strong><small>每次只按一个推荐来源筛选</small></span>
-        <span><strong>2 选择结果</strong><small>符合、未符合和未收录互不混淆</small></span>
-        <span><strong>3 查看依据并整理</strong><small>核心只看 Perk 1 / Perk 2</small></span>
+        <span><strong>2 看命中数量</strong><small>人工来源先看核心 Perk，DIM 看最佳组合</small></span>
+        <span><strong>3 查看依据并整理</strong><small>人工来源还可继续筛完整命中</small></span>
       </div>
 
       <div className="vault-recommendation-summary" data-ui-kind="callout" data-status="neutral">
@@ -161,7 +168,6 @@ export function VaultRecommendationEvidencePanel(props: {
               <span>1 推荐来源</span>
               <select value={props.activeSourceId} onChange={(event) => {
                 props.onActiveSourceChange(event.target.value);
-                props.onActiveFilterChange("all");
               }}>
                 <option value="">选择来源</option>
                 {props.sourceOptions.map((option) => (
@@ -170,25 +176,36 @@ export function VaultRecommendationEvidencePanel(props: {
               </select>
             </label>
             {props.activeSourceId ? (
-              <div className="vault-evidence-filters" role="group" aria-label={`${selectedSource?.sourceLabel ?? "当前来源"}结果筛选`}>
-                <span>2 该来源结果</span>
+              <div className="vault-evidence-filters" role="group" aria-label={`${selectedSource?.sourceLabel ?? "当前来源"}${sourceIsDim ? "最佳组合" : "核心 Perk"}筛选`}>
+                <span>2 {sourceIsDim ? "最佳组合" : "核心 Perk"}</span>
                 <div>
-                  {filterOptions.map((option) => (
-                    <button type="button" key={option.key} disabled={option.count === 0} aria-pressed={props.activeFilter === option.key} onClick={() => props.onActiveFilterChange(option.key)}>{option.label} <strong>{option.count}</strong></button>
+                  {filterState.primaryOptions.map((option) => (
+                    <button type="button" key={option.key} disabled={option.count === 0} aria-pressed={props.activePrimaryFilter === option.key} onClick={() => props.onActivePrimaryFilterChange(option.key)}>{option.label} <strong>{option.count}</strong></button>
                   ))}
                 </div>
               </div>
-            ) : <small>先选择来源，再按该来源的符合情况筛选。</small>}
+            ) : <small>先选择来源，再按实际命中数量筛选。</small>}
+            {props.activeSourceId && !sourceIsDim && filterState.completeOptions.length > 1 ? (
+              <label className="vault-evidence-complete-filter">
+                <span>3 完整命中</span>
+                <select value={props.activeCompleteFilter} onChange={(event) => props.onActiveCompleteFilterChange(event.target.value as VaultRecommendationCompleteFilter)}>
+                  {filterState.completeOptions.map((option) => (
+                    <option key={option.key} value={option.key} disabled={option.count === 0}>{option.label} · {option.count}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
           {props.activeSourceId ? (
             <>
               <div className="vault-evidence-results" data-surface="list">
                 {visibleRows.map((row) => {
-                  const recommendationState = props.resultByItemKey.get(getVaultSelectionItemKey(row.item))
-                    ?? inferVaultRecommendationResultForSource(row.summaries, props.activeSourceId);
                   const primarySummary = row.displaySummaries.find((summary) => (
                     canonicalVaultRecommendationSourceId(summary.sourceId) === canonicalVaultRecommendationSourceId(props.activeSourceId)
                   ));
+                  const recommendationState = primarySummary
+                    ? inferVaultRecommendationResultForSource([primarySummary], props.activeSourceId)
+                    : "uncovered";
                   const additionalSourceCount = Math.max(0, row.displaySummaries.length - (primarySummary ? 1 : 0));
                   const protectionFacts = [
                     row.item.locked ? "已锁定" : "",
@@ -202,7 +219,8 @@ export function VaultRecommendationEvidencePanel(props: {
                         {row.dispositionLabel ? <small>人工标记：{row.dispositionLabel}</small> : null}
                       </button>
                       <span className="vault-evidence-result-state" data-status={recommendationState}>
-                        <small>该来源结果</small><strong>{vaultSourceRecommendationResultLabel(recommendationState)}</strong>
+                        <small>{sourceIsDim ? "最佳组合" : "Perk / 完整命中"}</small>
+                        <strong>{primarySummary?.resultText ?? "未收录"}</strong>
                       </span>
                       <span className="vault-evidence-result-sources" aria-label={`${row.item.name}的主要推荐依据`}>
                         {primarySummary
@@ -218,13 +236,13 @@ export function VaultRecommendationEvidencePanel(props: {
                   );
                 })}
               </div>
-              {!filteredRows.length ? <div className="vault-evidence-empty" data-surface="empty"><strong>当前分类没有武器</strong><span>请选择其他推荐结果分类。</span></div> : null}
+              {!filteredRows.length ? <div className="vault-evidence-empty" data-surface="empty"><strong>当前命中条件没有武器</strong><span>请选择其他命中数量，或放宽完整命中条件。</span></div> : null}
               {visibleRows.length < filteredRows.length ? <div className="vault-evidence-load-more"><span>已显示 {visibleRows.length}/{filteredRows.length} 件</span><ControlButton size="compact" variant="secondary" onClick={() => setVisibleLimit((current) => current + 200)}>加载更多</ControlButton></div> : null}
             </>
           ) : (
             <div className="vault-evidence-empty vault-evidence-source-empty" data-surface="empty">
               <strong>先选择推荐来源</strong>
-              <span>选择后再查看该来源的符合、部分符合、未符合、无法判断和未收录武器。</span>
+              <span>人工来源按核心 Perk 与完整命中数筛选；DIM 按最佳组合命中数筛选。</span>
             </div>
           )}
         </>
@@ -333,34 +351,88 @@ function buildInstanceWeaponRows(
     });
 }
 
-function recommendationFilterOptions(
-  rows: InstanceWeaponRow[],
-  sourceId: string,
-  resultByItemKey: ReadonlyMap<string, VaultRecommendationResult>
-): Array<{ key: VaultRecommendationEvidenceFilter; label: string; count: number }> {
-  const options: Array<{ key: VaultRecommendationEvidenceFilter; label: string }> = [
-    { key: "all", label: "全部" },
-    { key: "matched", label: "符合推荐" },
-    { key: "partial", label: "部分符合" },
-    { key: "not_matched", label: "未符合" },
-    { key: "uncheckable", label: "无法判断" },
-    { key: "uncovered", label: "未收录" }
+type RecommendationEvidenceFilterOption<T extends string> = {
+  key: T;
+  label: string;
+  count: number;
+};
+
+function buildRecommendationEvidenceFilterState(input: {
+  rows: InstanceWeaponRow[];
+  factIndex: VaultRecommendationFilterFactIndex;
+  sourceId: string;
+  primaryFilter: VaultRecommendationPrimaryFilter;
+  completeFilter: VaultRecommendationCompleteFilter;
+  communityInstanceMatch?: ReadonlyMap<string, VaultItemInstanceMatchInfo>;
+  recommendationScanComplete: boolean;
+}): {
+  rows: InstanceWeaponRow[];
+  primaryOptions: Array<RecommendationEvidenceFilterOption<VaultRecommendationPrimaryFilter>>;
+  completeOptions: Array<RecommendationEvidenceFilterOption<VaultRecommendationCompleteFilter>>;
+} {
+  if (!input.sourceId) return { rows: [], primaryOptions: [], completeOptions: [] };
+  const isDim = canonicalVaultRecommendationSourceId(input.sourceId) === "dim_wishlist";
+  const availablePrimaryMetrics = new Set<VaultRecommendationMetricKey>();
+  const availableCompleteMetrics = new Set<VaultRecommendationMetricKey>();
+  const primaryCounts = new Map<Exclude<VaultRecommendationPrimaryFilter, "all">, number>();
+  const completeCounts = new Map<VaultRecommendationMetricKey, number>();
+  const rows: InstanceWeaponRow[] = [];
+  let completeAllCount = 0;
+
+  for (const row of input.rows) {
+    const instanceKey = getVaultCommunityInstanceKey(row.item);
+    const fact = getVaultRecommendationFilterFact(input.factIndex, instanceKey, input.sourceId);
+    const primaryKey = fact?.primaryKey ?? (input.recommendationScanComplete || input.communityInstanceMatch?.has(instanceKey)
+      ? "uncovered"
+      : undefined);
+    if (primaryKey) {
+      primaryCounts.set(primaryKey, (primaryCounts.get(primaryKey) ?? 0) + 1);
+      if (isEvidenceMetricKey(primaryKey)) availablePrimaryMetrics.add(primaryKey);
+    }
+    const primaryMatches = input.primaryFilter === "all" || primaryKey === input.primaryFilter;
+    if (primaryMatches) {
+      completeAllCount += 1;
+      if (!isDim && fact?.completeKey) {
+        availableCompleteMetrics.add(fact.completeKey);
+        completeCounts.set(fact.completeKey, (completeCounts.get(fact.completeKey) ?? 0) + 1);
+      }
+    }
+    if (primaryMatches && (input.completeFilter === "all" || fact?.completeKey === input.completeFilter)) {
+      rows.push(row);
+    }
+  }
+
+  const specialKeys: Array<Exclude<VaultRecommendationPrimaryFilter, "all" | VaultRecommendationMetricKey>> = [
+    "unrequired",
+    "uncheckable",
+    "uncovered"
   ];
-  return options.map((option) => ({
-    ...option,
-    count: sourceId
-      ? rows.filter((row) => matchesRecommendationFilter(row, option.key, resultByItemKey)).length
-      : 0
-  }));
+  return {
+    rows,
+    primaryOptions: [
+      { key: "all", label: "全部", count: input.rows.length },
+      ...[...availablePrimaryMetrics]
+        .sort(compareVaultRecommendationMetricKeys)
+        .map((key) => ({ key, label: key, count: primaryCounts.get(key) ?? 0 })),
+      ...specialKeys.map((key) => ({
+        key,
+        label: vaultRecommendationPrimaryFilterLabel(key, isDim),
+        count: primaryCounts.get(key) ?? 0
+      }))
+    ],
+    completeOptions: [
+      { key: "all", label: "不限", count: completeAllCount },
+      ...[...availableCompleteMetrics]
+        .sort(compareVaultRecommendationMetricKeys)
+        .map((key) => ({ key, label: key, count: completeCounts.get(key) ?? 0 }))
+    ]
+  };
 }
 
-function matchesRecommendationFilter(
-  row: InstanceWeaponRow,
-  filter: VaultRecommendationEvidenceFilter,
-  resultByItemKey: ReadonlyMap<string, VaultRecommendationResult>
-): boolean {
-  if (filter === "all") return true;
-  return resultByItemKey.get(getVaultSelectionItemKey(row.item)) === filter;
+function isEvidenceMetricKey(
+  value: Exclude<VaultRecommendationPrimaryFilter, "all">
+): value is VaultRecommendationMetricKey {
+  return value.includes("/");
 }
 
 function dispositionLabel(value: NonNullable<InstanceWeaponRow["disposition"]>): string {

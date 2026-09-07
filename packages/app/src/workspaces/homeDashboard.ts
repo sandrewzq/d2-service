@@ -130,7 +130,7 @@ export type HomeDashboardWorkspace = {
   isInitializingManifest: boolean;
   isRefreshingDiagnostics: boolean;
   isLoadingDaily: boolean;
-  /** 首页公开情报统一资源生命周期状态。 */
+  /** 首页情报统一资源生命周期状态。 */
   dailyResourceStatus: "unavailable" | "loading" | "refreshing" | "ready" | "stale" | "error";
   dailyResourceSource: "local" | "remote" | "merged";
 };

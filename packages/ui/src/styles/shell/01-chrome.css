@@ -424,7 +424,7 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
 .shell-sidebar-account {
   box-sizing: border-box;
   height: 100%;
-  padding: 14px 42px 14px 14px;
+  padding: 14px;
   border-bottom: 1px solid var(--shell-divider);
 }
 
@@ -445,31 +445,6 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
   margin-top: 3px;
   color: var(--muted);
   font-size: var(--font-meta);
-}
-
-.shell-sidebar-collapse {
-  position: absolute;
-  z-index: 1;
-  top: 10px;
-  right: 8px;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid var(--section-divider);
-  border-radius: var(--radius-control);
-  color: var(--muted);
-  background: var(--surface);
-  font-size: 18px;
-  line-height: 1;
-}
-
-.shell-sidebar-collapse:hover,
-.shell-sidebar-collapse:focus-visible {
-  color: var(--text);
-  border-color: var(--control-border);
-  background: var(--hover-bg);
 }
 
 .shell-nav {
@@ -902,10 +877,6 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
     padding: 12px 10px;
   }
 
-  .shell-sidebar-collapse {
-    display: none;
-  }
-
   .shell-window-brand {
     justify-content: center;
     padding: 0;
@@ -958,46 +929,6 @@ button.shell-status-group[data-status="error"][data-priority="attention"]:focus-
     border-radius: 0;
     background: rgb(0 0 0 / 48%);
   }
-}
-
-.app-shell.sidebar-collapsed {
-  --sidebar-width: 72px;
-  --shell-brand-width: 72px;
-}
-
-.app-shell.sidebar-collapsed .shell-sidebar-account {
-  padding: 12px 8px;
-}
-
-.app-shell.sidebar-collapsed .shell-sidebar-account strong,
-.app-shell.sidebar-collapsed .shell-sidebar-account span,
-.app-shell.sidebar-collapsed .shell-nav-label,
-.app-shell.sidebar-collapsed .shell-sidebar-actions strong,
-.app-shell.sidebar-collapsed .shell-sidebar-actions span {
-  display: none;
-}
-
-.app-shell.sidebar-collapsed .shell-window-brand {
-  justify-content: center;
-  padding: 0;
-}
-
-.app-shell.sidebar-collapsed .shell-window-brand > div {
-  display: none;
-}
-
-.app-shell.sidebar-collapsed .shell-nav button {
-  grid-template-columns: 1fr;
-  padding-inline: 0;
-}
-
-.app-shell.sidebar-collapsed .shell-nav-mark {
-  justify-self: center;
-}
-
-.app-shell.sidebar-collapsed .shell-sidebar-collapse {
-  right: 50%;
-  transform: translateX(50%);
 }
 
 @media (max-width: 760px) {

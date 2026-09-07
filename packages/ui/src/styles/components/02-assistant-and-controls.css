@@ -345,6 +345,26 @@
   justify-content: center;
 }
 
+:where(.app-shell) .control-refresh-button {
+  gap: 7px;
+}
+
+:where(.app-shell) .control-refresh-button-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  transform-origin: center;
+}
+
+:where(.app-shell) .control-refresh-button.is-refreshing .control-refresh-button-icon {
+  animation: control-refresh-button-spin 900ms linear infinite;
+}
+
 :where(.app-shell) [data-ui-kind="button"][data-control-shape="icon"] {
   display: inline-grid;
   width: var(--control-h);
@@ -792,4 +812,14 @@
 
 .compact-field:hover {
   background: var(--field-bg-hover);
+}
+
+@keyframes control-refresh-button-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.app-shell) .control-refresh-button.is-refreshing .control-refresh-button-icon {
+    animation: none;
+  }
 }

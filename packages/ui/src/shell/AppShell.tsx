@@ -11,7 +11,6 @@ export type AppShellProps = AppShellLayoutProps & {
 
 export function AppShell(props: AppShellProps) {
   const [isMobileStatusOpen, setIsMobileStatusOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const assistantTriggerRef = useRef<HTMLButtonElement>(null);
   const assistantPanelRef = useRef<HTMLElement>(null);
   const mobileStatusRef = useRef<HTMLDivElement>(null);
@@ -32,8 +31,7 @@ export function AppShell(props: AppShellProps) {
   const isAssistantOpen = props.assistantMode !== null;
   const shellClassName = [
     "app-shell",
-    isAssistantOpen ? "assistant-open" : "",
-    isSidebarCollapsed ? "sidebar-collapsed" : ""
+    isAssistantOpen ? "assistant-open" : ""
   ].filter(Boolean).join(" ");
 
   function toggleAssistant() {
@@ -277,18 +275,6 @@ export function AppShell(props: AppShellProps) {
         <aside ref={sidebarRef} className="shell-sidebar" data-reference-id="shell.sidebar" data-shell-role="sidebar" data-ui-kind="shell-sidebar" aria-label={copy.navigationAriaLabel} aria-hidden={isAssistantOverlay && isAssistantOpen ? true : undefined}>
           <div className="shell-sidebar-header">
             {props.sidebarHeader}
-            <button
-              className="shell-sidebar-collapse"
-              type="button"
-              data-ui-kind="button"
-              data-control-variant="quiet"
-              aria-label={isSidebarCollapsed ? copy.sidebar.expand : copy.sidebar.collapse}
-              title={isSidebarCollapsed ? copy.sidebar.expand : copy.sidebar.collapse}
-              aria-pressed={isSidebarCollapsed}
-              onClick={() => setIsSidebarCollapsed((current) => !current)}
-            >
-              <span aria-hidden="true">{isSidebarCollapsed ? "›" : "‹"}</span>
-            </button>
           </div>
           <nav className="shell-nav" data-ui-kind="primary-navigation">
             {navItems.map((item, index) => {

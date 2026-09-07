@@ -28,10 +28,16 @@ export const homeCopy: Record<InterfaceLocale, LocaleCopy["home"]> = {
         }
       },
       actions: {
+        refreshHomeIntel: "刷新首页情报",
+        refreshingHomeIntel: "正在刷新首页情报…",
+        retryHomeIntel: "重新读取首页情报",
         runDiagnostics: "运行诊断",
         diagnosing: "诊断中"
       },
       labels: {
+        homeIntel: "首页情报",
+        lastRefreshed: "上次刷新",
+        notRefreshed: "尚未刷新",
         dailyReset: "每日重置",
         weeklyReset: "每周重置",
         manifest: "资料库",
@@ -252,10 +258,16 @@ export const homeCopy: Record<InterfaceLocale, LocaleCopy["home"]> = {
         }
       },
       actions: {
+        refreshHomeIntel: "Refresh home intelligence",
+        refreshingHomeIntel: "Refreshing home intelligence…",
+        retryHomeIntel: "Reload home intelligence",
         runDiagnostics: "Run diagnostics",
         diagnosing: "Diagnosing"
       },
       labels: {
+        homeIntel: "Home intelligence",
+        lastRefreshed: "Last refreshed",
+        notRefreshed: "Not refreshed yet",
         dailyReset: "Daily reset",
         weeklyReset: "Weekly reset",
         manifest: "Manifest",

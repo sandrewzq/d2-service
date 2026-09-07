@@ -6,6 +6,7 @@ import type { WeeklyIronBannerSummary } from "@d2-tools/core/weekly/summary";
 import type { ShellPageKey } from "../shell/types.js";
 import type { VendorInventoryItemView, VendorOfferContextView } from "../vendors/VendorsPageContentView.js";
 import { GameAssetImage } from "../media/GameAssetImage.js";
+import { RefreshControlButton } from "../control/RefreshControlButton.js";
 import { formatFullDateTime, formatScheduleDateTime } from "../time/formatTime.js";
 import { createXurItemIconUrl, normalizeBungieIconUrl } from "./homeIconArt.js";
 export type HomeTone = "neutral" | "ready" | "warning" | "error";
@@ -241,15 +242,24 @@ function HomePageContent(props: {
     <section className="home-page" data-page-view="home" data-surface="page">
       {props.dailyError || props.dailyMessage || props.isLoadingDaily ? (
         <section className="home-feedback-band" data-surface="section" aria-live="polite">
-          {props.dailyError ? <HomeFeedback status="error" message={props.dailyError} onRetry={props.onRefreshDaily} /> : null}
+          {props.dailyError ? <HomeFeedback status="error" message={props.dailyError} retryLabel={props.copy.actions.retryHomeIntel} onRetry={props.onRefreshDaily} /> : null}
           {props.dailyMessage ? <HomeFeedback status="success" message={props.dailyMessage} /> : null}
-          {props.isLoadingDaily ? <HomeFeedback status="pending" message="正在刷新公开情报…" /> : null}
+          {props.isLoadingDaily ? <HomeFeedback status="pending" message={props.copy.actions.refreshingHomeIntel} /> : null}
         </section>
       ) : null}
       <section className="home-content-band" data-surface="section">
         <div className="home-resource-summary" role="status" aria-live="polite">
-          <span data-ui-part="label" data-info-priority="support" data-text-tone="meta">公开情报</span>
-          <HomeResourceStatus status={props.dailyResourceStatus} source={props.dailyResourceSource} />
+          <div className="home-resource-identity">
+            <span data-ui-part="label" data-info-priority="support" data-text-tone="meta">{props.copy.labels.homeIntel}</span>
+            <HomeResourceStatus status={props.dailyResourceStatus} source={props.dailyResourceSource} />
+          </div>
+          {props.briefingFetchedAt ? (
+            <time className="home-resource-updated" dateTime={props.briefingFetchedAt} data-info-priority="support" data-text-tone="meta">
+              {props.copy.labels.lastRefreshed} {formatFullDateTime(props.briefingFetchedAt)}
+            </time>
+          ) : (
+            <span className="home-resource-updated" data-info-priority="support" data-text-tone="meta">{props.copy.labels.notRefreshed}</span>
+          )}
         </div>
         <div className="home-refresh-strip" data-surface="frame" data-ui-kind="status-matrix" aria-label="首页数据刷新节奏">
           {refreshEntries.map((entry) => <HomeRefreshCell key={entry.key} entry={entry} />)}
@@ -382,7 +392,7 @@ function HomeResourceStatus(props: {
 type HomeRefreshEntry = { key: "daily" | "weekly"; label: string; moment: string; countdown: string; impact: string };
 type HomeXurTiming = { label: string; moment: string; countdown: string };
 
-function HomeFeedback(props: { status: "success" | "pending" | "error"; message: string; onRetry?: () => void }) {
+function HomeFeedback(props: { status: "success" | "pending" | "error"; message: string; retryLabel?: string; onRetry?: () => void }) {
   return (
     <div
       className="home-feedback"
@@ -392,7 +402,7 @@ function HomeFeedback(props: { status: "success" | "pending" | "error"; message:
     >
       <span data-ui-part="state" data-info-priority="decision" data-text-tone="status" data-status={props.status}>{props.message}</span>
       {props.status === "error" && props.onRetry ? (
-        <button type="button" data-ui-kind="button" data-control-variant="primary" onClick={props.onRetry}>重新读取公开情报</button>
+        <RefreshControlButton variant="primary" onClick={props.onRetry}>{props.retryLabel ?? "重新读取首页情报"}</RefreshControlButton>
       ) : null}
     </div>
   );

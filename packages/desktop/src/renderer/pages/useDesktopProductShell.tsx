@@ -2,6 +2,7 @@ import {
   ControlButton,
   buildVaultCleanupProtectionIndex,
   getLocaleCopy,
+  RefreshControlButton,
   ShellSidebarAccountSummary,
   ShellSidebarActions,
   StartupGate,
@@ -372,6 +373,7 @@ export function useDesktopProductShell(props: {
     colorMode: diagnostics.colorMode,
     density: diagnostics.density
   };
+  const homeCopy = getLocaleCopy(productPreferences.interfaceLocale).home;
 
   function handleProductPreferencesChange(preferences: ProductPreferences) {
     if (preferences.colorMode !== diagnostics.colorMode) {
@@ -494,14 +496,14 @@ export function useDesktopProductShell(props: {
       subtitle: currentPageMeta.subtitle,
       actions: activePage === "home" ? (
         daily.dailyError ? null : (
-          <ControlButton
+          <RefreshControlButton
             variant="secondary"
-            aria-busy={daily.isLoadingDaily}
-            disabled={daily.isLoadingDaily || !isManifestReady}
+            refreshing={daily.isLoadingDaily}
+            disabled={!isManifestReady}
             onClick={() => void daily.loadDailySummary(true)}
           >
-            刷新公开情报
-          </ControlButton>
+            {homeCopy.actions.refreshHomeIntel}
+          </RefreshControlButton>
         )
       ) : activePage === "account" ? (
         accountSummary ? (

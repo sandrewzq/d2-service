@@ -28,10 +28,6 @@ export type ShellCopy = {
   };
   toolstripAriaLabel: string;
   navigationAriaLabel: string;
-  sidebar: {
-    collapse: string;
-    expand: string;
-  };
   assistantPanelAriaLabel: string;
   windowControlsAriaLabel: string;
   windowControls: {
@@ -103,10 +99,16 @@ export type HomeCopy = {
     pending: { title: string; subtitle: string };
   };
   actions: {
+    refreshHomeIntel: string;
+    refreshingHomeIntel: string;
+    retryHomeIntel: string;
     runDiagnostics: string;
     diagnosing: string;
   };
   labels: {
+    homeIntel: string;
+    lastRefreshed: string;
+    notRefreshed: string;
     dailyReset: string;
     weeklyReset: string;
     manifest: string;

@@ -18,6 +18,8 @@ export type {
   ControlButtonVariant,
   ControlButtonWidth
 } from "./control/ControlButton.js";
+export { RefreshControlButton } from "./control/RefreshControlButton.js";
+export type { RefreshControlButtonProps } from "./control/RefreshControlButton.js";
 export { AccountPageContentView } from "./account/AccountPageContentView.js";
 export type { AccountPageContentViewProps } from "./account/AccountPageContentView.js";
 export { AiAssistantPanelView } from "./assistant/AiAssistantPanelView.js";
@@ -152,7 +154,7 @@ export { VaultItemSections } from "./vault/VaultItemSections.js";
 export { MemoizedVaultListItem, VaultListItem, formatVaultItemMeta } from "./vault/VaultListItem.js";
 export { VaultOrganizePanel } from "./vault/VaultOrganizePanel.js";
 export { VaultRecommendationEvidencePanel } from "./vault/VaultRecommendationEvidencePanel.js";
-export type { VaultRecommendationEvidenceFilter, VaultRecommendationSourceState } from "./vault/VaultRecommendationEvidencePanel.js";
+export type { VaultRecommendationSourceState } from "./vault/VaultRecommendationEvidencePanel.js";
 export { buildVaultCleanupProtectionIndex } from "./vault/vaultCleanupProtection.js";
 export {
   buildVaultRecommendationSourceSummaries,
@@ -160,6 +162,11 @@ export {
   getVaultCommunityInstanceKey
 } from "./vault/vaultRecommendationMatch.js";
 export type {
+  VaultRecommendationCompleteFilter,
+  VaultRecommendationFilterFact,
+  VaultRecommendationFilterFactIndex,
+  VaultRecommendationMetricKey,
+  VaultRecommendationPrimaryFilter,
   VaultRecommendationSourceSummary,
   VaultRecommendationSummaryIndex
 } from "./vault/vaultRecommendationMatch.js";

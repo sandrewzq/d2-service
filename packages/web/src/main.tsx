@@ -12,11 +12,13 @@ import {
   LibraryPageContentView,
   LoadoutsPageContentView,
   ProductShellHost,
+  RefreshControlButton,
   SettingsPageContentView,
   SharedItemDetailDialog,
   VaultPageContentView,
   VendorsPageContentView,
   WeaponDetailContent,
+  getLocaleCopy,
   getVendorEquipmentKind,
   type HomeWeeklyActivityReward,
   type LibraryEquipmentFilter,
@@ -413,7 +415,7 @@ function WebApp() {
         />
       )}
       sidebarFooter={<ShellSidebarActions isAiOpen={assistantMode !== null} onToggleAi={() => setAssistantMode((current) => current === null ? "ai" : null)} />}
-      pageHeader={(page) => getWebPageHeader(page)}
+      pageHeader={(page) => getWebPageHeader(page, preferences.interfaceLocale)}
       assistantPanel={(
         <AiAssistantPanelView
           isConfigured
@@ -857,9 +859,10 @@ function createVendorDetailTarget(item: VendorInventoryItemView, context: Vendor
   };
 }
 
-function getWebPageHeader(page: ShellPageKey) {
+function getWebPageHeader(page: ShellPageKey, interfaceLocale: ProductPreferences["interfaceLocale"]) {
+  const homeCopy = getLocaleCopy(interfaceLocale).home;
   const actions: Partial<Record<ShellPageKey, ReactNode>> = {
-    home: <ControlButton variant="secondary">刷新公开情报</ControlButton>,
+    home: <RefreshControlButton variant="secondary">{homeCopy.actions.refreshHomeIntel}</RefreshControlButton>,
     account: <><ControlButton variant="secondary">重新授权</ControlButton><ControlButton variant="primary">刷新账号</ControlButton></>,
     vault: <ControlButton variant="primary">刷新账号装备</ControlButton>,
     library: <><ControlButton>重新检查资料库</ControlButton><ControlButton variant="primary">修复资料库</ControlButton></>,
