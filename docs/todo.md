@@ -9,7 +9,7 @@
 |---|---|---|
 | 本地 CI | ✅ 2026-09-07 通过 | 已通过文档、编码、全部 workspace 构建、492 项行为测试、质量门禁、62 项架构测试、UI 合同、共享 Shell 视觉合同和全量类型检查 |
 | GitHub CI | ⏳ push 后异步执行 | 执行 frozen install、`pnpm test`、共享 Shell 视觉契约、UI 合同静态门禁和构建后的 `pnpm typecheck:ci`；普通 push 不等待结果 |
-| Release 门禁 | ✅ 0.0.20 已发布 | 已通过 macOS 发布入口完成本地门禁、GitHub Actions、Windows NSIS 安装包和 GitHub Release |
+| Release 门禁 | ✅ 0.0.22 已发布 | 已通过 macOS 发布入口完成本地门禁、GitHub Actions、Windows NSIS 安装包和 GitHub Release |
 | Agent 自动验证 | ⛔ 默认禁用 | 只有用户明确要求本地测试、构建或打包时才执行 |
 
 ## 当前任务
