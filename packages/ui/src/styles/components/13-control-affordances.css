@@ -1,0 +1,67 @@
+/* Shared control grammar: fields are recessed, selects expose a dedicated arrow well,
+   and action buttons remain visually distinct in both color modes. */
+
+:where(.app-shell) input:where(:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"])),
+:where(.app-shell) textarea {
+  border-color: var(--field-border);
+  color: var(--text-title);
+  background-color: var(--field-bg);
+  box-shadow: var(--field-inset-shadow);
+}
+
+:where(.app-shell) input::placeholder,
+:where(.app-shell) textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.82;
+}
+
+:where(.app-shell) select:not([multiple]):not([size]) {
+  padding-right: 38px;
+  border-color: var(--select-border);
+  color: var(--text-title);
+  background-color: var(--select-bg);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-body) 50%),
+    linear-gradient(135deg, var(--text-body) 50%, transparent 50%),
+    linear-gradient(var(--select-border), var(--select-border)),
+    linear-gradient(var(--select-indicator-bg), var(--select-indicator-bg));
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%,
+    calc(100% - 30px) 50%,
+    100% 50%;
+  background-repeat: no-repeat;
+  background-size:
+    6px 6px,
+    6px 6px,
+    1px 100%,
+    30px 100%;
+  box-shadow: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+:where(.app-shell) select:not([multiple]):not([size]):hover:not(:disabled) {
+  border-color: var(--control-secondary-border);
+  background-color: var(--select-bg-hover);
+}
+
+:where(.app-shell) select:not([multiple]):not([size]):disabled {
+  cursor: not-allowed;
+}
+
+:where(.app-shell) [data-ui-kind="button"] {
+  font-weight: 600;
+}
+
+:where(.app-shell) [data-ui-kind="button"][data-control-variant].control-refresh-button {
+  border-color: var(--control-refresh-border);
+  color: var(--control-refresh-text);
+  background: var(--control-refresh-bg);
+}
+
+:where(.app-shell) [data-ui-kind="button"][data-control-variant].control-refresh-button:not(:disabled):hover {
+  border-color: var(--control-refresh-border);
+  color: var(--control-refresh-text);
+  background: var(--control-refresh-bg-hover);
+}

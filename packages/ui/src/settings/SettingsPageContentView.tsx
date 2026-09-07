@@ -9,6 +9,7 @@ import { SettingsButton } from "./SettingsButton.js";
 import { SettingsSourcesSection } from "./SettingsSourcesSection.js";
 import { ConfirmationDialog } from "../overlay/ConfirmationDialog.js";
 import { SystemUpdateProgress, systemUpdateToneForStatus } from "../update/SystemUpdateProgress.js";
+import { RefreshControlButton } from "../control/RefreshControlButton.js";
 
 type AccountSummary = any;
 type ActionLogEntry = any;
@@ -479,7 +480,7 @@ function AccountSection(props: any) {
     <MetricGrid><Metric label={settingsText(copy, "当前账号")} value={accountSummary?.account_name ?? settingsText(copy, "未登录")} detail={accountSummary ? settingsText(copy, "Bungie 登录正常") : settingsText(copy, "登录后可同步装备数据")} /><Metric label={settingsText(copy, "装备数据")} value={accountUi.statusLabel} detail={accountUi.summary} /><Metric label={settingsText(copy, "上次同步")} value={formatAccountLoadedAt(props.lastAccountLoadedAt, accountSummary, copy)} detail={settingsText(copy, "最近一次从游戏同步装备数据的时间")} /><Metric label={settingsText(copy, "自动同步")} value={settingsText(copy, "每 10 分钟")} detail={settingsText(copy, "回到前台或恢复网络后也会补同步")} /></MetricGrid>
     <VersionTable><VersionRow label={settingsText(copy, "打开应用时")} value={settingsText(copy, "自动同步一次装备数据")} /><VersionRow label={settingsText(copy, "应用保持前台")} value={settingsText(copy, "每 10 分钟自动同步一次")} /><VersionRow label={settingsText(copy, "重新回到前台")} value={settingsText(copy, "数据超过 2 分钟时补同步")} /><VersionRow label={settingsText(copy, "需要手动同步时")} value={settingsText(copy, "在游戏内或其他设备移动装备后，或页面显示与游戏不一致时")} /><VersionRow label={settingsText(copy, "需要重新登录时")} value={settingsText(copy, "登录失效、权限异常或需要切换 Bungie 账号时")} /><VersionRow label={settingsText(copy, "同步范围")} value={settingsText(copy, "角色装备、背包、仓库和游戏内配装")} /></VersionTable>
     <div className="settings-group settings-spaced-group" data-surface="list">
-      <SettingRow label={settingsText(copy, "同步装备数据")} detail={settingsText(copy, "从游戏更新角色装备、背包、仓库和配装。游戏内或其他设备发生变化后使用。")}><SettingsButton data-control-variant="primary" aria-busy={props.isLoadingAccount} disabled={props.isLoadingAccount} onClick={props.onRefreshAccount}>{settingsText(copy, "同步装备数据")}</SettingsButton></SettingRow>
+      <SettingRow label={settingsText(copy, "同步装备数据")} detail={settingsText(copy, "从游戏更新角色装备、背包、仓库和配装。游戏内或其他设备发生变化后使用。")}><RefreshControlButton variant="primary" width="uniform" refreshing={props.isLoadingAccount} onClick={props.onRefreshAccount}>{settingsText(copy, "同步装备数据")}</RefreshControlButton></SettingRow>
       <SettingRow label={settingsText(copy, "Bungie 登录")} detail={settingsText(copy, "仅在登录失效、权限异常或需要切换账号时使用；日常更新装备不需要重新登录。")}><SettingsButton data-control-variant="secondary" onClick={props.onReauthorizeAccount}>{settingsText(copy, "重新登录 Bungie")}</SettingsButton></SettingRow>
     </div>
   </SettingsSection>;

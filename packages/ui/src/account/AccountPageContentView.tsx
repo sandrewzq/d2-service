@@ -14,6 +14,7 @@ import type { AccountCopy, InterfaceLocale } from "../i18n/types.js";
 import { GameAssetImage } from "../media/GameAssetImage.js";
 import { getRovingFocusIndex } from "../interaction/rovingFocus.js";
 import { ConfirmationDialog } from "../overlay/ConfirmationDialog.js";
+import { RefreshControlButton } from "../control/RefreshControlButton.js";
 import { formatClockTime, formatCompactDateTime } from "../time/formatTime.js";
 import type { VaultRecommendationSummaryIndex } from "../vault/vaultRecommendationMatch.js";
 import {
@@ -107,9 +108,9 @@ function AccountUnavailableState(props: {
         ) : !isLoggedIn ? (
           <button type="button" data-ui-kind="button" data-control-variant="primary" disabled={isLoading} onClick={props.actions.loginBungie}>{props.copy.loginBungie}</button>
         ) : (
-          <button type="button" data-ui-kind="button" data-control-variant="primary" aria-busy={isLoading} disabled={isLoading} onClick={props.actions.refreshAccount}>
+          <RefreshControlButton variant="primary" refreshing={isLoading} onClick={props.actions.refreshAccount}>
             {isLoading ? props.copy.loadingAccount : props.copy.loadAccount}
-          </button>
+          </RefreshControlButton>
         )}
       </div>
     </ProductWorkspaceEmptyState>
@@ -512,7 +513,7 @@ function AccountPageWorkspace(props: {
           tabIndex={-1}
           hidden={props.section !== "activity"}
         >
-            <div className="account-toolbar"><div><strong>{accountText(props.copy, "账号战绩")}</strong><span>{accountText(props.copy, "全部角色的近期活动")}</span></div><button type="button" data-ui-kind="button" data-control-variant="secondary" onClick={props.actions.refreshActivity}>{accountText(props.copy, "刷新账号战绩")}</button></div>
+            <div className="account-toolbar"><div><strong>{accountText(props.copy, "账号战绩")}</strong><span>{accountText(props.copy, "全部角色的近期活动")}</span></div><RefreshControlButton variant="secondary" onClick={props.actions.refreshActivity}>{accountText(props.copy, "刷新账号战绩")}</RefreshControlButton></div>
             {props.viewModel.activity.error ? <p className="status-message status-error">{props.viewModel.activity.error}</p> : null}
             {props.viewModel.activity.message ? <p className="status-message status-ready">{props.viewModel.activity.message}</p> : null}
             {props.activitySummary ? (

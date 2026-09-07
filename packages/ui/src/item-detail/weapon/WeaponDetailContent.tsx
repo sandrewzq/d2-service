@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboard
 import { GameAssetImage } from "../../media/GameAssetImage.js";
 import { GameCombatIcon } from "../../media/GameCombatIcon.js";
 import { formatStandardDateTime } from "../../time/formatTime.js";
+import { RefreshControlButton } from "../../control/RefreshControlButton.js";
 import { EquipmentDetailContextLedger } from "../EquipmentDetailContextLedger.js";
 import type {
   WeaponDetailViewModel,
@@ -739,7 +740,7 @@ function ConfigurationSection(props: {
               </>
             ) : null}
             {panelState === "refresh-error" ? (
-              <button type="button" data-ui-kind="button" data-control-variant="primary" onClick={() => void props.actions?.refreshConfiguration?.()}>重新读取配置</button>
+              <RefreshControlButton variant="primary" onClick={() => void props.actions?.refreshConfiguration?.()}>重新读取配置</RefreshControlButton>
             ) : null}
             {isBusy ? <span className="weapon-detail-write-busy-label">处理中</span> : null}
           </div>

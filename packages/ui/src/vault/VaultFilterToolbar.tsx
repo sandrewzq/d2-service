@@ -108,13 +108,19 @@ export function VaultFilterToolbar(props: {
   return (
     <aside className="vault-filter-workbench" aria-label="仓库筛选" data-surface="section" data-contract-id="vault.filters">
       <div className="vault-filter-search">
-        <input
-          type="search"
-          aria-label="搜索仓库装备"
-          value={props.query}
-          onChange={(event) => props.onQueryChange(event.target.value)}
-          placeholder="搜索名称、Perk、标签或备注"
-        />
+        <label className="vault-search-field">
+          <svg className="vault-search-field-icon" aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m16 16 4 4" />
+          </svg>
+          <input
+            type="search"
+            aria-label="搜索仓库装备"
+            value={props.query}
+            onChange={(event) => props.onQueryChange(event.target.value)}
+            placeholder="搜索名称、Perk、标签或备注"
+          />
+        </label>
         <button
           type="button"
           className="vault-filter-reset"
@@ -130,6 +136,10 @@ export function VaultFilterToolbar(props: {
             : "当前没有需要重置的筛选条件"}
           onClick={props.onResetFilters}
         >
+          <svg className="vault-filter-reset-icon" aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+            <path d="M20 4v7h-7" />
+          </svg>
           <span>重置</span>
           <small className="vault-filter-reset-count" aria-hidden="true">{props.activeFilterCount}</small>
         </button>

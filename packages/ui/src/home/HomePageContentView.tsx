@@ -949,7 +949,7 @@ function HomeVendorModuleState(props: {
     <div className="home-vendor-module-state" data-status={props.status}>
       <strong data-ui-part="value" data-info-priority="decision" data-text-tone="status" data-status={props.status}>{props.title}</strong>
       <span data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{props.detail}</span>
-      {props.onRetry ? <button type="button" data-ui-kind="button" data-control-variant="primary" onClick={props.onRetry}>重新读取商人库存</button> : null}
+      {props.onRetry ? <RefreshControlButton variant="primary" onClick={props.onRetry}>重新读取商人库存</RefreshControlButton> : null}
     </div>
   );
 }

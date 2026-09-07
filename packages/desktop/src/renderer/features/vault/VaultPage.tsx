@@ -1,6 +1,6 @@
 import { buildVaultRecommendationAuditReport, selectVaultPageModel } from "@d2-tools/app/vault";
 import type { VaultRecommendationScanState } from "@d2-tools/app/account";
-import { ControlButton, ProductWorkspaceEmptyState, VaultPageContentView, type VaultWishlistActions } from "@d2-tools/ui";
+import { ProductWorkspaceEmptyState, RefreshControlButton, VaultPageContentView, type VaultWishlistActions } from "@d2-tools/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LoadoutTemplateLookup } from "../../shared/domain/loadouts/loadoutLookup";
 import type {
@@ -222,7 +222,7 @@ export function VaultPage(props: {
       <ProductWorkspaceEmptyState className="vault-empty-state product-workspace-empty--page">
         <strong>{props.accountError ? "仓库读取失败" : props.isLoadingAccount ? "正在读取账号" : "还没有账号数据"}</strong>
         <span>{props.accountError || "先同步装备数据，然后查看当前角色、背包和仓库中的真实装备。"}</span>
-        <ControlButton variant="primary" aria-busy={props.isLoadingAccount} disabled={props.isLoadingAccount} onClick={props.onLoadAccount}>同步装备数据</ControlButton>
+        <RefreshControlButton variant="primary" refreshing={props.isLoadingAccount} onClick={props.onLoadAccount}>同步装备数据</RefreshControlButton>
       </ProductWorkspaceEmptyState>
     );
   }

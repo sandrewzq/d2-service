@@ -509,18 +509,18 @@ export function useDesktopProductShell(props: {
         accountSummary ? (
           <>
             <ControlButton variant="secondary" disabled={accountWorkspace.isLoggingIn} onClick={() => void accountWorkspace.loginBungie()}>重新登录 Bungie</ControlButton>
-            <ControlButton variant="primary" aria-busy={isLoadingAccount} disabled={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步装备数据</ControlButton>
+            <RefreshControlButton variant="primary" refreshing={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步装备数据</RefreshControlButton>
           </>
         ) : null
       ) : activePage === "vault" ? (
-        accountSummary ? <ControlButton variant="primary" aria-busy={isLoadingAccount} disabled={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步装备数据</ControlButton> : null
+        accountSummary ? <RefreshControlButton variant="primary" refreshing={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步装备数据</RefreshControlButton> : null
       ) : activePage === "library" ? (
         <>
           <ControlButton onClick={() => void diagnostics.refreshManifestStatus()}>重新检查资料库</ControlButton>
           <ControlButton variant="primary" disabled={diagnostics.isInitializingManifest} onClick={() => void diagnostics.repairManifest()}>修复资料库</ControlButton>
         </>
       ) : activePage === "vendors" ? (
-        accountSummary && vendorsWorkspace.model.vendors.length ? <ControlButton variant={vendorsWorkspace.model.statusBanner?.tone === "error" ? "primary" : "secondary"} aria-busy={vendorsWorkspace.isManualRefreshing} disabled={vendorsWorkspace.isManualRefreshing} onClick={() => void vendorsWorkspace.refresh()}>刷新商人库存</ControlButton> : null
+        accountSummary && vendorsWorkspace.model.vendors.length ? <RefreshControlButton variant={vendorsWorkspace.model.statusBanner?.tone === "error" ? "primary" : "secondary"} refreshing={vendorsWorkspace.isManualRefreshing} onClick={() => void vendorsWorkspace.refresh()}>刷新商人库存</RefreshControlButton> : null
       ) : null
     },
     platformActions: desktopPlatformActions,

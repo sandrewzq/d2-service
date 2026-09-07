@@ -2,6 +2,32 @@
 
 这个项目使用面向玩家的更新日志。这里优先记录”玩家能感知到什么变化”，而不是逐条展开内部实现细节。
 
+## 0.0.22 - 2026-09-07
+
+### 中文
+
+#### 改进
+
+- 首页、账号、仓库、商人、设置和装备详情中的手动刷新、同步与失败重试统一为带图标的绿色刷新控件，和登录、保存、应用等蓝色主要操作明确区分。
+- 输入框、下拉框、分段筛选和操作按钮使用不同的结构与表面；仓库搜索补充搜索图标，推荐来源与重置条件数量更容易辨认。
+- 补齐亮色与暗色主题下的刷新、输入和下拉控件 token，使两种颜色模式保持一致的层级与交互反馈。
+
+#### 修复
+
+- 修复部分刷新按钮颜色与其他页面不一致，以及输入框、下拉框和按钮外观过于相似的问题。
+
+### English
+
+#### Improved
+
+- Unified manual refresh, synchronization, and retry actions across Home, Account, Vault, Vendors, Settings, and item details with icon-led green refresh controls, clearly separating them from blue login, save, and apply actions.
+- Gave text fields, selects, segmented filters, and action buttons distinct structures and surfaces, while adding a search icon and clearer source and reset counts to Vault filters.
+- Added matching light- and dark-theme tokens for refresh controls, fields, and selects so both color modes retain consistent hierarchy and interaction feedback.
+
+#### Fixed
+
+- Fixed inconsistent refresh-button colors and controls that were difficult to distinguish because fields, selects, and buttons shared nearly identical styling.
+
 ## 0.0.21 - 2026-09-06
 
 ### 中文

@@ -970,7 +970,7 @@ export function VaultPageContentView(props: {
                         <option value="">选择推荐来源</option>
                         {recommendationSourceOptions.map((option) => (
                           <option key={option.sourceId} value={option.sourceId}>
-                            {option.sourceLabel} · 覆盖 {option.count}
+                            来源：{option.sourceLabel} · {option.count}
                           </option>
                         ))}
                       </select>
