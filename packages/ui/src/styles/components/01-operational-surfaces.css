@@ -1038,22 +1038,6 @@
   font-size: var(--font-content);
 }
 
-.community-ai-analysis {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid #303848;
-  border-radius: 6px;
-  background: #111722;
-}
-
-.community-ai-analysis p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--font-content);
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
 .community-recommendations-panel > small:last-child {
   display: block;
   margin-top: 10px;

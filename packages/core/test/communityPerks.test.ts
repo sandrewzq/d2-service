@@ -1,9 +1,8 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { saveDimWishlist } from "../../services/src/analysis/wishlistStore.js";
-import { createAiLightggSource } from "../../services/src/community/aiLightggSource.js";
 import { saveLocalCommunityRecommendations } from "../../services/src/community/localCommunityRecommendations.js";
 import { parseLocalCommunityRecommendations } from "../src/community-perks/localCommunityImport.js";
 import { CommunityPerkRecommendationService } from "../src/community-perks/index.js";
@@ -11,11 +10,9 @@ import {
   createDefaultCommunityPerkService,
   createDimWishlistSource
 } from "../../services/src/community/perkRecommendation.js";
-import { parseLightggResponse } from "../src/community-perks/aiLightggSource.js";
 import type { CommunityPerkSource, WeaponRecommendation } from "../src/community-perks/index.js";
 import type { DefinitionComponentData } from "../src/manifest/definitions.js";
 
-const originalFetch = globalThis.fetch;
 const itemDefinitions: DefinitionComponentData = {
   "11": {
     hash: 11,
@@ -62,10 +59,6 @@ const englishItemDefinitions: DefinitionComponentData = {
     }
   }
 };
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
 
 describe("community perk recommendations", () => {
   it("returns recommendations from a local DIM wishlist", async () => {
@@ -321,122 +314,20 @@ describe("community perk recommendations", () => {
     expect(source.isAvailable({ data: { data_dir: dir } })).toBe(true);
   });
 
-  it("keeps a visible fallback warning when light.gg fails and another source succeeds", async () => {
-    const failingLightgg = source("AI light.gg", async () => {
-      throw new Error("light.gg 查询失败");
+  it("keeps a visible fallback warning when one source fails and another source succeeds", async () => {
+    const failingSource = source("社区来源", async () => {
+      throw new Error("社区来源查询失败");
     });
     const wishlist = source("DIM Wishlist", async () => recommendation({
       source_label: "DIM Wishlist",
       combos: [{ perks: [{ hash: 11, name: "Voltshot" }], source: "dim_wishlist", mode: "pve" }]
     }));
-    const service = new CommunityPerkRecommendationService([failingLightgg, wishlist]);
+    const service = new CommunityPerkRecommendationService([failingSource, wishlist]);
 
     const result = await service.getRecommendationsWithAllSources(123, { item_name: "Test Weapon" });
 
     expect(result?.combos).toHaveLength(1);
-    expect(result?.source_warnings).toContain("AI light.gg 查询失败，已显示 DIM Wishlist 数据。");
-  });
-
-  it("keeps raw ai analysis when light.gg does not return parseable JSON", () => {
-    const result = parseLightggResponse(
-      123,
-      "Test Weapon",
-      "https://www.light.gg/db/items/123/test-weapon/",
-      "这把枪 PvE 推荐爆破专家和伏特弹药，但页面没有给出稳定结构化数据。",
-      {}
-    );
-
-    expect(result?.combos).toEqual([]);
-    expect(result?.source_label).toBe("AI · light.gg");
-    expect(result?.ai_analysis).toContain("PvE 推荐爆破专家和伏特弹药");
-  });
-
-  it("asks AI light.gg to return perk hashes in the prompt", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "d2-tools-community-"));
-    let requestBody: {
-      input?: Array<{ content?: string }>;
-    } | undefined;
-    globalThis.fetch = async (_url, init) => {
-      requestBody = JSON.parse(String(init?.body));
-      return new Response(JSON.stringify({
-        output_text: JSON.stringify({
-          combos: [],
-          analysis: "页面没有足够稳定的结构化推荐。",
-          disclaimer: ""
-        })
-      }), {
-        status: 200,
-        headers: { "content-type": "application/json" }
-      });
-    };
-
-    const source = createAiLightggSource({
-      data: { data_dir: dir },
-      ai: {
-        protocol: "openai_responses",
-        api_key: "test-key",
-        model: "gpt-test",
-        base_url: "https://example.test/v1",
-        enable_lightgg: true,
-        force_lightgg: false
-      }
-    });
-
-    await source.getRecommendations(123, { item_name: "Test Weapon" });
-
-    const query = requestBody?.input?.[0]?.content ?? "";
-    expect(query).toContain('"hash": 123456');
-    expect(query).toContain("perk hash");
-  });
-
-  it("stores the raw AI light.gg response in cache", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "d2-tools-community-"));
-    const rawResponse = JSON.stringify({
-      combos: [],
-      analysis: "保留这个原始响应，方便排查 light.gg 解析问题。",
-      disclaimer: ""
-    });
-    globalThis.fetch = async () => new Response(JSON.stringify({ output_text: rawResponse }), {
-      status: 200,
-      headers: { "content-type": "application/json" }
-    });
-
-    const source = createAiLightggSource({
-      data: { data_dir: dir },
-      ai: {
-        protocol: "openai_responses",
-        api_key: "test-key",
-        model: "gpt-test",
-        base_url: "https://example.test/v1",
-        enable_lightgg: true,
-        force_lightgg: false
-      }
-    });
-
-    await source.getRecommendations(123, { item_name: "Test Weapon" });
-
-    const cacheEntry = JSON.parse(readFileSync(join(dir, "cache", "lightgg", "123.json"), "utf8")) as {
-      raw_response?: string;
-      recommendation?: WeaponRecommendation;
-    };
-    expect(cacheEntry.raw_response).toBe(rawResponse);
-    expect(cacheEntry.recommendation?.ai_analysis).toContain("保留这个原始响应");
-  });
-
-  it("allows Chat Completions to expose light.gg after the user force-enables it", () => {
-    const source = createAiLightggSource({
-      data: { data_dir: mkdtempSync(join(tmpdir(), "d2-tools-community-")) },
-      ai: {
-        protocol: "openai_chat_completions",
-        api_key: "test-key",
-        model: "compatible-model",
-        base_url: "https://example.test/v1",
-        enable_lightgg: true,
-        force_lightgg: true
-      }
-    });
-
-    expect(source.isAvailable()).toBe(true);
+    expect(result?.source_warnings).toContain("社区来源 查询失败，已显示 DIM Wishlist 数据。");
   });
 });
 

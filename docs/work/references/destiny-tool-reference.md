@@ -137,7 +137,7 @@ DIM 的官方组织仓库总览：<https://github.com/orgs/DestinyItemManager/re
 | 条件扩展 | D2Clarity | 确认 Partnership / 授权后补充倍率、触发和持续时间 |
 | 官方资料补充 | d2-additional-info | 固定 revision 补充赛季、来源、任务武器和催化剂关系 |
 | 开发核对 | Destiny2 Checkinfo、D2 Arsenal | 人工核对名称、Perk 池或站点响应，不作为运行时依赖 |
-| 按需复核 | light.gg | 单件或同名组的社区使用参考，不参与启动时全仓批量扫描 |
+| 外部导航 | light.gg | 供玩家手动查看武器资料和社区观点，不作为应用运行时数据源 |
 
 具体结论：
 
@@ -151,9 +151,8 @@ DIM 的官方组织仓库总览：<https://github.com/orgs/DestinyItemManager/re
 
 - 当前环境直接读取 light.gg 武器页、`robots.txt` 和条款页会遇到 Cloudflare 403，不能依赖批量实时抓取。
 - light.gg 的社区流行度不能解释成专家共识，也不能覆盖五个一级来源已经确认的事实。
-- 只在玩家主动打开单件或同名组、来源冲突、单源命中或资料未覆盖时按需查询并缓存。
-- 返回结果必须先校验 `itemHash` 和官方 Perk Hash，再将武器解析到官方名称级推荐池；`hash: 0`、模糊名称和纯文本推断不得参与实例匹配。
-- 缓存需要记录来源 URL、读取时间、Manifest 版本和解析警告。
+- 应用不读取、抓取或缓存 light.gg 页面，也不把它注册为社区推荐来源。
+- 仅保留完整在线地址作为工具导航；玩家离开应用后自行查看，页面内容不回写推荐库或实例匹配结果。
 
 #### 安全边界
 

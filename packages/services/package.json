@@ -1,6 +1,6 @@
 {
   "name": "@d2-tools/services",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -153,10 +153,6 @@
     "./community/personalWeaponKnowledge": {
       "types": "./dist/community/personalWeaponKnowledge.d.ts",
       "import": "./dist/community/personalWeaponKnowledge.js"
-    },
-    "./community/aiLightggSource": {
-      "types": "./dist/community/aiLightggSource.d.ts",
-      "import": "./dist/community/aiLightggSource.js"
     },
     "./diagnostics/export": {
       "types": "./dist/diagnostics/export.d.ts",

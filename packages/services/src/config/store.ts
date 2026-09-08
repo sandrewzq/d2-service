@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { applyEnvOverrides } from "@d2-tools/core/config/env";
 import { defaultConfig } from "@d2-tools/core/config/defaults";
@@ -10,7 +10,7 @@ export type ConfigStoreOptions = {
   env?: ConfigEnv;
 };
 
-const CURRENT_CONFIG_VERSION = 1;
+const CURRENT_CONFIG_VERSION = 2;
 
 export function configPath(dataDir: string): string {
   return join(dataDir, "config.json");
@@ -27,6 +27,7 @@ export function loadConfig(options: ConfigStoreOptions = {}): D2Config {
     base = parsed.config;
     if (parsed.migrated) {
       persistMigratedConfig(path, base);
+      removeRetiredLightggCache(selectedDataDir);
     }
   } else {
     base = defaultConfig(selectedDataDir);
@@ -80,6 +81,8 @@ function parseConfigForMigration(text: string, dataDir: string): ParsedConfig {
   rejectUnknownFields(bungie, ["api_key", "client_id", "client_secret", "redirect_uri"], "bungie");
   rejectUnknownFields(data, ["data_dir", "manifest_language"], "data");
   rejectUnknownFields(ai, ["protocol", "provider", "api_key", "model", "base_url", "enable_lightgg", "force_lightgg"], "ai");
+  if (ai.enable_lightgg !== undefined) requireBoolean(ai.enable_lightgg, "ai.enable_lightgg");
+  if (ai.force_lightgg !== undefined) requireBoolean(ai.force_lightgg, "ai.force_lightgg");
   // 兼容旧配置中的本地写操作开关；写操作现在只受 Bungie 权限和操作确认约束。
   rejectUnknownFields(features, ["write_actions_enabled", "color_mode", "density", "interface_locale", "manifest_language_follows_interface"], "features");
   if (features.write_actions_enabled !== undefined) {
@@ -110,9 +113,7 @@ function parseConfigForMigration(text: string, dataDir: string): ParsedConfig {
       ),
       api_key: requireStringOrDefault(ai.api_key, defaults.ai.api_key, "ai.api_key"),
       model: requireStringOrDefault(ai.model, defaults.ai.model, "ai.model"),
-      base_url: requireStringOrDefault(ai.base_url, defaults.ai.base_url, "ai.base_url"),
-      enable_lightgg: requireBooleanOrDefault(ai.enable_lightgg, defaults.ai.enable_lightgg, "ai.enable_lightgg"),
-      force_lightgg: requireBooleanOrDefault(ai.force_lightgg, defaults.ai.force_lightgg, "ai.force_lightgg")
+      base_url: requireStringOrDefault(ai.base_url, defaults.ai.base_url, "ai.base_url")
     },
     features: {
       color_mode: requireEnumOrDefault(features.color_mode, defaults.features.color_mode, "features.color_mode", ["light", "dark"]),
@@ -132,6 +133,8 @@ function parseConfigForMigration(text: string, dataDir: string): ParsedConfig {
     config,
     migrated: configVersion !== CURRENT_CONFIG_VERSION
       || ai.provider !== undefined
+      || ai.enable_lightgg !== undefined
+      || ai.force_lightgg !== undefined
       || features.write_actions_enabled !== undefined
       || hasMissingCurrentFields(bungie, data, ai, features)
   };
@@ -145,7 +148,7 @@ function hasMissingCurrentFields(
 ): boolean {
   return sectionMissing(bungie, ["api_key", "client_id", "client_secret", "redirect_uri"])
     || sectionMissing(data, ["data_dir", "manifest_language"])
-    || sectionMissing(ai, ["protocol", "api_key", "model", "base_url", "enable_lightgg", "force_lightgg"])
+    || sectionMissing(ai, ["protocol", "api_key", "model", "base_url"])
     || sectionMissing(features, ["color_mode", "density", "interface_locale", "manifest_language_follows_interface"]);
 }
 
@@ -176,6 +179,14 @@ function persistMigratedConfig(path: string, config: D2Config): void {
     } catch {
       // Cleanup failures do not invalidate the migrated config or hide the original error.
     }
+  }
+}
+
+function removeRetiredLightggCache(dataDir: string): void {
+  try {
+    rmSync(join(dataDir, "cache", "lightgg"), { recursive: true, force: true });
+  } catch {
+    // 旧功能缓存清理失败不应阻止配置升级或应用启动。
   }
 }
 
@@ -235,10 +246,6 @@ function requireStringOrDefault(value: unknown, fallback: string, field: string)
 function requireBoolean(value: unknown, field: string): boolean {
   if (typeof value !== "boolean") throw new Error(`config.json 的 ${field} 必须是布尔值。`);
   return value;
-}
-
-function requireBooleanOrDefault(value: unknown, fallback: boolean, field: string): boolean {
-  return requireBoolean(value === undefined ? fallback : value, field);
 }
 
 function requireEnum<T extends string>(value: unknown, field: string, allowed: readonly T[]): T {

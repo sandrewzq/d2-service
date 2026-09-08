@@ -50,5 +50,4 @@ export type CommunityApi = {
   getCommunityPerkRecommendations(item_hash: number, options?: { item_name?: string }): Promise<WeaponRecommendation | null>;
   matchCommunityVaultItems(items: VaultItemMatchInput[], options?: VaultCommunityMatchOptions): Promise<VaultCommunityMatchResult>;
   getCommunityVaultItemMatchEvidence(item: VaultItemMatchInput): Promise<VaultItemInstanceMatchInfo | null>;
-  clearLightggCache(): Promise<void>;
 };

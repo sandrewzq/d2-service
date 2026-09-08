@@ -14,7 +14,6 @@ import {
 } from "./itemDetailFormatters";
 
 export type ItemDetailCommunityProps = {
-  aiSettingsEnableLightgg: boolean;
   communityRecommendations: WeaponRecommendation | null;
   communityRecommendationError: string;
   importedWishlist: DimWishlist | null;
@@ -96,7 +95,6 @@ export function ItemDetailCommunity(props: ItemDetailCommunityProps) {
       ) : null}
 
       <RecommendationPanel
-        aiSettingsEnableLightgg={props.aiSettingsEnableLightgg}
         communityRecommendations={props.communityRecommendations}
         communityRecommendationError={props.communityRecommendationError}
         isCommunityRecommendationsLoading={props.isCommunityRecommendationsLoading}
@@ -105,7 +103,7 @@ export function ItemDetailCommunity(props: ItemDetailCommunityProps) {
   );
 }
 
-function RecommendationPanel(props: Pick<ItemDetailCommunityProps, "aiSettingsEnableLightgg" | "communityRecommendations" | "communityRecommendationError" | "isCommunityRecommendationsLoading">) {
+function RecommendationPanel(props: Pick<ItemDetailCommunityProps, "communityRecommendations" | "communityRecommendationError" | "isCommunityRecommendationsLoading">) {
   if (props.communityRecommendations) {
     return (
       <section className="community-recommendations-panel">
@@ -117,7 +115,6 @@ function RecommendationPanel(props: Pick<ItemDetailCommunityProps, "aiSettingsEn
           <div className="community-source-badges">
             {props.communityRecommendations.source_label ? <span className="community-source-badge">{props.communityRecommendations.source_label}</span> : null}
             {props.communityRecommendations.combos[0]?.source === "dim_wishlist" ? <span className="community-source-badge">DIM Wishlist</span> : null}
-            {props.communityRecommendations.combos[0]?.source === "ai_lightgg" ? <span className="community-source-badge">AI · light.gg</span> : null}
           </div>
         </div>
         {props.communityRecommendations.source_warnings?.length ? (
@@ -130,7 +127,6 @@ function RecommendationPanel(props: Pick<ItemDetailCommunityProps, "aiSettingsEn
             <li key={index} className={`community-combo mode-${combo.mode}`}>
               <div className="community-combo-mode">
                 <strong>{formatCommunityMode(combo.mode)}</strong>
-                {combo.popularity ? <small>热度 {combo.popularity.toFixed(1)}%</small> : null}
               </div>
               <div className="community-combo-perks">
                 {combo.perks.map((perk) => (
@@ -147,12 +143,6 @@ function RecommendationPanel(props: Pick<ItemDetailCommunityProps, "aiSettingsEn
             </li>
           ))}
         </ul>
-        {props.communityRecommendations.ai_analysis ? (
-          <section className="source-status-card source-status-neutral community-ai-analysis">
-            <span className="source-status-badge source-status-neutral">AI 原始分析</span>
-            <p>{props.communityRecommendations.ai_analysis}</p>
-          </section>
-        ) : null}
         {props.communityRecommendations.disclaimer ? <small>{props.communityRecommendations.disclaimer}</small> : null}
       </section>
     );
@@ -174,7 +164,7 @@ function RecommendationPanel(props: Pick<ItemDetailCommunityProps, "aiSettingsEn
         <h3>社区推荐降级</h3>
         <p>{props.communityRecommendationError}</p>
         <small>已保留 DIM 愿望单和本地目标判断。</small>
-        <small>light.gg 或社区推荐服务暂不可用时，仍可继续查看 DIM 愿望单、本地目标命中和同名对比。</small>
+        <small>部分社区推荐服务暂不可用时，仍可继续查看 DIM 愿望单、本地目标命中和同名对比。</small>
       </section>
     );
   }
@@ -183,11 +173,7 @@ function RecommendationPanel(props: Pick<ItemDetailCommunityProps, "aiSettingsEn
     <section className="source-status-card source-status-neutral community-recommendations-panel empty">
       <span className="source-status-badge source-status-neutral">社区推荐</span>
       <h3>社区推荐</h3>
-      <p>
-        {props.aiSettingsEnableLightgg
-          ? "暂无社区推荐。已尝试查询 light.gg 和本地 DIM wishlist，均未命中。"
-          : "暂无社区推荐。导入 DIM wishlist 或在 AI 设置中开启 light.gg 实时分析以获取推荐。"}
-      </p>
+      <p>暂无社区推荐。可以检查 DIM Wishlist 更新或导入本地推荐数据。</p>
     </section>
   );
 }

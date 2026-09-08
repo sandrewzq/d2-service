@@ -13,7 +13,7 @@ describe("diagnostics export", () => {
           redirect_uri: "https://127.0.0.1:28780/oauth/callback"
         },
         data: { data_dir: "C:/Users/dell/AppData/Roaming/d2-tools", manifest_language: "zh-chs" },
-        ai: { protocol: "openai_chat_completions", api_key: "ai-secret", model: "gpt-test", base_url: "https://api.example.com", enable_lightgg: false, force_lightgg: false },
+        ai: { protocol: "openai_chat_completions", api_key: "ai-secret", model: "gpt-test", base_url: "https://api.example.com" },
         features: { color_mode: "dark" }
       },
       manifest: { initialized: true, version: "123", language: "zh-chs" },

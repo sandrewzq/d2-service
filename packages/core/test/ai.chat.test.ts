@@ -149,8 +149,6 @@ describe("AI chat analysis", () => {
           api_key: "test-key",
           model: "gpt-test",
           base_url: "",
-          enable_lightgg: false,
-          force_lightgg: false
         }
       }),
       question: "哪些装备可以清理？",
@@ -193,7 +191,7 @@ describe("AI chat analysis", () => {
     let called = false;
 
     const result = await generateVaultAiAdvice({
-      config: config({ ai: { protocol: "", api_key: "", model: "", base_url: "", enable_lightgg: false, force_lightgg: false } }),
+      config: config({ ai: { protocol: "", api_key: "", model: "", base_url: "" } }),
       items,
       tags,
       fetcher: async () => {
@@ -218,8 +216,6 @@ describe("AI chat analysis", () => {
           api_key: "test-key",
           model: "gpt-test",
           base_url: "",
-          enable_lightgg: false,
-          force_lightgg: false
         }
       }),
       items,
@@ -261,8 +257,6 @@ describe("AI chat analysis", () => {
           api_key: "test-key",
           model: "local-model",
           base_url: "http://127.0.0.1:11434/v1",
-          enable_lightgg: false,
-          force_lightgg: false
         }
       }),
       items,
@@ -274,21 +268,19 @@ describe("AI chat analysis", () => {
     })).rejects.toThrow("AI 接口调用失败：bad request");
   });
 
-  it("uses a responses-style web search request when Chat Completions is force-enabled for light.gg", async () => {
+  it("uses OpenAI Responses for an explicitly requested external web search", async () => {
     const requests: Array<{ url: string; init: RequestInit }> = [];
 
     const result = await callAiWithWebSearch({
       config: config({
         ai: {
-          protocol: "openai_chat_completions",
+          protocol: "openai_responses",
           api_key: "test-key",
           model: "compatible-model",
-          base_url: "https://example.test/v1",
-          enable_lightgg: true,
-          force_lightgg: true
+          base_url: "https://example.test/v1"
         }
       }),
-      query: "请分析 light.gg 社区推荐",
+      query: "请查询这把武器的公开玩法资料",
       fetcher: async (url, init) => {
         requests.push({ url: String(url), init: init ?? {} });
         return jsonResponse({
@@ -316,8 +308,6 @@ describe("AI chat analysis", () => {
           api_key: "test-key",
           model: "deepseek-chat",
           base_url: "https://api.deepseek.com",
-          enable_lightgg: false,
-          force_lightgg: false
         }
       }),
       items,
@@ -345,8 +335,6 @@ describe("AI chat analysis", () => {
           api_key: "test-key",
           model: "claude-test",
           base_url: "",
-          enable_lightgg: false,
-          force_lightgg: false
         }
       }),
       items,
@@ -391,8 +379,6 @@ function config(overrides: Partial<D2Config>): D2Config {
       api_key: "",
       model: "",
       base_url: "",
-      enable_lightgg: false,
-      force_lightgg: false,
       ...overrides.ai
     },
     features: {

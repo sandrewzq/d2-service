@@ -247,7 +247,7 @@ export async function generateItemAiAdvice(input: ItemAiAdviceInput): Promise<It
   let externalSearch: AiWebSearchResult | undefined;
   let externalSearchMessage = "未请求外部知识。";
   if (input.allow_external_search) {
-    if (supportsAiWebSearch(input.config.ai) || canForceLightgg(settings)) {
+    if (supportsAiWebSearch(input.config.ai)) {
       try {
         externalSearch = await callAiWithWebSearch({
           config: input.config,
@@ -527,7 +527,7 @@ export async function callAiWithWebSearch(input: {
   if (!settings.protocol) {
     throw new Error("请先选择 AI API 格式。");
   }
-  if (!supportsAiWebSearch(input.config.ai) && !canForceLightgg(settings)) {
+  if (!supportsAiWebSearch(input.config.ai)) {
     throw new Error("当前 AI 配置不支持带引用的网页搜索；请使用 OpenAI Responses 兼容接口。");
   }
   if (!settings.api_key) {
@@ -830,10 +830,6 @@ function normalizeBaseUrl(baseUrl: string): string {
     throw new Error("请填写 AI 接口地址。");
   }
   return normalized;
-}
-
-function canForceLightgg(settings: NormalizedAiSettings): boolean {
-  return settings.force_lightgg && settings.protocol === "openai_chat_completions";
 }
 
 function buildAiModelListRequest(settings: NormalizedAiSettings): {

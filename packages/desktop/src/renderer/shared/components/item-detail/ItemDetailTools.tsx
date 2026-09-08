@@ -35,7 +35,6 @@ import { ItemDetailSameName } from "./ItemDetailSameName";
 
 export type ItemDetailToolsProps = {
   accountSummary: AccountSummary | null;
-  aiSettingsEnableLightgg: boolean;
   communityRecommendations: WeaponRecommendation | null;
   communityRecommendationError: string;
   importedWishlist: DimWishlist | null;
@@ -127,7 +126,6 @@ export function ItemDetailTools(props: ItemDetailToolsProps) {
         </section>
         <section className="item-detail-tool-section item-detail-tool-community">
           <ItemDetailCommunity
-            aiSettingsEnableLightgg={props.aiSettingsEnableLightgg}
             communityRecommendations={props.communityRecommendations}
             communityRecommendationError={props.communityRecommendationError}
             importedWishlist={props.importedWishlist}

@@ -189,9 +189,7 @@ function prepareDesktopData(theme) {
       protocol: "",
       api_key: "",
       model: "",
-      base_url: "",
-      enable_lightgg: false,
-      force_lightgg: false
+      base_url: ""
     },
     features: {
       color_mode: theme

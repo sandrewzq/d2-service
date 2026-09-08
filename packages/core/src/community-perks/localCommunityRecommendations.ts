@@ -30,7 +30,6 @@ export function createLocalCommunitySource(loadTable: LocalCommunityRecommendati
       const perkHashToRef = buildPerkRefMap(item_hash, options, matchingRules);
       const combos: PerkCombo[] = matchingRules.map((rule) => ({
         perks: rule.perk_hashes.map((hash) => perkHashToRef.get(hash) ?? { hash, name: String(hash) }),
-        popularity: undefined,
         source: "local_community",
         mode: rule.mode,
         note: rule.note || undefined

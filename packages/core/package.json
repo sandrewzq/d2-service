@@ -1,6 +1,6 @@
 {
   "name": "@d2-tools/core",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "private": true,
   "type": "module",
   "main": "dist/index.js",

@@ -42,7 +42,6 @@ import { completeRendererPerformanceInteraction } from "../performance/rendererP
 type ItemDetailReadyProps = {
   accountSummary: AccountSummary | null;
   accountOperationFeedback?: AccountOperationFeedbackView;
-  aiSettingsEnableLightgg: boolean;
   communityRecommendations: WeaponRecommendation | null;
   communityRecommendationError: string;
   communityInstanceMatch?: VaultItemInstanceMatchInfo;
@@ -480,7 +479,6 @@ function ItemDetailReadyContent(
 
       <ItemDetailTools
               accountSummary={props.accountSummary}
-              aiSettingsEnableLightgg={props.aiSettingsEnableLightgg}
               communityRecommendations={props.communityRecommendations}
               communityRecommendationError={props.communityRecommendationError}
               importedWishlist={props.importedWishlist}

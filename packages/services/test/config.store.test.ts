@@ -98,9 +98,7 @@ describe("config store service adapter", () => {
           protocol: "",
           api_key: "",
           model: "",
-          base_url: "",
-          enable_lightgg: false,
-          force_lightgg: false
+          base_url: ""
         },
         features: {
           color_mode: "dark",
@@ -140,9 +138,7 @@ describe("config store service adapter", () => {
           protocol: "",
           api_key: "",
           model: "",
-          base_url: "",
-          enable_lightgg: false,
-          force_lightgg: false
+          base_url: ""
         },
         features: {
           color_mode: "light",
@@ -207,6 +203,12 @@ describe("config store service adapter", () => {
     expect(loaded.ai.protocol).toBe("anthropic_messages");
     expect(loaded.ai.api_key).toBe("ai-key");
     expect("write_actions_enabled" in loaded.features).toBe(false);
+    expect("enable_lightgg" in loaded.ai).toBe(false);
+    expect("force_lightgg" in loaded.ai).toBe(false);
+    const migrated = readFileSync(join(dir, "config.json"), "utf8");
+    expect(migrated).toContain('"config_version": 2');
+    expect(migrated).not.toContain("enable_lightgg");
+    expect(migrated).not.toContain("force_lightgg");
   });
 
   it("loads pre-density configs after an application upgrade", () => {
@@ -242,10 +244,8 @@ describe("config store service adapter", () => {
 
     expect(loaded.features.density).toBe("standard");
     expect(loaded.features.manifest_language_follows_interface).toBe(true);
-    expect(loaded.ai.enable_lightgg).toBe(false);
-    expect(loaded.ai.force_lightgg).toBe(false);
     expect(loaded.bungie.redirect_uri).toBe("https://127.0.0.1:28780/oauth/callback");
-    expect(readFileSync(join(dir, "config.json"), "utf8")).toContain('"config_version": 1');
+    expect(readFileSync(join(dir, "config.json"), "utf8")).toContain('"config_version": 2');
     expect(readdirSync(dir).some((name) => name.startsWith("config.json.pre-migration-") && name.endsWith(".bak"))).toBe(true);
   });
 

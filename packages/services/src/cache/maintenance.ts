@@ -9,7 +9,6 @@ export type CacheDomain =
   | "account-item-details"
   | "home-briefing"
   | "vendor-inventory"
-  | "lightgg"
   | "manifest-version-check";
 
 export type CacheDomainStatus = {
@@ -38,7 +37,6 @@ const allDomains: readonly CacheDomain[] = [
   "account-item-details",
   "home-briefing",
   "vendor-inventory",
-  "lightgg",
   "manifest-version-check"
 ];
 
@@ -102,7 +100,6 @@ function cachePaths(dataDir: string): Record<CacheDomain, string> {
     "account-item-details": join(dataDir, "cache", "account-cache.sqlite"),
     "home-briefing": join(dataDir, "home-briefing-cache.json"),
     "vendor-inventory": join(dataDir, "vendor-inventory-cache.json"),
-    lightgg: join(dataDir, "cache", "lightgg"),
     "manifest-version-check": join(dataDir, "manifest", "version-check.json")
   };
 }

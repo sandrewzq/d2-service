@@ -23,8 +23,7 @@ export type PerkRef = {
 export type PerkCombo = {
   rule_stable_id?: string;
   perks: PerkRef[];
-  popularity?: number;
-  source: "dim_wishlist" | "ai_lightgg" | "local_community";
+  source: "dim_wishlist" | "local_community";
   mode: "pve" | "pvp" | "general";
   note?: string;
   dim_diagnostic?: DimWishlistRuleDiagnostic;
@@ -59,7 +58,7 @@ export type WeaponRecommendation = {
   matched_modes: Array<"pve" | "pvp" | "general">;
   individual_perks?: PerkRef[];
   weapon_level_recommendations?: Array<{
-    source: "dim_wishlist" | "ai_lightgg" | "local_community";
+    source: "dim_wishlist" | "local_community";
     mode: "pve" | "pvp" | "general";
     source_label: string;
     note?: string;
@@ -67,7 +66,6 @@ export type WeaponRecommendation = {
   source_records?: RecommendationSourceRecord[];
   sample_size?: number;
   source_label?: string;
-  ai_analysis?: string;
   source_warnings?: string[];
   disclaimer?: string;
 };

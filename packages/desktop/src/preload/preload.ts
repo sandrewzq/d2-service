@@ -139,7 +139,6 @@ type PreloadCacheDomain =
   | "account-item-details"
   | "home-briefing"
   | "vendor-inventory"
-  | "lightgg"
   | "manifest-version-check";
 type PreloadCacheStatus = {
   data_dir: string;
@@ -440,8 +439,7 @@ contextBridge.exposeInMainWorld("d2", {
   matchCommunityVaultItems: (items: VaultItemMatchInput[], options?: VaultCommunityMatchOptions) =>
     invokeDesktopIpc<VaultCommunityMatchResult>("community:vault:match", items, options),
   getCommunityVaultItemMatchEvidence: (item: VaultItemMatchInput) =>
-    invokeDesktopIpc<VaultItemInstanceMatchInfo | null>("community:vault:evidence:get", item),
-  clearLightggCache: () => ipcRenderer.invoke("community:lightgg:cache:clear") as Promise<void>
+    invokeDesktopIpc<VaultItemInstanceMatchInfo | null>("community:vault:evidence:get", item)
 });
 
 async function invokeDesktopIpc<TResult>(

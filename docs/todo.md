@@ -17,6 +17,14 @@
 | 编号 | 优先级 | 状态 | 任务 | Backlog | 下一步 |
 |---|---|---|---|---|---|
 | T22 | P0 | 🟢 S1–S5 及 Bug #79 整体验收通过，本地 CI 通过，待发布 | 下一版本交付与 Renderer 事件驱动性能收敛 | [唯一执行 backlog](work/backlog/T22-renderer-event-driven-performance.md) | 暂不发版；等用户明确要求“发布”后，使用 macOS Release 入口执行完整门禁、tag 和 GitHub Release。 |
+| T23 | P2 | ⏸️ 等待官方书面授权 | D2Checkpoint 进度机器人集成 | [执行 backlog](work/backlog/T23-d2checkpoint-integration.md) | 用户已于 2026-09-08 向 `support@d2checkpoint.com` 发送授权申请；收到回复前不进入开发。 |
+| T25 | P1 | 📝 大需求已建立，待细化与排期 | 商人购买决策工作区 | [总纲](work/backlog/T25-vendor-purchase-decision-workspace.md) / [产品需求](work/backlog/T25-vendor-purchase-decision-requirements.md) | 保持一个 T25 总任务；后续按 T25-S1～S5 建立独立实施文档，优先细化 S1 真实推荐状态和筛选语义。 |
+| T40 | P0 | 📝 候选方案，待排期 | 账号容量与风险摘要 | [任务说明](work/backlog/T40-account-capacity-risk.md) | 核对账号快照中的容量字段，基于真实数据展示邮政官、仓库、角色背包和三角色容量风险。 |
+| T41 | P0 | 📝 候选方案，等待 T40 | 邮政官安全处理 | [任务说明](work/backlog/T41-postmaster-safe-actions.md) | 等 T40 稳定容量与目标槽位判断后，再细化批量取回计划、保护规则和逐项确认。 |
+| T42 | P0 | 📝 候选方案，待排期 | 光等成长分析 | [任务说明](work/backlog/T42-power-growth-analysis.md) | 冻结当前装备、最高可装备、掉落基准和逐槽差值的真实计算规则。 |
+| T43 | P1 | 📝 候选方案，待排期 | 任务待处理中心 | [任务说明](work/backlog/T43-pursuit-attention-center.md) | 核对 Objective、到期、追踪和完成字段，替换名称关键词分类。 |
+| T44 | P2 | 📝 候选方案，待排期 | 角色进度中心 | [任务说明](work/backlog/T44-character-progression-center.md) | 先设计独立 Progression 异步资源，确保强力、巅峰、赛季和声望不阻塞装备首屏。 |
+| T35 | P1 | 🟡 代码完成，待验收 | 移除 light.gg 专用实时分析 | [任务说明](work/backlog/T35-remove-lightgg-runtime.md) | 验收设置页、单件装备 AI 分析和旧配置升级；确认无 light.gg 专用入口后关闭任务。 |
 
 ## 已完成基线
 

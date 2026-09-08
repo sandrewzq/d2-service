@@ -37,7 +37,6 @@ type RecommendationSectionItem = {
 };
 
 type DiagnosticsBridge = {
-  aiSettings: { enable_lightgg: boolean };
   loadActionLog: () => Promise<void>;
 };
 

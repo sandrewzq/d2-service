@@ -12,8 +12,6 @@ describe("AI connection test", () => {
         api_key: "key",
         model: "gpt-test",
         base_url: "",
-        enable_lightgg: false,
-        force_lightgg: false
       }),
       fetcher: async (url, init) => {
         requests.push({ url: String(url), body: String(init?.body), headers: init?.headers });
@@ -49,8 +47,6 @@ describe("AI connection test", () => {
         api_key: "key",
         model: "gpt-test",
         base_url: "",
-        enable_lightgg: false,
-        force_lightgg: false
       }),
       fetcher: async (url, init) => {
         requests.push({ url: String(url), body: String(init?.body) });
@@ -81,8 +77,6 @@ describe("AI connection test", () => {
         api_key: "key",
         model: "claude-test",
         base_url: "",
-        enable_lightgg: false,
-        force_lightgg: false
       }),
       fetcher: async (url, init) => {
         requests.push({ url: String(url), body: String(init?.body), headers: init?.headers });
@@ -119,8 +113,6 @@ describe("AI connection test", () => {
         api_key: "key",
         model: "",
         base_url: "https://example.test/v1/chat/completions",
-        enable_lightgg: false,
-        force_lightgg: false
       },
       fetcher: async (url, init) => {
         requests.push({ url: String(url), headers: init?.headers });
@@ -152,8 +144,6 @@ describe("AI connection test", () => {
         api_key: "",
         model: "",
         base_url: "",
-        enable_lightgg: false,
-        force_lightgg: false
       }),
       fetcher: async () => new Response("{}")
     })).rejects.toThrow("请先选择 AI API 格式。");

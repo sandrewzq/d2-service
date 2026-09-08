@@ -459,11 +459,9 @@ export function useDesktopProductShell(props: {
     itemDetailHostProps: {
       accountSummary,
       accountOperationFeedback: writeActions.accountOperationFeedback,
-      aiSettingsEnableLightgg: diagnostics.aiSettings.enable_lightgg,
       applyAcceptedAccountActionPatches,
       cleanupProtectionByItemKey: itemDetailCleanupProtection,
       detailCacheScopeKey: itemDetailCacheScopeKey,
-      diagnostics,
       importedWishlist,
       isRunningItemAction,
       localTargetRules,

@@ -14,8 +14,6 @@ export type D2Config = {
     api_key: string;
     model: string;
     base_url: string;
-    enable_lightgg: boolean;
-    force_lightgg: boolean;
   };
   features: {
     color_mode: "light" | "dark";
@@ -39,8 +37,6 @@ export type ConfigEnv = Partial<Record<
   | "AI_PROTOCOL"
   | "AI_API_KEY"
   | "AI_MODEL"
-  | "AI_BASE_URL"
-  | "AI_ENABLE_LIGHTGG"
-  | "AI_FORCE_LIGHTGG",
+  | "AI_BASE_URL",
   string
 >>;

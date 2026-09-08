@@ -51,7 +51,6 @@ export function createDimWishlistSource(dataDir: string): CommunityPerkSource {
           return {
             ...(rule.rule_stable_id ? { rule_stable_id: rule.rule_stable_id } : {}),
             perks: rule.perk_hashes.map((hash) => perkHashToRef.get(hash) ?? { hash, name: String(hash) }),
-            popularity: undefined,
             source: "dim_wishlist" as const,
             mode: rule.mode,
             note: metadata.note || metadata.source_title || undefined,

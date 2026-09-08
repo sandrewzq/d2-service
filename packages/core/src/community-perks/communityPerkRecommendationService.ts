@@ -93,7 +93,6 @@ export class CommunityPerkRecommendationService {
       ...(sourceRecords.length ? { source_records: sourceRecords } : {}),
       sample_size: valid.reduce((sum, recommendation) => sum + (recommendation.sample_size ?? recommendation.combos.length), 0),
       source_label: Array.from(new Set(valid.map((r) => r.source_label).filter(Boolean))).join(" / ") || undefined,
-      ai_analysis: valid.map((r) => r.ai_analysis).filter(Boolean).join("\n\n") || undefined,
       source_warnings: sourceWarnings.length ? sourceWarnings : undefined,
       disclaimer: valid.map((r) => r.disclaimer).filter(Boolean).join(" | ")
     };
@@ -627,8 +626,7 @@ function ownedPlugHashes(item: VaultItemMatchInput): Set<number> {
 function isUsefulRecommendation(recommendation: WeaponRecommendation): boolean {
   return recommendation.combos.length > 0
     || Boolean(recommendation.weapon_level_recommendations?.length)
-    || Boolean(recommendation.source_records?.length)
-    || Boolean(recommendation.ai_analysis?.trim());
+    || Boolean(recommendation.source_records?.length);
 }
 
 function uniquePerks(recommendations: WeaponRecommendation[]): PerkRef[] {

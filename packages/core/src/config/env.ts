@@ -16,9 +16,7 @@ export function applyEnvOverrides(config: D2Config, env: ConfigEnv): D2Config {
       protocol: env.AI_PROTOCOL ?? config.ai.protocol,
       api_key: env.AI_API_KEY ?? config.ai.api_key,
       model: env.AI_MODEL ?? config.ai.model,
-      base_url: env.AI_BASE_URL ?? config.ai.base_url,
-      enable_lightgg: parseBooleanEnv(env.AI_ENABLE_LIGHTGG, config.ai.enable_lightgg),
-      force_lightgg: parseBooleanEnv(env.AI_FORCE_LIGHTGG, config.ai.force_lightgg)
+      base_url: env.AI_BASE_URL ?? config.ai.base_url
     },
     features: {
       color_mode: parseColorModeEnv(env.D2_COLOR_MODE, config.features.color_mode),

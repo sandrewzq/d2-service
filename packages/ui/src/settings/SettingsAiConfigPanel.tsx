@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  getAiLightggSupportSettings,
   normalizeAiSettings,
   protocolLabel,
   type AiSettings
@@ -12,7 +11,6 @@ export type SettingsAiAdapter = {
   save: (settings: AiSettings) => Promise<void>;
   listModels: (settings: AiSettings) => Promise<{ models: string[]; message: string }>;
   testConnection: () => Promise<{ protocol: string; model: string; message: string }>;
-  clearLightggCache: () => Promise<void>;
   onSaved?: () => void;
 };
 
@@ -21,8 +19,6 @@ export function SettingsAiConfigPanel(props: { adapter: SettingsAiAdapter }) {
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [enableLightgg, setEnableLightgg] = useState(false);
-  const [forceLightgg, setForceLightgg] = useState(false);
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [modelInputMode, setModelInputMode] = useState<"select" | "manual">("select");
   const [modelListMessage, setModelListMessage] = useState("");
@@ -32,20 +28,15 @@ export function SettingsAiConfigPanel(props: { adapter: SettingsAiAdapter }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
-  const [isClearingCache, setIsClearingCache] = useState(false);
 
   const settings = useMemo(() => normalizeAiSettings({
     protocol,
     api_key: apiKey,
     model,
-    base_url: baseUrl,
-    enable_lightgg: enableLightgg,
-    force_lightgg: forceLightgg
-  }), [apiKey, baseUrl, enableLightgg, forceLightgg, model, protocol]);
-  const lightggSupport = getAiLightggSupportSettings(settings);
+    base_url: baseUrl
+  }), [apiKey, baseUrl, model, protocol]);
   const isConfigured = Boolean(settings.protocol && settings.api_key);
   const isBusy = isLoading || isSaving || isTesting;
-  const lightggAvailable = lightggSupport.supported || forceLightgg;
 
   useEffect(() => {
     let cancelled = false;
@@ -56,8 +47,6 @@ export function SettingsAiConfigPanel(props: { adapter: SettingsAiAdapter }) {
       setApiKey(loaded.api_key);
       setModel(loaded.model);
       setBaseUrl(loaded.base_url);
-      setEnableLightgg(loaded.enable_lightgg);
-      setForceLightgg(loaded.force_lightgg);
     }).catch((loadError) => {
       if (!cancelled) setError(loadError instanceof Error ? loadError.message : "AI 配置读取失败");
     }).finally(() => {
@@ -65,14 +54,6 @@ export function SettingsAiConfigPanel(props: { adapter: SettingsAiAdapter }) {
     });
     return () => { cancelled = true; };
   }, [props.adapter]);
-
-  useEffect(() => {
-    if (lightggSupport.supported && forceLightgg) {
-      setForceLightgg(false);
-      return;
-    }
-    if (!lightggAvailable && enableLightgg) setEnableLightgg(false);
-  }, [enableLightgg, forceLightgg, lightggAvailable, lightggSupport.supported]);
 
   useEffect(() => {
     if (!isConfigured) {
@@ -147,20 +128,6 @@ export function SettingsAiConfigPanel(props: { adapter: SettingsAiAdapter }) {
     }
   }
 
-  async function clearCache() {
-    setIsClearingCache(true);
-    setMessage("");
-    setError("");
-    try {
-      await props.adapter.clearLightggCache();
-      setMessage("light.gg 缓存已清除。");
-    } catch (clearError) {
-      setError(clearError instanceof Error ? clearError.message : "清除缓存失败");
-    } finally {
-      setIsClearingCache(false);
-    }
-  }
-
   return (
     <div className="settings-ai-form" data-reference-id="settings.ai.form">
       <label data-info-priority="support" data-text-tone="primary">API 格式
@@ -191,17 +158,9 @@ export function SettingsAiConfigPanel(props: { adapter: SettingsAiAdapter }) {
         </div>
       </label>
       <p className="settings-muted" data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{modelListMessage || "模型列表会在 API 格式、Key 或 Base URL 变化后重新读取；服务未返回列表时可手动填写模型 ID。"}</p>
-      <label className="setting-toggle" data-ui-kind="switch" data-info-priority="support" data-text-tone="body"><input checked={enableLightgg} disabled={isBusy || !lightggAvailable} type="checkbox" onChange={(event) => setEnableLightgg(event.target.checked)} />启用 light.gg 实时分析</label>
-      <p className="settings-muted" data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{lightggAvailable ? (lightggSupport.supported ? "当前 API 格式支持 light.gg 实时分析，结果会在本地缓存 24 小时。" : "当前通过强制开启尝试 light.gg 实时分析，仅当目标服务额外兼容 Responses 能力时才可能成功。") : lightggSupport.reason}</p>
-      <details open={!lightggSupport.supported}>
-        <summary data-info-priority="support" data-text-tone="primary">强制开启说明</summary>
-        {lightggSupport.canForce ? <label className="setting-toggle" data-ui-kind="switch" data-info-priority="support" data-text-tone="body"><input checked={forceLightgg} disabled={isBusy || !settings.protocol} type="checkbox" onChange={(event) => setForceLightgg(event.target.checked)} />强制开启 light.gg 实时分析</label> : null}
-        <p className="settings-muted" data-ui-part="detail" data-info-priority="reading" data-text-tone="body">只有明确知道目标服务额外兼容 Responses 和网页搜索能力时才应强制开启；普通 Chat Completions 或 Anthropic Messages 不会因此自动获得该能力。</p>
-      </details>
       <div className="settings-actions settings-action-row">
         <SettingsButton data-control-variant="secondary" disabled={isBusy} onClick={() => void save()}>{isSaving ? "保存中..." : "保存 AI 配置"}</SettingsButton>
         <SettingsButton data-control-variant="primary" disabled={isBusy || !settings.protocol} onClick={() => void saveAndTest()}>{isTesting ? "测试中..." : "保存并测试连接"}</SettingsButton>
-        <SettingsButton data-control-variant="secondary" disabled={isBusy || isClearingCache || !lightggAvailable} onClick={() => void clearCache()}>{isClearingCache ? "清除中..." : "清除 light.gg 缓存"}</SettingsButton>
       </div>
       {error ? <p className="settings-feedback" data-ui-kind="callout" data-ui-part="state" data-info-priority="decision" data-text-tone="status" data-status="error" role="alert">{error}</p> : null}
       {message ? <p className="settings-feedback" data-ui-kind="callout" data-ui-part="state" data-info-priority="decision" data-text-tone="status" data-status="success" role="status" aria-live="polite">{message}</p> : null}

@@ -10,8 +10,7 @@ export type BackgroundTaskType =
   | "account-activity"
   | "vendor-refresh"
   | "daily-refresh"
-  | "community-analysis"
-  | "lightgg-analysis";
+  | "community-analysis";
 
 export type AssetCacheTaskInput = {
   src: string;

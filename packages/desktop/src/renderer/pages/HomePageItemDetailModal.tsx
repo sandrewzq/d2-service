@@ -23,7 +23,6 @@ type VendorDefinitionDetailWorkspace = ReturnType<typeof useVendorDefinitionDeta
 export function HomePageItemDetailModal(props: {
   accountSummary: AccountSummary | null;
   accountOperationFeedback?: AccountOperationFeedbackView;
-  aiSettingsEnableLightgg: boolean;
   recommendationScan: VaultRecommendationScanState;
   importedWishlist: DimWishlist | null;
   interfaceLocale: "zh-CN" | "en-US";
@@ -229,7 +228,6 @@ export function HomePageItemDetailModal(props: {
     <ItemDetailModal
       accountSummary={props.accountSummary}
       accountOperationFeedback={props.accountOperationFeedback}
-      aiSettingsEnableLightgg={props.aiSettingsEnableLightgg}
       communityRecommendations={itemDetail.communityRecommendations}
       communityRecommendationError={itemDetail.communityRecommendationError}
       communityInstanceMatch={itemDetail.communityInstanceEvidence ?? undefined}

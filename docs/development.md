@@ -43,7 +43,7 @@ docs/        正式文档
   - 负责把网络、存储、鉴权等平台能力收口到服务边界
   - OAuth callback server、OAuth token store / HTTP client、config store、Manifest metadata cache 和 definition component cache 的运行时实现统一放在这里；Desktop 主进程和 worker 通过 services subpath 调用，不从 core 直接取运行环境 adapter
   - action log 等本地 JSON store 的文件读写实现放在 services；core 只持有对应领域类型、筛选和格式化规则
-  - 社区推荐的本地表、个人知识、light.gg 缓存和 AI source 运行时统一放在 `services/community`；core 只保留 DTO、规范化、注入式 source、匹配和响应解析
+  - 社区推荐的本地表和个人知识运行时统一放在 `services/community`；core 只保留 DTO、规范化、注入式 source 和匹配逻辑
 
 - `packages/app`
   - 负责跨端前端查询层、状态模型和页面 workspace 编排
@@ -481,7 +481,7 @@ packages/desktop/release/
 
 ### 6.4 备份与恢复
 
-桌面端使用本地数据目录保存配置、Manifest 缓存、愿望单、本地标签、旧目标规则、独立装备目标库和操作日志。配置采用独立的 `config_version`；升级时会先备份旧 `config.json`，将历史字段转换为当前格式并原子写回，随后按当前版本严格校验，不长期保留读取时兼容分支。迁移兼容旧 OAuth 回调地址、`ai.provider` 和历史缺失字段，不因配置字段演进阻断窗口启动。日常换机或重装优先使用设置页的便携备份：
+桌面端使用本地数据目录保存配置、Manifest 缓存、愿望单、本地标签、旧目标规则、独立装备目标库和操作日志。配置采用独立的 `config_version`；升级时会先备份旧 `config.json`，将历史字段转换为当前格式并原子写回，随后按当前版本严格校验，不长期保留读取时兼容分支。迁移兼容旧 OAuth 回调地址、`ai.provider`、已停用的 light.gg 开关和历史缺失字段，不因配置字段演进阻断窗口启动；移除 light.gg 能力的迁移同时尽力清理旧运行缓存。日常换机或重装优先使用设置页的便携备份：
 
 1. 选择“创建便携备份”，指定一个可信的保存位置。
 2. 便携备份包含脱敏偏好、愿望单、旧目标规则、独立装备目标库、本地标签、本地方案和本地社区推荐，不包含 OAuth token、Bungie/AI 密钥、Manifest、缓存或日志。旧版本攻略 JSON 仅作为遗留数据一并保留，不再参与应用运行。

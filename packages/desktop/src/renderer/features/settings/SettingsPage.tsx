@@ -122,7 +122,6 @@ export function SettingsPage(props: {
     },
     listModels: (ai) => api.listAiModels(ai),
     testConnection: () => api.testAiConnection(),
-    clearLightggCache: () => api.clearLightggCache(),
     onSaved: props.onAiSettingsSaved
   }), [props.onAiSettingsSaved]);
   return (

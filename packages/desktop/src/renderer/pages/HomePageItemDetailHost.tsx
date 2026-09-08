@@ -24,9 +24,6 @@ export type HomePageItemDetailHostProps = Omit<
   detailCacheScopeKey: string;
   recommendationRevision?: string;
   cleanupProtectionByItemKey?: ReadonlyMap<string, readonly string[]>;
-  diagnostics: {
-    aiSettings: { enable_lightgg: boolean };
-  };
   setAccountError: (message: string) => void;
   setVaultTags: (tags: VaultTags) => void;
   applyAcceptedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
@@ -48,7 +45,6 @@ export function HomePageItemDetailHost(props: HomePageItemDetailHostProps) {
     detailCacheScopeKey,
     recommendationRevision,
     cleanupProtectionByItemKey,
-    diagnostics,
     setAccountError,
     setVaultTags,
     applyAcceptedAccountActionPatches,
@@ -72,7 +68,6 @@ export function HomePageItemDetailHost(props: HomePageItemDetailHostProps) {
     recommendationRevision,
     localTargetRules: props.localTargetRules,
     diagnostics: {
-      aiSettings: diagnostics.aiSettings,
       loadActionLog: skipClosedSettingsActionLogRefresh
     },
     setAccountError,

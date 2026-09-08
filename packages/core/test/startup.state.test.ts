@@ -20,8 +20,6 @@ function config(overrides: Partial<D2Config["bungie"]> = {}): D2Config {
       api_key: "",
       model: "",
       base_url: "",
-      enable_lightgg: false,
-      force_lightgg: false
     },
     features: {
       color_mode: "light"

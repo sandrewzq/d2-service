@@ -2,6 +2,22 @@
 
 这个项目使用面向玩家的更新日志。这里优先记录”玩家能感知到什么变化”，而不是逐条展开内部实现细节。
 
+## 0.0.23 - 2026-09-08
+
+### 中文
+
+#### 改进
+
+- 移除 light.gg 专用实时分析、设置开关和运行缓存；单件装备仍可在用户主动允许时使用通用 AI 外部知识查询。
+- 旧版本配置会自动转换为当前格式，并清理已停用的 light.gg 缓存，不要求玩家手动修改配置。
+
+### English
+
+#### Improved
+
+- Removed the dedicated light.gg live-analysis source, settings, and runtime cache while retaining opt-in generic AI web research for individual items.
+- Legacy configurations are migrated automatically and retired light.gg cache data is cleaned without manual user changes.
+
 ## 0.0.22 - 2026-09-07
 
 ### 中文

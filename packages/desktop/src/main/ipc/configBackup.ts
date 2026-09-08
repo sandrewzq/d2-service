@@ -224,10 +224,15 @@ function validateConfigShape(value: Record<string, unknown>): D2Config {
     validateConfigSection(section, sectionValue);
   }
   const features = value.features as Record<string, unknown>;
+  const ai = value.ai as Record<string, unknown>;
   const currentFeatures = { ...features };
+  const currentAi = { ...ai };
   delete currentFeatures.write_actions_enabled;
+  delete currentAi.enable_lightgg;
+  delete currentAi.force_lightgg;
   return {
     ...value,
+    ai: currentAi,
     features: currentFeatures
   } as unknown as D2Config;
 }
@@ -239,7 +244,8 @@ function validateConfigSection(
   const fields = configFieldTypes[section];
   const allowedFields = new Set([
     ...Object.keys(fields),
-    ...(section === "features" ? ["write_actions_enabled"] : [])
+    ...(section === "features" ? ["write_actions_enabled"] : []),
+    ...(section === "ai" ? ["enable_lightgg", "force_lightgg"] : [])
   ]);
   const unknownField = Object.keys(value).find((field) => !allowedFields.has(field));
   if (unknownField) {
@@ -270,6 +276,12 @@ function validateConfigSection(
     }
   }
   if (section === "ai") {
+    if (value.enable_lightgg !== undefined && typeof value.enable_lightgg !== "boolean") {
+      throw new Error("备份配置中的 ai.enable_lightgg 字段类型无效。");
+    }
+    if (value.force_lightgg !== undefined && typeof value.force_lightgg !== "boolean") {
+      throw new Error("备份配置中的 ai.force_lightgg 字段类型无效。");
+    }
     const protocols = new Set(["", "openai_responses", "openai_chat_completions", "anthropic_messages"]);
     if (!protocols.has(String(value.protocol))) {
       throw new Error("备份配置中的 ai.protocol 值无效。");
@@ -296,9 +308,7 @@ const configFieldTypes = {
     protocol: "string",
     api_key: "string",
     model: "string",
-    base_url: "string",
-    enable_lightgg: "boolean",
-    force_lightgg: "boolean"
+    base_url: "string"
   },
   features: {
     color_mode: "string",

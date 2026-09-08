@@ -23,7 +23,6 @@ export type CacheDomain =
   | "account-item-details"
   | "home-briefing"
   | "vendor-inventory"
-  | "lightgg"
   | "manifest-version-check";
 
 export type CacheStatus = {
@@ -68,8 +67,6 @@ export type D2Config = {
     api_key: string;
     model: string;
     base_url: string;
-    enable_lightgg: boolean;
-    force_lightgg: boolean;
   };
   features: {
     color_mode: "light" | "dark";

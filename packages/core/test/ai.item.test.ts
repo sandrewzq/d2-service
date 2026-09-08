@@ -14,7 +14,7 @@ describe("AI item analysis", () => {
     let called = false;
 
     const result = await generateItemAiAdvice({
-      config: config({ protocol: "", api_key: "", model: "", base_url: "", enable_lightgg: false, force_lightgg: false }),
+      config: config({ protocol: "", api_key: "", model: "", base_url: "" }),
       item: item(),
       tags,
       fetcher: async () => {
@@ -37,8 +37,6 @@ describe("AI item analysis", () => {
         api_key: "key",
         model: "deepseek-chat",
         base_url: "https://api.deepseek.com",
-        enable_lightgg: false,
-        force_lightgg: false
       }),
       item: item(),
       tags,

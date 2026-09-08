@@ -13,7 +13,6 @@ import {
   type VaultItemMatchInput
 } from "@d2-tools/core/community-perks";
 import { loadConfig } from "@d2-tools/services/config/store";
-import { clearLightggCache } from "@d2-tools/services/community/aiLightggSource";
 import {
   clearLocalCommunityRecommendations,
   loadLocalCommunityRecommendations,
@@ -333,11 +332,6 @@ export function registerCommunityIpcHandlers(): void {
     }, classifyCommunityIpcError);
   });
 
-  ipcMain.handle("community:lightgg:cache:clear", () => {
-    const config = loadConfig();
-    clearLightggCache(config.data.data_dir);
-    return null;
-  });
 }
 
 async function previewStrictWeaponKnowledgeCsv(path: string): Promise<{
