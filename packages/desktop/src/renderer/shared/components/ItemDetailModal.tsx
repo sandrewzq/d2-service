@@ -1,5 +1,6 @@
 import type {
   AccountItemActionPatch,
+  AccountItemSummary,
   AccountSummary,
   AccountItemDetail,
   DimWishlist,
@@ -17,12 +18,12 @@ import type { AccountOperationFeedbackView } from "@d2-tools/app/account";
 import type { VaultRecommendationScanState } from "@d2-tools/app/account";
 import type { ItemSearchResult } from "../../api/types";
 import type { LiveItemAvailabilityEntry } from "@d2-tools/core/items/liveAvailability";
-import { useEffect, useState } from "react";
-import { selectedItemToAccountItem, type ArmorDetailViewModel, type WeaponDetailViewModel } from "@d2-tools/app/items";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { getItemKey, selectedItemToAccountItem, type ArmorDetailViewModel, type WeaponDetailViewModel } from "@d2-tools/app/items";
 import { api } from "../../api/client";
 import type { SameNameItemSummary, SelectedItemDetail, SelectedItemSource } from "../hooks/useItemDetail";
 import type { buildDuplicateGroupBatchTagPlan } from "../domain/vault/vaultCleanup";
-import { ArmorDetailContent, DetailInstanceActionPanel, SharedItemDetailDialog, WeaponDetailContent, type WeaponConfigurationWriteFeedback } from "@d2-tools/ui";
+import { ArmorDetailContent, DetailInstanceActionPanel, SharedItemDetailDialog, SharedItemDetailLoading, WeaponDetailContent, type WeaponConfigurationWriteFeedback } from "@d2-tools/ui";
 import { ItemDetailHeader } from "./item-detail/ItemDetailHeader";
 import { ItemDetailStats } from "./item-detail/ItemDetailStats";
 import { ItemDetailTools } from "./item-detail/ItemDetailTools";
@@ -36,8 +37,9 @@ import {
 import { buildArmorDetailView } from "./item-detail/buildArmorDetailView";
 import { formatVaultTagLabel } from "./item-detail/itemDetailFormatters";
 import { resolveAccountItemViewLocation } from "../domain/account/itemActionState";
+import { completeRendererPerformanceInteraction } from "../performance/rendererPerformanceDiagnostics";
 
-export type ItemDetailModalProps = {
+type ItemDetailReadyProps = {
   accountSummary: AccountSummary | null;
   accountOperationFeedback?: AccountOperationFeedbackView;
   aiSettingsEnableLightgg: boolean;
@@ -51,6 +53,7 @@ export type ItemDetailModalProps = {
   isCommunityRecommendationsLoading: boolean;
   isGeneratingItemAi: boolean;
   isRunningItemAction: boolean;
+  itemActionMessage?: string;
   itemAiError: string;
   itemAiResult: ItemAiAdviceResult | null;
   itemNoteDraft: string;
@@ -62,6 +65,7 @@ export type ItemDetailModalProps = {
   sameNameItems: SameNameItemSummary[];
   selectedActionCharacterId: string;
   selectedItem: SelectedItemDetail;
+  itemDetailError?: string;
   vaultTags: VaultTags;
   onApplySameNameBatchTags: (
     items: SameNameItemSummary[],
@@ -95,13 +99,82 @@ export type ItemDetailModalProps = {
   ) => Promise<{ ok: boolean; refreshed: boolean; message: string; cancelled?: boolean }>;
   onLoadSelectedItemFullDetail: () => Promise<void>;
   onRefreshSelectedItemDetail: () => Promise<AccountItemDetail | null>;
+  onActivateItemDetailSection: (section: "configuration" | "overview" | "recommendations" | "upgrades" | "analysis") => void;
   onSaveSelectedItemNote: () => void;
   onSaveSelectedItemTag: (tag: VaultTagValue) => void;
   onSelectedActionCharacterIdChange: (id: string) => void;
   onSetItemNoteDraft: (value: string) => void;
 };
 
+export type ItemDetailModalProps = Omit<ItemDetailReadyProps, "selectedItem"> & {
+  selectedItem: SelectedItemDetail | null;
+  openingItem: AccountItemSummary | ItemSearchResult;
+  isReady: boolean;
+};
+
 export function ItemDetailModal(props: ItemDetailModalProps) {
+  const { openingItem, isReady, selectedItem, ...readyProps } = props;
+  const readyCloseHandlerRef = useRef<(() => void) | null>(null);
+  const onCloseRef = useRef(props.onClose);
+  onCloseRef.current = props.onClose;
+  const showReadyContent = Boolean(isReady && selectedItem);
+  const registerReadyCloseHandler = useCallback((handler: () => void) => {
+    readyCloseHandlerRef.current = handler;
+    return () => {
+      if (readyCloseHandlerRef.current === handler) readyCloseHandlerRef.current = null;
+    };
+  }, []);
+  const requestClose = useCallback(() => {
+    (readyCloseHandlerRef.current ?? onCloseRef.current)();
+  }, []);
+
+  useLayoutEffect(() => {
+    completeRendererPerformanceInteraction(
+      "item-detail-open",
+      getItemKey(openingItem),
+      "overlay-commit",
+      { group: openingItem.group_key }
+    );
+  }, [openingItem]);
+
+  useLayoutEffect(() => {
+    if (!showReadyContent) readyCloseHandlerRef.current = null;
+  }, [openingItem, showReadyContent]);
+
+  const activeItem = selectedItem ?? openingItem;
+  const variant = activeItem.group_key === "weapons"
+    ? "weapon"
+    : activeItem.group_key === "armor" ? "armor" : "loading";
+  const loadingError = !selectedItem ? props.itemDetailError : "";
+
+  return (
+    <SharedItemDetailDialog
+      detail={{
+        name: activeItem.name,
+        isBusy: (!showReadyContent && !loadingError) || Boolean(selectedItem?.is_detail_loading)
+      }}
+      variant={variant}
+      closeLabel="关闭装备详情"
+      onClose={requestClose}
+      sections={showReadyContent && selectedItem ? (
+        <ItemDetailReadyContent
+          {...readyProps}
+          selectedItem={selectedItem}
+          registerCloseHandler={registerReadyCloseHandler}
+        />
+      ) : loadingError ? (
+        <div className="shared-item-detail-loading-state" role="alert">
+          <p className="status-message status-error">{loadingError}</p>
+          <p>装备详情暂时无法读取，可以关闭后重试。</p>
+        </div>
+      ) : <SharedItemDetailLoading />}
+    />
+  );
+}
+
+function ItemDetailReadyContent(
+  props: ItemDetailReadyProps & { registerCloseHandler: (handler: () => void) => () => void }
+) {
   const selectedItem = props.selectedItem;
   const selectedItemLocation = resolveAccountItemViewLocation(props.accountSummary, selectedItem.instance_id);
   const selectedItemCharacterId = selectedItemLocation && "characterId" in selectedItemLocation
@@ -122,35 +195,54 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
     setPerkWriteFeedback({ status: "idle" });
     setItemToolMessage("");
   }, [selectedItem.item_key]);
-  const weaponModel = buildWeaponDetailView({
+  const isWeapon = selectedItem.group_key === "weapons";
+  const weaponRecommendations = useMemo(() => isWeapon ? [
+    ...buildWeaponRecommendationViews(props.communityRecommendations, selectedItem),
+    ...buildEquipmentTargetWeaponViews(props.equipmentTargetStore, selectedItem)
+  ] : [], [isWeapon, props.communityRecommendations, props.equipmentTargetStore, selectedItem]);
+  const weaponPersonalTargets = useMemo(
+    () => isWeapon ? buildWeaponPersonalTargetViews(props.communityRecommendations, selectedItem) : [],
+    [isWeapon, props.communityRecommendations, selectedItem]
+  );
+  const weaponSources = useMemo(
+    () => buildWeaponSources(selectedItem, props.itemAvailability),
+    [props.itemAvailability, selectedItem]
+  );
+  const weaponBaseModel = useMemo(() => buildWeaponDetailView({
     selectedItem,
-    accountSummary: props.accountSummary,
-    recommendations: [
-      ...buildWeaponRecommendationViews(
-        props.communityRecommendations,
-        selectedItem
-      ),
-      ...buildEquipmentTargetWeaponViews(props.equipmentTargetStore, selectedItem)
-    ],
-    personalTargets: buildWeaponPersonalTargetViews(props.communityRecommendations, selectedItem),
-    vaultTags: props.vaultTags,
     pendingPerks,
     versions: props.itemVersions,
     versionsLoading: props.isItemVersionsLoading,
-    sources: buildWeaponSources(selectedItem, props.itemAvailability),
+    sources: weaponSources,
     context: selectedItemLocationLabel ? { location_label: selectedItemLocationLabel } : undefined
-  });
-  const armorModel = buildArmorDetailView({
+  }), [pendingPerks, props.isItemVersionsLoading, props.itemVersions, selectedItem, selectedItemLocationLabel, weaponSources]);
+  const weaponModel = useMemo(() => weaponBaseModel ? {
+    ...weaponBaseModel,
+    recommendations: weaponRecommendations,
+    personal_targets: weaponPersonalTargets
+  } : null, [weaponBaseModel, weaponPersonalTargets, weaponRecommendations]);
+  const armorSources = useMemo(
+    () => buildArmorSources(selectedItem, props.itemAvailability),
+    [props.itemAvailability, selectedItem]
+  );
+  const armorModel = useMemo(() => buildArmorDetailView({
     selectedItem,
     sameNameItems: props.sameNameItems,
     localTargetRules: props.localTargetRules,
     equipmentTargetStore: props.equipmentTargetStore,
-    sources: buildArmorSources(selectedItem, props.itemAvailability)
-  });
+    sources: armorSources
+  }), [armorSources, props.equipmentTargetStore, props.localTargetRules, props.sameNameItems, selectedItem]);
+  const recommendationSourceMatches = useMemo(() => isWeapon ? mergeRecommendationSourceDetails(
+    props.communityInstanceMatch?.source_matches ?? [],
+    props.communityRecommendations?.source_records ?? []
+  ).filter((source) => (
+    source.source_id !== "dim_voltron"
+    && source.source_id !== "dim_wishlist"
+  )) : [], [isWeapon, props.communityInstanceMatch?.source_matches, props.communityRecommendations?.source_records]);
   const persistedNote = props.vaultTags.items[selectedItem.item_key]?.note ?? "";
   const noteDirty = Boolean(selectedItem.instance_id) && props.itemNoteDraft !== persistedNote;
   const hasPendingPerks = Object.keys(pendingPerks).length > 0;
-  const confirmLeaveItemDetail = () => {
+  const confirmLeaveItemDetail = useCallback(() => {
     if (!weaponModel && !armorModel) return true;
     if ((!weaponModel || !hasPendingPerks) && !noteDirty) return true;
     const subject = weaponModel ? "武器" : armorModel ? "护甲" : "装备";
@@ -163,10 +255,14 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
       ...pendingMessages.map((message) => `• ${message}`),
       "继续将放弃这些内容。"
     ].join("\n"));
-  };
-  const requestClose = () => {
+  }, [armorModel, hasPendingPerks, noteDirty, weaponModel]);
+  const requestClose = useCallback(() => {
     if (confirmLeaveItemDetail()) props.onClose();
-  };
+  }, [confirmLeaveItemDetail, props.onClose]);
+  useLayoutEffect(
+    () => props.registerCloseHandler(requestClose),
+    [props.registerCloseHandler, requestClose]
+  );
   const openItemDetail = (item: SameNameItemSummary | ItemSearchResult, source: SelectedItemSource) => {
     if (!confirmLeaveItemDetail()) return false;
     props.onOpenItemDetail(item, source);
@@ -182,34 +278,18 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
     />
   ) : undefined;
 
-  return (
-    <SharedItemDetailDialog
-      detail={{ name: selectedItem.name, isBusy: selectedItem.is_detail_loading }}
-      variant={weaponModel ? "weapon" : armorModel ? "armor" : "default"}
-      subtitle={weaponModel
-        ? `${weaponModel.context.entry_label} · ${weaponModel.context.object_label}`
-        : armorModel
-          ? `${armorModel.context.entry_label} · ${armorModel.context.object_label}`
-          : undefined}
-      objectContext={weaponModel
-        ? (weaponModel.context.read_only ? "只读查看" : "可管理装备")
-        : armorModel
-          ? (armorModel.context.read_only ? "只读查看" : "可管理装备")
-          : undefined}
-      closeLabel="关闭装备详情"
-      onClose={requestClose}
-      sections={(
-        weaponModel ? (
-          <WeaponDetailContent
-            model={weaponModel}
-            recommendationEvidence={{
-              sourceMatches: mergeRecommendationSourceDetails(
-                props.communityInstanceMatch?.source_matches ?? [],
-                props.communityRecommendations?.source_records ?? []
-              ).filter((source) => (
-                source.source_id !== "dim_voltron"
-                && source.source_id !== "dim_wishlist"
-              )),
+  return weaponModel ? (
+    <>
+      {props.itemDetailError || props.itemActionMessage ? (
+        <p className={`status-message ${props.itemDetailError ? "status-error" : ""}`} role="status">
+          {props.itemDetailError || props.itemActionMessage}
+        </p>
+      ) : null}
+      <WeaponDetailContent
+        key={selectedItem.item_key}
+        model={weaponModel}
+        recommendationEvidence={{
+              sourceMatches: recommendationSourceMatches,
               status: resolveRecommendationEvidenceStatus(
                 props.isCommunityRecommendationsLoading,
                 props.communityRecommendationError,
@@ -238,6 +318,7 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
               externalSearchMessage: props.itemAiResult?.ai?.external_search?.message
             }}
             actions={{
+              activateSection: props.onActivateItemDetailSection,
               selectVersion: (hash) => {
                 const version = props.itemVersions.find((candidate) => candidate.hash === hash);
                 if (version) return openItemDetail(version, {});
@@ -335,13 +416,21 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
                 }
               }
             }}
-            configurationWriteFeedback={perkWriteFeedback}
-            instanceActions={instanceActions}
-          />
-        ) : armorModel ? (
-          <ArmorDetailContent
-            model={armorModel}
-            analysis={{
+        configurationWriteFeedback={perkWriteFeedback}
+        instanceActions={instanceActions}
+      />
+    </>
+  ) : armorModel ? (
+    <>
+      {props.itemDetailError || props.itemActionMessage ? (
+        <p className={`status-message ${props.itemDetailError ? "status-error" : ""}`} role="status">
+          {props.itemDetailError || props.itemActionMessage}
+        </p>
+      ) : null}
+      <ArmorDetailContent
+        key={selectedItem.item_key}
+        model={armorModel}
+        analysis={{
               status: props.isGeneratingItemAi
                 ? "running"
                 : props.itemAiError
@@ -373,17 +462,23 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
                 });
               },
               runAnalysis: (request) => props.onGenerateItemAiAdvice(request.prompt, request.allow_external_search)
-            }}
-            instanceActions={instanceActions}
-          />
-        ) : (
-          <>
-            <section className="item-detail-game-card">
-              <ItemDetailHeader selectedItem={selectedItem} onClose={props.onClose} showClose={false} />
-              <ItemDetailStats selectedItem={selectedItem} />
-            </section>
+        }}
+        instanceActions={instanceActions}
+      />
+    </>
+  ) : (
+    <>
+      {props.itemDetailError || props.itemActionMessage ? (
+        <p className={`status-message ${props.itemDetailError ? "status-error" : ""}`} role="status">
+          {props.itemDetailError || props.itemActionMessage}
+        </p>
+      ) : null}
+      <section className="item-detail-game-card">
+        <ItemDetailHeader selectedItem={selectedItem} onClose={props.onClose} showClose={false} />
+        <ItemDetailStats selectedItem={selectedItem} />
+      </section>
 
-            <ItemDetailTools
+      <ItemDetailTools
               accountSummary={props.accountSummary}
               aiSettingsEnableLightgg={props.aiSettingsEnableLightgg}
               communityRecommendations={props.communityRecommendations}
@@ -418,11 +513,8 @@ export function ItemDetailModal(props: ItemDetailModalProps) {
               onSaveSelectedItemTag={props.onSaveSelectedItemTag}
               onSelectedActionCharacterIdChange={props.onSelectedActionCharacterIdChange}
               onSetItemNoteDraft={props.onSetItemNoteDraft}
-            />
-          </>
-        )
-      )}
-    />
+      />
+    </>
   );
 }
 
@@ -485,7 +577,7 @@ function hasAppliedPerkChanges(
 }
 
 function ItemDetailInstanceActions(input: {
-  props: ItemDetailModalProps;
+  props: ItemDetailReadyProps;
   selectedItem: SelectedItemDetail;
   noteDirty: boolean;
   itemToolMessage: string;

@@ -1,4 +1,5 @@
 import {
+  memo,
   startTransition,
   useCallback,
   useLayoutEffect,
@@ -7,7 +8,6 @@ import {
   type KeyboardEvent,
   type ReactNode
 } from "react";
-import type { AccountItemSummary } from "@d2-tools/core/account/summary";
 
 const NATIVE_GRID_LIMIT = 200;
 const INITIAL_RENDER_LIMIT = 40;
@@ -15,11 +15,10 @@ const OVERSCAN_ROWS = 8;
 const WINDOW_BLOCK_ROWS = 4;
 
 type GridProps = {
-  items: AccountItemSummary[];
+  itemKeys: string[];
   className: string;
   focusRequest?: { itemKey: string; requestId: number } | null;
-  getItemKey: (item: AccountItemSummary) => string;
-  renderItem: (item: AccountItemSummary, index: number) => ReactNode;
+  renderItem: (itemKey: string, index: number) => ReactNode;
 };
 
 type VirtualWindow = {
@@ -38,11 +37,11 @@ type GridMetrics = {
   viewportHeight: number;
 };
 
-export function VaultVirtualWeaponGrid(props: GridProps) {
-  return props.items.length <= NATIVE_GRID_LIMIT
+export const VaultVirtualWeaponGrid = memo(function VaultVirtualWeaponGrid(props: GridProps) {
+  return props.itemKeys.length <= NATIVE_GRID_LIMIT
     ? <NativeWeaponGrid {...props} />
     : <WindowedWeaponGrid {...props} />;
-}
+});
 
 function NativeWeaponGrid(props: GridProps) {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -51,15 +50,15 @@ function NativeWeaponGrid(props: GridProps) {
     if (!props.focusRequest) return;
     const index = findRequestedIndex(props);
     if (index >= 0) focusItem(gridRef.current, index, true);
-  }, [props.focusRequest, props.getItemKey, props.items]);
+  }, [props.focusRequest, props.itemKeys]);
 
   return (
     <div
       ref={gridRef}
       className={`vault-card-grid vault-native-weapon-grid ${props.className}`}
-      onKeyDown={(event) => handleGridKeyDown(event, gridRef.current, props.items.length)}
+      onKeyDown={(event) => handleGridKeyDown(event, gridRef.current, props.itemKeys.length)}
     >
-      {renderCells(props, 0, props.items)}
+      {renderCells(props, 0, props.itemKeys)}
     </div>
   );
 }
@@ -79,7 +78,7 @@ function WindowedWeaponGrid(props: GridProps) {
   const [windowState, setWindowState] = useState<VirtualWindow>(() => ({
     columns: 1,
     startIndex: 0,
-    endIndex: Math.min(INITIAL_RENDER_LIMIT, props.items.length),
+    endIndex: Math.min(INITIAL_RENDER_LIMIT, props.itemKeys.length),
     topSpacer: 0,
     bottomSpacer: 0
   }));
@@ -92,7 +91,7 @@ function WindowedWeaponGrid(props: GridProps) {
     const metrics = metricsRef.current;
     const visibleTop = Math.max(0, scrollRoot.scrollTop - metrics.gridTop);
     const visibleBottom = visibleTop + metrics.viewportHeight;
-    const totalRows = Math.ceil(props.items.length / metrics.columns);
+    const totalRows = Math.ceil(props.itemKeys.length / metrics.columns);
     const firstVisibleRow = Math.floor(visibleTop / metrics.rowStride);
     const lastVisibleRow = Math.ceil(visibleBottom / metrics.rowStride);
     const startRow = Math.max(
@@ -103,8 +102,8 @@ function WindowedWeaponGrid(props: GridProps) {
       totalRows,
       Math.ceil((lastVisibleRow + OVERSCAN_ROWS) / WINDOW_BLOCK_ROWS) * WINDOW_BLOCK_ROWS
     );
-    const startIndex = Math.min(props.items.length, startRow * metrics.columns);
-    const endIndex = Math.min(props.items.length, Math.max(startIndex, endRow * metrics.columns));
+    const startIndex = Math.min(props.itemKeys.length, startRow * metrics.columns);
+    const endIndex = Math.min(props.itemKeys.length, Math.max(startIndex, endRow * metrics.columns));
     const remainingRows = Math.max(0, totalRows - endRow);
     const next: VirtualWindow = {
       columns: metrics.columns,
@@ -116,7 +115,7 @@ function WindowedWeaponGrid(props: GridProps) {
     startTransition(() => {
       setWindowState((current) => sameVirtualWindow(current, next) ? current : next);
     });
-  }, [props.items.length]);
+  }, [props.itemKeys.length]);
 
   const scheduleWindowUpdate = useCallback(() => {
     if (updateFrameRef.current !== null) return;
@@ -176,7 +175,7 @@ function WindowedWeaponGrid(props: GridProps) {
 
   useLayoutEffect(() => {
     scheduleMeasure();
-  }, [props.items.length, scheduleMeasure]);
+  }, [props.itemKeys.length, scheduleMeasure]);
 
   useLayoutEffect(() => {
     const index = pendingFocusIndexRef.current;
@@ -190,7 +189,7 @@ function WindowedWeaponGrid(props: GridProps) {
     const index = findRequestedIndex(props);
     if (index < 0) return;
     focusVirtualItem(index);
-  }, [props.focusRequest, props.getItemKey, props.items]);
+  }, [props.focusRequest, props.itemKeys]);
 
   function focusVirtualItem(index: number) {
     const renderedTarget = findItemTarget(gridRef.current, index);
@@ -211,20 +210,20 @@ function WindowedWeaponGrid(props: GridProps) {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const currentIndex = readFocusedIndex(event);
     if (currentIndex === null) return;
-    const nextIndex = getNextIndex(event, currentIndex, props.items.length, windowState.columns);
+    const nextIndex = getNextIndex(event, currentIndex, props.itemKeys.length, windowState.columns);
     if (nextIndex === null || nextIndex === currentIndex) return;
     event.preventDefault();
     focusVirtualItem(nextIndex);
   }
 
-  const visibleItems = props.items.slice(windowState.startIndex, windowState.endIndex);
+  const visibleItemKeys = props.itemKeys.slice(windowState.startIndex, windowState.endIndex);
 
   return (
     <div ref={gridRef} className={`vault-card-grid ${props.className}`} onKeyDown={handleKeyDown}>
       {windowState.topSpacer > 0 ? (
         <div className="vault-virtual-spacer" style={{ height: windowState.topSpacer }} aria-hidden="true" />
       ) : null}
-      {renderCells(props, windowState.startIndex, visibleItems)}
+      {renderCells(props, windowState.startIndex, visibleItemKeys)}
       {windowState.bottomSpacer > 0 ? (
         <div className="vault-virtual-spacer" style={{ height: windowState.bottomSpacer }} aria-hidden="true" />
       ) : null}
@@ -232,16 +231,16 @@ function WindowedWeaponGrid(props: GridProps) {
   );
 }
 
-function renderCells(props: GridProps, startIndex: number, items: AccountItemSummary[]) {
-  return items.map((item, offset) => {
+function renderCells(props: GridProps, startIndex: number, itemKeys: string[]) {
+  return itemKeys.map((itemKey, offset) => {
     const index = startIndex + offset;
     return (
       <div
         className="vault-virtual-cell"
         data-vault-virtual-index={index}
-        key={item.instance_id ?? `${item.hash}:${index}`}
+        key={itemKey}
       >
-        {props.renderItem(item, index)}
+        {props.renderItem(itemKey, index)}
       </div>
     );
   });
@@ -292,7 +291,7 @@ function getNextIndex(
 }
 
 function findRequestedIndex(props: GridProps): number {
-  return props.items.findIndex((item) => props.getItemKey(item) === props.focusRequest?.itemKey);
+  return props.focusRequest ? props.itemKeys.indexOf(props.focusRequest.itemKey) : -1;
 }
 
 function getGridColumnCount(grid: HTMLDivElement | null): number {

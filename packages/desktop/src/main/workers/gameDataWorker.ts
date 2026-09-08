@@ -35,6 +35,7 @@ type GameDataWorkerRequest = {
     | "searchPerks"
     | "getPerkRelatedEquipment"
     | "getItemDetail"
+    | "getWeaponIdentityRelations"
     | "getDefinitions"
     | "listArmorSets"
     | "getArmorPlannerManifestData"
@@ -100,6 +101,11 @@ async function handleRequest(request: GameDataWorkerRequest): Promise<unknown> {
   }
   if (request.operation === "getItemDetail") {
     return current.catalog.getItemDetail(request.input as Parameters<typeof current.catalog.getItemDetail>[0]);
+  }
+  if (request.operation === "getWeaponIdentityRelations") {
+    return current.catalog.getWeaponIdentityRelations(
+      request.input as Parameters<typeof current.catalog.getWeaponIdentityRelations>[0]
+    );
   }
   if (request.operation === "getDefinitions") {
     const input = request.input as DefinitionRequest;
@@ -223,6 +229,17 @@ function projectCommunityMatchDefinition(
       icon: definition.displayProperties?.icon
     }),
     itemTypeDisplayName: definition.itemTypeDisplayName,
+    itemType: definition.itemType,
+    classType: definition.classType,
+    inventory: compactObject({ bucketTypeHash: definition.inventory?.bucketTypeHash }),
+    equippingBlock: compactObject({
+      equipmentSlotTypeHash: definition.equippingBlock?.equipmentSlotTypeHash,
+      damageType: definition.equippingBlock?.damageType
+    }),
+    defaultDamageTypeHash: definition.defaultDamageTypeHash,
+    traitIds: definition.traitIds,
+    isAdept: definition.isAdept,
+    isHolofoil: definition.isHolofoil,
     plug: compactObject({ plugCategoryIdentifier: definition.plug?.plugCategoryIdentifier }),
     sourceData: compactObject({ sourceString: definition.sourceData?.sourceString }),
     sockets: definition.sockets

@@ -38,12 +38,12 @@ export function HomeMenuProvider() {
       onRefreshDaily={() => void daily.loadDailySummary(true)}
       onOpenWeeklyActivityReward={(reward) => {
         session.vendorDefinitionDetail.close();
-        void session.writeActions.itemDetail.openItemDetail(
+        session.itemDetail.openItemDetail(
           createHomeWeeklyActivityRewardDetailTarget(reward)
         );
       }}
       onOpenXurOffer={(item, context) => {
-        session.writeActions.itemDetail.closeSelectedItemDetail();
+        session.itemDetail.closeSelectedItemDetail();
         void session.vendorDefinitionDetail.open(item, context);
       }}
       interfaceLocale={diagnostics.languagePreferences.interfaceLocale}

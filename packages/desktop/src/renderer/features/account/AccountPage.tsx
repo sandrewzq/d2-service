@@ -6,7 +6,7 @@ import type {
   LoadoutTemplate,
   StartupState
 } from "../../api/types";
-import type { DimWishlist, VaultItemInstanceMatchInfo } from "../../api/types";
+import type { DimWishlist, RecommendationCardSummary } from "../../api/types";
 import { selectAccountPageModel, type AccountOpenItemPayload, type AccountOperationFeedbackView } from "@d2-tools/app/account";
 import {
   matchesLoadoutTemplateItem,
@@ -38,7 +38,7 @@ export function AccountPage(props: {
   activeLoadoutLookup: LoadoutTemplateLookup | null;
   activeLoadoutTemplate: LoadoutTemplate | null;
   wishlist: DimWishlist | null;
-  communityInstanceMatch: Map<string, VaultItemInstanceMatchInfo>;
+  recommendationCardSummary: ReadonlyMap<string, RecommendationCardSummary>;
   onConfigureBungie: () => void;
   onLoginBungie: () => void;
   onLoadAccount: () => void;
@@ -116,9 +116,10 @@ export function AccountPage(props: {
           ])
         ]
       : [],
-    props.communityInstanceMatch,
-    props.wishlist
-  ), [props.accountSummary, props.communityInstanceMatch, props.wishlist]);
+    undefined,
+    props.wishlist,
+    props.recommendationCardSummary
+  ), [props.accountSummary, props.recommendationCardSummary, props.wishlist]);
 
   function findCharacter(characterId: string): AccountSummary["characters"][number] | null {
     return props.accountSummary?.characters.find((character) => character.character_id === characterId) ?? null;

@@ -1,6 +1,8 @@
 import { expandAliasQuery } from "@d2-tools/core/items/aliases";
 import type { PerkSearchResult, PerkVariantKind } from "@d2-tools/core/items/perkSearch";
 import type { ItemSearchResult } from "@d2-tools/core/items/search";
+import type { WeaponIdentityRelation } from "@d2-tools/core/community-perks";
+import { relatedWeaponIdentityRelations } from "./weaponIdentity.js";
 import { getGameDataRuntimeCapabilities, type GameDataCatalog, type ItemSearchQuery, type PerkSearchQuery } from "./catalog.js";
 
 export type MemoryGameDataCatalogSeed = {
@@ -8,6 +10,7 @@ export type MemoryGameDataCatalogSeed = {
   perks?: PerkSearchResult[];
   perkRelatedEquipment?: Record<string, ItemSearchResult[]>;
   itemDetails?: Record<string, ItemSearchResult>;
+  weaponIdentityRelations?: WeaponIdentityRelation[];
 };
 
 export function createMemoryGameDataCatalog(seed: MemoryGameDataCatalogSeed = {}): GameDataCatalog {
@@ -43,6 +46,10 @@ export function createMemoryGameDataCatalog(seed: MemoryGameDataCatalogSeed = {}
       return seed.itemDetails?.[String(input.hash)]
         ?? items.find((item) => item.hash === input.hash)
         ?? null;
+    },
+
+    async getWeaponIdentityRelations(input) {
+      return relatedWeaponIdentityRelations(seed.weaponIdentityRelations ?? [], input.item_hashes);
     }
   };
 }

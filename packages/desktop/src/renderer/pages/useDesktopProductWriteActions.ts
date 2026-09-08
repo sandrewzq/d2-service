@@ -3,17 +3,14 @@ import type { AccountOperationFeedbackView } from "@d2-tools/app/account";
 import type {
   AccountSummary,
   AccountItemActionPatch,
-  DimWishlist,
-  LibraryHistory,
   LoadoutTemplate,
-  LocalTargetRules,
   VaultTags
 } from "../api/types";
 import { useLoadoutActionFeedback } from "../features/loadouts/useLoadoutActionFeedback";
 import { useLoadoutTemplateActions } from "../features/loadouts/useLoadoutTemplateActions";
 import { useLoadoutWriteActions } from "../features/loadouts/useLoadoutWriteActions";
 import { useVaultWriteActions } from "../features/vault/useVaultWriteActions";
-import { useItemDetailWorkspace } from "../shared/hooks/useItemDetailWorkspace";
+import { itemDetailOverlayCommands } from "../shared/stores/itemDetailOverlayStore";
 
 export type AccountWriteSyncActivity = {
   active: boolean;
@@ -31,7 +28,6 @@ const IDLE_ACCOUNT_WRITE_SYNC_ACTIVITY: AccountWriteSyncActivity = {
 };
 
 type DiagnosticsBridge = {
-  aiSettings: { enable_lightgg: boolean };
   loadActionLog: () => Promise<void>;
 };
 
@@ -45,13 +41,7 @@ export function useDesktopProductWriteActions(input: {
   accountSummary: AccountSummary | null;
   applyAcceptedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
   diagnostics: DiagnosticsBridge;
-  importedWishlist: DimWishlist | null;
-  itemDetailCacheScopeKey: string;
-  recommendationRevision?: string;
   loadoutLibrary: LoadoutLibraryBridge;
-  localTargetRules: LocalTargetRules;
-  cleanupProtectionByItemKey?: ReadonlyMap<string, readonly string[]>;
-  onRecentHistoryChanged: (history: LibraryHistory) => void;
   setAccountError: (message: string) => void;
   setVaultTags: (tags: VaultTags) => void;
   vaultTags: VaultTags;
@@ -79,24 +69,6 @@ export function useDesktopProductWriteActions(input: {
     setLoadoutMessage("");
   }
 
-  const itemDetail = useItemDetailWorkspace({
-    accountSummary: input.accountSummary,
-    vaultTags: input.vaultTags,
-    setVaultTags: input.setVaultTags,
-    importedWishlist: input.importedWishlist,
-    cleanupProtectionByItemKey: input.cleanupProtectionByItemKey,
-    detailCacheScopeKey: input.itemDetailCacheScopeKey,
-    recommendationRevision: input.recommendationRevision,
-    localTargetRules: input.localTargetRules,
-    diagnostics: input.diagnostics,
-    setAccountError: input.setAccountError,
-    setAccountOperationFeedback,
-    setIsRunningItemAction,
-    setItemActionMessage,
-    applyAcceptedAccountActionPatches: input.applyAcceptedAccountActionPatches,
-    onRecentHistoryChanged: input.onRecentHistoryChanged
-  });
-
   const loadoutTemplateActions = useLoadoutTemplateActions({
     accountSummary: input.accountSummary,
     setLoadoutMessage
@@ -112,16 +84,13 @@ export function useDesktopProductWriteActions(input: {
     setAccountOperationFeedback,
     setIsRunningItemAction,
     applyAcceptedAccountActionPatches: input.applyAcceptedAccountActionPatches,
-    openItemDetail: itemDetail.openItemDetail
+    openItemDetail: itemDetailOverlayCommands.openItemDetail
   });
 
   const vaultWriteActions = useVaultWriteActions({
     accountSummary: input.accountSummary,
-    diagnostics: input.diagnostics,
     setVaultTags: input.setVaultTags,
     setAccountError: input.setAccountError,
-    setIsRunningItemAction,
-    setItemActionMessage,
     applyAcceptedAccountActionPatches: input.applyAcceptedAccountActionPatches
   });
 
@@ -129,7 +98,6 @@ export function useDesktopProductWriteActions(input: {
     accountOperationFeedback,
     accountWriteSyncActivity: IDLE_ACCOUNT_WRITE_SYNC_ACTIVITY,
     itemActionMessage,
-    itemDetail,
     isRunningItemAction,
     loadoutActionFeedback,
     loadoutMessage,

@@ -11,6 +11,7 @@ import type { useDiagnosticsSettings } from "../../features/settings/useDiagnost
 import type { useVendorDefinitionDetail } from "../../features/vendors/useVendorDefinitionDetail";
 import type { useVendorsWorkspace } from "../../features/vendors/useVendorsWorkspace";
 import type { useDesktopProductWriteActions } from "../useDesktopProductWriteActions";
+import type { ItemDetailOverlayCommands } from "../../shared/stores/itemDetailOverlayStore";
 
 export type DesktopMenuSession = {
   state: StartupState;
@@ -38,6 +39,7 @@ export type DesktopMenuSession = {
   localLoadoutPlans: ReturnType<typeof useLocalLoadoutPlans>;
   vendors: ReturnType<typeof useVendorsWorkspace>;
   vendorDefinitionDetail: ReturnType<typeof useVendorDefinitionDetail>;
+  itemDetail: ItemDetailOverlayCommands;
   writeActions: ReturnType<typeof useDesktopProductWriteActions>;
 };
 

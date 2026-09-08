@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AccountOperationFeedbackView } from "@d2-tools/app/account";
 import { api } from "../../api/client";
 import type { ActionLogType } from "@d2-tools/core/actions/log";
-import type { AccountItemActionPatch, AccountItemDetail, AccountItemSummary, AccountSummary, ActionDebugTraceInput, DimWishlist, ItemActionResult, ItemAiAdviceResult, ItemSearchResult, LibraryHistory, LocalTargetRules, VaultTags, VaultTagValue, WeaponRecommendation } from "../../api/types";
+import type { AccountItemActionPatch, AccountItemDetail, AccountItemSummary, AccountSummary, ActionDebugTraceInput, DimWishlist, ItemActionResult, ItemAiAdviceResult, ItemSearchResult, LibraryHistory, LocalTargetRules, VaultItemInstanceMatchInfo, VaultTags, VaultTagValue, WeaponRecommendation } from "../../api/types";
 import type { LiveItemAvailabilityEntry } from "@d2-tools/core/items/liveAvailability";
 import {
   buildWishlistInsightText,
@@ -28,6 +28,14 @@ import { buildWeaponAiConfigurationContext } from "../components/item-detail/bui
 const ITEM_DETAIL_RECOMMENDATION_IDLE_TIMEOUT_MS = 700;
 const ITEM_DETAIL_AUXILIARY_IDLE_TIMEOUT_MS = 1_600;
 
+type RecommendationSectionItem = {
+  hash: number;
+  name: string;
+  instance_id?: string;
+  weapon_roll?: AccountItemSummary["weapon_roll"];
+  socket_plugs?: AccountItemSummary["socket_plugs"];
+};
+
 type DiagnosticsBridge = {
   aiSettings: { enable_lightgg: boolean };
   loadActionLog: () => Promise<void>;
@@ -51,6 +59,7 @@ export function useItemDetailWorkspace(input: {
   onRecentHistoryChanged: (history: LibraryHistory) => void;
 }) {
   const [communityRecommendations, setCommunityRecommendations] = useState<WeaponRecommendation | null>(null);
+  const [communityInstanceEvidence, setCommunityInstanceEvidence] = useState<VaultItemInstanceMatchInfo | null>(null);
   const [communityRecommendationError, setCommunityRecommendationError] = useState("");
   const [isCommunityRecommendationsLoading, setIsCommunityRecommendationsLoading] = useState(false);
   const [selectedItemAvailability, setSelectedItemAvailability] = useState<LiveItemAvailabilityEntry | null>(null);
@@ -68,6 +77,11 @@ export function useItemDetailWorkspace(input: {
   const communityRecommendationCacheRef = useRef(new Map<string, WeaponRecommendation | null>());
   const communityRecommendationRequestsRef = useRef(new Map<string, Promise<WeaponRecommendation | null>>());
   const activeRecommendationCacheKeyRef = useRef("");
+  const detailSectionLoadersRef = useRef<{
+    recommendations?: () => void;
+    overview?: () => void;
+  }>({});
+  const activeDetailSectionsRef = useRef(new Set<"recommendations" | "overview">());
 
   const {
     selectedItem,
@@ -98,10 +112,7 @@ export function useItemDetailWorkspace(input: {
         ? communityRecommendationCacheRef.current.get(recommendationCacheKey) ?? null
         : null;
       activeRecommendationCacheKeyRef.current = isWeapon ? recommendationCacheKey : "";
-      const isCurrentRecommendation = () => (
-        isCurrentWorkspace()
-        && activeRecommendationCacheKeyRef.current === recommendationCacheKey
-      );
+      activeDetailSectionsRef.current.clear();
       setItemAiResult(null);
       setItemAiError("");
       setItemNoteMessage("");
@@ -113,72 +124,47 @@ export function useItemDetailWorkspace(input: {
         ?? "";
       setSelectedActionCharacterId(defaultCharacterId);
       setCommunityRecommendations(cachedRecommendation);
+      setCommunityInstanceEvidence(null);
       setCommunityRecommendationError("");
-      setIsCommunityRecommendationsLoading(isWeapon && !hasCachedRecommendation);
+      setIsCommunityRecommendationsLoading(false);
       setSelectedItemAvailability(null);
       setSelectedItemVersions(isWeapon && "description" in item && "source" in item ? [item] : []);
-      setIsSelectedItemVersionsLoading(isWeapon);
-      scheduleWhenRendererIdle(() => {
-        if (!isCurrentWorkspace()) return;
-        if (isWeapon && !hasCachedRecommendation && isCurrentRecommendation()) {
-          const existingRequest = communityRecommendationRequestsRef.current.get(recommendationCacheKey);
-          const request = existingRequest ?? api.getCommunityPerkRecommendations(item.hash, { item_name: item.name });
-          if (!existingRequest) communityRecommendationRequestsRef.current.set(recommendationCacheKey, request);
-          void request
-            .then((result) => {
-              touchBoundedCache(
-                communityRecommendationCacheRef.current,
-                recommendationCacheKey,
-                result,
-                80
-              );
-              if (!isCurrentRecommendation()) return;
-              setCommunityRecommendations(result);
-            })
-            .catch((error) => {
-              if (!isCurrentRecommendation()) return;
-              console.warn("社区推荐加载失败：", error);
-              setCommunityRecommendationError("社区推荐读取失败，已保留 DIM 愿望单和本地目标判断。");
-            })
-            .finally(() => {
-              if (communityRecommendationRequestsRef.current.get(recommendationCacheKey) === request) {
-                communityRecommendationRequestsRef.current.delete(recommendationCacheKey);
-              }
-              if (!isCurrentRecommendation()) return;
-              setIsCommunityRecommendationsLoading(false);
-            });
-        }
-      }, ITEM_DETAIL_RECOMMENDATION_IDLE_TIMEOUT_MS, 280);
-      scheduleWhenRendererIdle(() => {
-        if (!isCurrentWorkspace()) return;
-        if (isWeapon) {
-          void api.searchItems(item.name)
-            .then((results) => {
-              if (!isCurrentWorkspace()) return;
-              const versions = results
-                .filter((candidate) => candidate.group_key === "weapons" && candidate.name.trim() === item.name.trim())
-                .filter((candidate, index, all) => all.findIndex((entry) => entry.hash === candidate.hash) === index);
-              setSelectedItemVersions(versions);
-            })
-            .catch((error) => {
-              if (!isCurrentWorkspace()) return;
-              console.warn("同名版本读取失败：", error);
-            })
-            .finally(() => {
-              if (!isCurrentWorkspace()) return;
-              setIsSelectedItemVersionsLoading(false);
-            });
-        }
-        void api.getLiveItemAvailability([item.hash])
-          .then((availability) => {
+      setIsSelectedItemVersionsLoading(false);
+      detailSectionLoadersRef.current = isWeapon ? {
+        recommendations: createRecommendationSectionLoader(
+          item,
+          recommendationCacheKey,
+          isCurrentWorkspace
+        ),
+        overview: () => {
+          setIsSelectedItemVersionsLoading(true);
+          scheduleWhenRendererIdle(() => {
             if (!isCurrentWorkspace()) return;
-            setSelectedItemAvailability(availability.items[String(item.hash)] ?? null);
-          })
-          .catch((error) => {
-            if (!isCurrentWorkspace()) return;
-            console.warn("实时获取状态读取失败：", error);
-          });
-      }, ITEM_DETAIL_AUXILIARY_IDLE_TIMEOUT_MS, 900);
+            const versionsRequest = api.searchItems(item.name)
+              .then((results) => {
+                if (!isCurrentWorkspace()) return;
+                const versions = results
+                  .filter((candidate) => candidate.group_key === "weapons" && candidate.name.trim() === item.name.trim())
+                  .filter((candidate, index, all) => all.findIndex((entry) => entry.hash === candidate.hash) === index);
+                setSelectedItemVersions(versions);
+              })
+              .catch((error) => {
+                if (isCurrentWorkspace()) console.warn("同名版本读取失败：", error);
+              })
+              .finally(() => {
+                if (isCurrentWorkspace()) setIsSelectedItemVersionsLoading(false);
+              });
+            const availabilityRequest = api.getLiveItemAvailability([item.hash])
+              .then((availability) => {
+                if (isCurrentWorkspace()) setSelectedItemAvailability(availability.items[String(item.hash)] ?? null);
+              })
+              .catch((error) => {
+                if (isCurrentWorkspace()) console.warn("实时获取状态读取失败：", error);
+              });
+            void Promise.allSettled([versionsRequest, availabilityRequest]);
+          }, ITEM_DETAIL_AUXILIARY_IDLE_TIMEOUT_MS, 180);
+        }
+      } : {};
     },
     onRecentHistoryChanged: input.onRecentHistoryChanged
   });
@@ -206,42 +192,27 @@ export function useItemDetailWorkspace(input: {
     activeRecommendationCacheKeyRef.current = recommendationCacheKey;
 
     const hasCachedRecommendation = communityRecommendationCacheRef.current.has(recommendationCacheKey);
-    if (hasCachedRecommendation) {
-      setCommunityRecommendations(communityRecommendationCacheRef.current.get(recommendationCacheKey) ?? null);
-      setCommunityRecommendationError("");
-      setIsCommunityRecommendationsLoading(false);
-      return;
-    }
-
-    let active = true;
-    setCommunityRecommendations(null);
+    setCommunityRecommendations(hasCachedRecommendation
+      ? communityRecommendationCacheRef.current.get(recommendationCacheKey) ?? null
+      : null);
+    setCommunityInstanceEvidence(null);
     setCommunityRecommendationError("");
-    setIsCommunityRecommendationsLoading(true);
-    const existingRequest = communityRecommendationRequestsRef.current.get(recommendationCacheKey);
-    const request = existingRequest
-      ?? api.getCommunityPerkRecommendations(selectedItem.hash, { item_name: selectedItem.name });
-    if (!existingRequest) communityRecommendationRequestsRef.current.set(recommendationCacheKey, request);
-    void request
-      .then((result) => {
-        touchBoundedCache(communityRecommendationCacheRef.current, recommendationCacheKey, result, 80);
-        if (!active || activeRecommendationCacheKeyRef.current !== recommendationCacheKey) return;
-        setCommunityRecommendations(result);
-      })
-      .catch((error) => {
-        if (!active || activeRecommendationCacheKeyRef.current !== recommendationCacheKey) return;
-        console.warn("社区推荐重新读取失败：", error);
-        setCommunityRecommendationError("推荐来源已变化，但最新推荐读取失败。请稍后重试。");
-      })
-      .finally(() => {
-        if (communityRecommendationRequestsRef.current.get(recommendationCacheKey) === request) {
-          communityRecommendationRequestsRef.current.delete(recommendationCacheKey);
-        }
-        if (!active || activeRecommendationCacheKeyRef.current !== recommendationCacheKey) return;
-        setIsCommunityRecommendationsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    setIsCommunityRecommendationsLoading(false);
+    const requestSequence = workspaceRequestSequenceRef.current;
+    const isCurrentWorkspace = () => (
+      workspaceRequestSequenceRef.current === requestSequence
+      && activeRecommendationCacheKeyRef.current === recommendationCacheKey
+    );
+    const loader = createRecommendationSectionLoader(
+      selectedItem,
+      recommendationCacheKey,
+      isCurrentWorkspace
+    );
+    detailSectionLoadersRef.current.recommendations = loader;
+    if (activeDetailSectionsRef.current.has("recommendations")) {
+      delete detailSectionLoadersRef.current.recommendations;
+      loader();
+    }
   }, [
     input.detailCacheScopeKey,
     input.recommendationRevision,
@@ -370,8 +341,11 @@ export function useItemDetailWorkspace(input: {
   }
 
   function resetDetailWorkspaceState() {
+    detailSectionLoadersRef.current = {};
+    activeDetailSectionsRef.current.clear();
     activeRecommendationCacheKeyRef.current = "";
     setCommunityRecommendations(null);
+    setCommunityInstanceEvidence(null);
     setCommunityRecommendationError("");
     setIsCommunityRecommendationsLoading(false);
     setSelectedItemAvailability(null);
@@ -384,6 +358,77 @@ export function useItemDetailWorkspace(input: {
     setItemShareMessage("");
     setIsGeneratingItemAi(false);
     setSelectedActionCharacterId("");
+  }
+
+  function activateItemDetailSection(section: "configuration" | "overview" | "recommendations" | "upgrades" | "analysis") {
+    const loaderKey = section === "recommendations" ? "recommendations" : section === "overview" ? "overview" : null;
+    if (!loaderKey) return;
+    activeDetailSectionsRef.current.add(loaderKey);
+    const loader = detailSectionLoadersRef.current[loaderKey];
+    if (!loader) return;
+    delete detailSectionLoadersRef.current[loaderKey];
+    loader();
+  }
+
+  function createRecommendationSectionLoader(
+    item: RecommendationSectionItem,
+    recommendationCacheKey: string,
+    isCurrentWorkspace: () => boolean
+  ): () => void {
+    return () => {
+      const hasCachedRecommendation = communityRecommendationCacheRef.current.has(recommendationCacheKey);
+      if (hasCachedRecommendation) {
+        setCommunityRecommendations(communityRecommendationCacheRef.current.get(recommendationCacheKey) ?? null);
+      }
+      setCommunityRecommendationError("");
+      setIsCommunityRecommendationsLoading(!hasCachedRecommendation);
+      scheduleWhenRendererIdle(() => {
+        const isCurrentRecommendation = () => (
+          isCurrentWorkspace()
+          && activeRecommendationCacheKeyRef.current === recommendationCacheKey
+        );
+        if (!isCurrentRecommendation()) return;
+        if (item.instance_id) {
+          void api.getCommunityVaultItemMatchEvidence({
+            hash: item.hash,
+            instance_id: item.instance_id,
+            item_name: item.name,
+            ...(item.weapon_roll ? { weapon_roll: item.weapon_roll } : {}),
+            ...(item.socket_plugs ? {
+              socket_plugs: item.socket_plugs.map((plug) => ({
+                hash: plug.hash,
+                socket_index: plug.socket_index
+              }))
+            } : {})
+          }).then((evidence) => {
+            if (isCurrentRecommendation()) setCommunityInstanceEvidence(evidence);
+          }).catch((error) => {
+            if (isCurrentRecommendation()) console.warn("实例推荐证据读取失败：", error);
+          });
+        }
+        if (hasCachedRecommendation) return;
+        const existingRequest = communityRecommendationRequestsRef.current.get(recommendationCacheKey);
+        const request = existingRequest
+          ?? api.getCommunityPerkRecommendations(item.hash, { item_name: item.name });
+        if (!existingRequest) communityRecommendationRequestsRef.current.set(recommendationCacheKey, request);
+        void request
+          .then((result) => {
+            touchBoundedCache(communityRecommendationCacheRef.current, recommendationCacheKey, result, 80);
+            if (isCurrentRecommendation()) setCommunityRecommendations(result);
+          })
+          .catch((error) => {
+            if (!isCurrentRecommendation()) return;
+            console.warn("社区推荐加载失败：", error);
+            setCommunityRecommendationError("社区推荐读取失败，已保留 DIM 愿望单和本地目标判断。");
+          })
+          .finally(() => {
+            if (communityRecommendationRequestsRef.current.get(recommendationCacheKey) === request) {
+              communityRecommendationRequestsRef.current.delete(recommendationCacheKey);
+            }
+            if (isCurrentRecommendation()) setIsCommunityRecommendationsLoading(false);
+          });
+      }, ITEM_DETAIL_RECOMMENDATION_IDLE_TIMEOUT_MS, 120);
+    };
   }
 
   async function saveSelectedItemTag(tag: VaultTagValue) {
@@ -760,6 +805,7 @@ export function useItemDetailWorkspace(input: {
     itemDetailLoadingKey,
     itemDetailError,
     communityRecommendations,
+    communityInstanceEvidence,
     communityRecommendationError,
     isCommunityRecommendationsLoading,
     selectedItemAvailability,
@@ -788,6 +834,7 @@ export function useItemDetailWorkspace(input: {
     applySameNameCurrentKeepTags,
     openBestSameNameItem,
     refreshSelectedItemDetail,
+    activateItemDetailSection,
     runItemWriteAction
   };
 }

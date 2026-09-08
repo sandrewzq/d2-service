@@ -60,6 +60,7 @@ export function createSqliteGameDataCatalog(
             return [...hashes].slice(0, limit);
           },
           getItemVersionHashes: primarySearchIndex.getItemVersionHashes,
+          getWeaponIdentityRelations: primarySearchIndex.getWeaponIdentityRelations,
           getRelatedItemSummary: primarySearchIndex.getRelatedItemSummary,
           getRelatedItemPage: primarySearchIndex.getRelatedItemPage,
           getPlugHashes: primarySearchIndex.getPlugHashes,

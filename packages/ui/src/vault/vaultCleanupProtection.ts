@@ -1,5 +1,8 @@
 import type { AccountItemSummary } from "@d2-tools/core/account/summary";
-import type { VaultItemInstanceMatchInfo } from "@d2-tools/core/community-perks";
+import type {
+  RecommendationCardSourceSummary,
+  RecommendationCardSummary
+} from "@d2-tools/core/community-perks";
 import type { VaultTags } from "@d2-tools/core/vault/tags";
 import type { LoadoutTemplateLookup } from "@d2-tools/app/loadouts";
 import { getVaultCommunityInstanceKey } from "./vaultRecommendationMatch.js";
@@ -8,7 +11,7 @@ export function buildVaultCleanupProtectionIndex(input: {
   items: AccountItemSummary[];
   tags: VaultTags;
   highlightedItemKeys?: LoadoutTemplateLookup | null;
-  communityInstanceMatch?: Map<string, VaultItemInstanceMatchInfo>;
+  recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>;
   recommendationReady?: boolean;
 }): Map<string, string[]> {
   const weapons = input.items.filter((item) => item.group_key === "weapons");
@@ -22,18 +25,18 @@ export function buildVaultCleanupProtectionIndex(input: {
     const key = getVaultCommunityInstanceKey(item);
     const localTag = input.tags.items[key]?.tag;
     const isWeapon = item.group_key === "weapons";
-    const match = isWeapon ? input.communityInstanceMatch?.get(key) : undefined;
+    const match = isWeapon ? input.recommendationCardSummary?.get(key) : undefined;
     const nameGroup = isWeapon ? sameName.get(normalizeName(item.name)) ?? [] : [];
     const sameFingerprintCount = isWeapon && item.weapon_roll?.fingerprint
       ? nameGroup.filter((candidate) => candidate.weapon_roll?.fingerprint === item.weapon_roll?.fingerprint).length
       : 0;
-    const sourceStates = match?.source_matches ?? [];
+    const sourceStates = match?.sources ?? [];
     const hasPositiveRecommendation = sourceStates.some((source) => (
       source.state === "full" || source.state === "core"
-    )) || match?.dim_wishlist?.state === "full";
+    )) || match?.dim?.state === "full";
     const hasWeaponOnlyRecommendation = sourceStates.some((source) => source.state === "weapon_only");
     const hasUncheckableRecommendation = sourceStates.some((source) => source.state === "uncheckable")
-      || match?.dim_wishlist?.state === "uncheckable";
+      || match?.dim?.state === "uncheckable";
     const hasRecommendationConflict = recommendationPurposesConflict(sourceStates, match);
     const reasons = [
       item.locked ? "已锁定" : "",
@@ -56,8 +59,8 @@ export function buildVaultCleanupProtectionIndex(input: {
 }
 
 function recommendationPurposesConflict(
-  sources: NonNullable<VaultItemInstanceMatchInfo["source_matches"]>,
-  match: VaultItemInstanceMatchInfo | undefined
+  sources: RecommendationCardSourceSummary[],
+  match: RecommendationCardSummary | undefined
 ): boolean {
   const positiveCurated = sources
     .filter((source) => source.state === "full" || source.state === "core")
@@ -65,11 +68,11 @@ function recommendationPurposesConflict(
   const negativeCurated = sources
     .filter((source) => source.state === "key_missing" || source.state === "not_matched")
     .flatMap((source) => source.purposes);
-  const positiveDim = match?.dim_wishlist?.state === "full"
-    ? match.dim_wishlist.rules.filter((rule) => rule.state === "match").map((rule) => rule.mode)
+  const positiveDim = match?.dim?.state === "full"
+    ? match.dim.matched_modes ?? []
     : [];
-  const negativeDim = match?.dim_wishlist?.state === "not_matched"
-    ? match.dim_wishlist.modes
+  const negativeDim = match?.dim?.state === "not_matched"
+    ? match.dim.modes
     : [];
   return hasOverlappingPurposePair(positiveCurated, negativeCurated)
     || hasOverlappingPurposePair(positiveCurated, negativeDim)

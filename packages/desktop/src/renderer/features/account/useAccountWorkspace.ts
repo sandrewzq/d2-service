@@ -3,7 +3,7 @@ import { loadAccountWorkspace, loadAccountDerivedWorkspace } from "@d2-tools/app
 import type { VaultRecommendationScanState } from "@d2-tools/app/account";
 import {
   api } from "../../api/client";
-import type { AccountItemActionPatch, AccountSummary, ActivityHistorySummary, DimWishlist, EquipmentTargetStore, StartupState, VaultItemInstanceMatchInfo, LocalTargetRules, VaultTags } from "../../api/types";
+import type { AccountItemActionPatch, AccountSummary, ActivityHistorySummary, DimWishlist, EquipmentTargetStore, StartupState, RecommendationCardSummary, LocalTargetRules, VaultTags } from "../../api/types";
 import { createEmptyEquipmentTargetStore } from "@d2-tools/core/targets/equipmentTargets";
 import { services } from "../../api/services";
 import {
@@ -11,9 +11,10 @@ import {
   getAccountStoreRevision,
   getAccountSummarySnapshot,
   replaceAccountSummary,
-  useAccountSummaryStore
+  useAccountWorkspaceSummaryStore
 } from "../../shared/stores/accountEntityStore";
 import { formatBungieLoginError } from "./loginErrors";
+import { startRendererPerformanceSpan } from "../../shared/performance/rendererPerformanceDiagnostics";
 
 type DiagnosticsBridge = {
   refreshDiagnostics: () => Promise<void>;
@@ -24,6 +25,7 @@ type AccountRefreshReason = "initial" | "manual" | "auto" | "write-action";
 export function useAccountWorkspace(input: {
   state: StartupState;
   diagnostics: DiagnosticsBridge;
+  subscribeToEntityPatches?: boolean;
   onLoginComplete: () => void;
   onManifestInitialized: () => void;
 }) {
@@ -33,7 +35,10 @@ export function useAccountWorkspace(input: {
   const [manifestMessage, setManifestMessage] = useState("");
   const [manifestError, setManifestError] = useState("");
   const [isInitializingManifest, setIsInitializingManifest] = useState(false);
-  const accountSummary = useAccountSummaryStore();
+  // 仓库激活时产品根只跟随权威账号快照；单件本地 Patch 由仓库实体
+  // 选择器消费，避免一次锁定或转移重新执行整个产品 Shell。离开仓库
+  // 后恢复完整订阅，其他菜单继续获得最新账号实体。
+  const accountSummary = useAccountWorkspaceSummaryStore(input.subscribeToEntityPatches);
   const [vaultTags, setVaultTags] = useState<VaultTags>({ items: {} });
   const [localTargetRules, setLocalTargetRules] = useState<LocalTargetRules>({
     action_policy: "notify_only",
@@ -52,7 +57,7 @@ export function useAccountWorkspace(input: {
   const [activityMessage, setActivityMessage] = useState("");
   const [activityError, setActivityError] = useState("");
   const [importedWishlist, setImportedWishlist] = useState<DimWishlist | null>(null);
-  const [vaultCommunityInstanceMatch, setVaultCommunityInstanceMatch] = useState<Map<string, VaultItemInstanceMatchInfo>>(new Map());
+  const [vaultRecommendationCardSummary, setVaultRecommendationCardSummary] = useState<Map<string, RecommendationCardSummary>>(new Map());
   const [isVaultCommunityMatchLoading, setIsVaultCommunityMatchLoading] = useState(false);
   const [vaultRecommendationScan, setVaultRecommendationScan] = useState<VaultRecommendationScanState>(() => createIdleVaultRecommendationScan());
   const accountRequestSequenceRef = useRef(0);
@@ -131,7 +136,15 @@ export function useAccountWorkspace(input: {
   function applyAcceptedAccountActionPatches(patches: readonly AccountItemActionPatch[]) {
     // 与 DIM 一致：Bungie 写接口明确成功后，直接把单件变化提交到本地
     // 确认态。后续正常 Profile 前进时再以服务器事实自然校准。
-    applyAccountEntityPatches(patches);
+    const span = startRendererPerformanceSpan("account-patch.apply", {
+      patchCount: patches.length,
+      instanceCount: new Set(patches.map((patch) => patch.item_instance_id)).size
+    });
+    try {
+      applyAccountEntityPatches(patches);
+    } finally {
+      span.end({ revision: getAccountStoreRevision() });
+    }
     setAccountSyncMessage("");
   }
 
@@ -153,7 +166,7 @@ export function useAccountWorkspace(input: {
       setIsShowingCachedAccount(false);
       setSelectedCharacterId("");
       setActivitySummary(null);
-      setVaultCommunityInstanceMatch(new Map());
+      setVaultRecommendationCardSummary(new Map());
       setVaultRecommendationScan(createIdleVaultRecommendationScan());
       recommendationScanAccountKeyRef.current = "";
       setIsVaultCommunityMatchLoading(false);
@@ -274,12 +287,12 @@ export function useAccountWorkspace(input: {
           recommendationScanAccountKeyRef.current = "";
           setIsVaultCommunityMatchLoading(false);
           setVaultRecommendationScan((current) => ({
-            phase: current.scanned_weapon_count || vaultCommunityInstanceMatch.size ? "partial" : "idle",
+            phase: current.scanned_weapon_count || vaultRecommendationCardSummary.size ? "partial" : "idle",
             total_weapon_count: countAccountWeapons(summary),
-            scanned_weapon_count: vaultCommunityInstanceMatch.size,
-            covered_weapon_count: [...vaultCommunityInstanceMatch.values()].filter((item) => item.coverage === "covered").length,
-            retained_result_count: vaultCommunityInstanceMatch.size,
-            message: vaultCommunityInstanceMatch.size
+            scanned_weapon_count: vaultRecommendationCardSummary.size,
+            covered_weapon_count: [...vaultRecommendationCardSummary.values()].filter((item) => item.coverage === "covered").length,
+            retained_result_count: vaultRecommendationCardSummary.size,
+            message: vaultRecommendationCardSummary.size
               ? "装备数据已更新，当前暂时显示上次推荐结果，后台正在按变化实例重新核对。"
               : undefined
           }));
@@ -368,8 +381,8 @@ export function useAccountWorkspace(input: {
     const scopedWeaponCount = affectedWeaponHashes
       ? countAccountWeapons(summary, affectedWeaponHashes)
       : totalWeaponCount;
-    const retainedInstanceMatches = vaultCommunityInstanceMatch;
-    const retainedResultCount = retainedInstanceMatches.size;
+    const retainedCardSummaries = vaultRecommendationCardSummary;
+    const retainedResultCount = retainedCardSummaries.size;
     const startedAt = new Date().toISOString();
     setIsVaultCommunityMatchLoading(true);
     setVaultRecommendationScan({
@@ -401,7 +414,7 @@ export function useAccountWorkspace(input: {
         phase: retainedResultCount ? "partial" : "error",
         total_weapon_count: totalWeaponCount,
         scanned_weapon_count: retainedResultCount,
-        covered_weapon_count: [...retainedInstanceMatches.values()].filter((item) => item.coverage === "covered").length,
+        covered_weapon_count: [...retainedCardSummaries.values()].filter((item) => item.coverage === "covered").length,
         retained_result_count: retainedResultCount,
         started_at: startedAt,
         completed_at: new Date().toISOString(),
@@ -420,7 +433,7 @@ export function useAccountWorkspace(input: {
           phase: retainedResultCount ? "partial" : "error",
           total_weapon_count: totalWeaponCount,
           scanned_weapon_count: retainedResultCount,
-          covered_weapon_count: [...retainedInstanceMatches.values()].filter((item) => item.coverage === "covered").length,
+          covered_weapon_count: [...retainedCardSummaries.values()].filter((item) => item.coverage === "covered").length,
           retained_result_count: retainedResultCount,
           started_at: startedAt,
           completed_at: new Date().toISOString(),
@@ -437,20 +450,24 @@ export function useAccountWorkspace(input: {
         return;
       }
       recommendationScanAccountKeyRef.current = accountKey;
-      const nextInstanceMatches = affectedWeaponHashes
-        ? mergeIncrementalRecommendationMatches(
-            retainedInstanceMatches,
-            derived.data.vaultCommunityInstanceMatch,
+      const nextCardSummaries = affectedWeaponHashes
+        ? mergeIncrementalRecommendationCardSummaries(
+            vaultRecommendationCardSummary,
+            derived.data.vaultRecommendationCardSummary,
             affectedWeaponHashes
           )
-        : derived.data.vaultCommunityInstanceMatch;
-      setVaultCommunityInstanceMatch(nextInstanceMatches);
+        : reconcileRecommendationCardSummaries(
+            vaultRecommendationCardSummary,
+            derived.data.vaultRecommendationCardSummary,
+            new Set(derived.data.vaultRecommendationChangedInstanceIds)
+          );
+      setVaultRecommendationCardSummary(nextCardSummaries);
       const warningMessage = derived.data.vaultRecommendationIssues.map((issue) => issue.message).join(" ");
       setVaultRecommendationScan({
         phase: derived.data.vaultRecommendationIssues.length ? "partial" : "complete",
         total_weapon_count: totalWeaponCount,
-        scanned_weapon_count: nextInstanceMatches.size,
-        covered_weapon_count: [...nextInstanceMatches.values()].filter((item) => item.coverage === "covered").length,
+        scanned_weapon_count: nextCardSummaries.size,
+        covered_weapon_count: [...nextCardSummaries.values()].filter((item) => item.coverage === "covered").length,
         retained_result_count: 0,
         started_at: startedAt,
         completed_at: new Date().toISOString(),
@@ -466,7 +483,7 @@ export function useAccountWorkspace(input: {
         phase: retainedResultCount ? "partial" : "error",
         total_weapon_count: totalWeaponCount,
         scanned_weapon_count: retainedResultCount,
-        covered_weapon_count: [...retainedInstanceMatches.values()].filter((item) => item.coverage === "covered").length,
+        covered_weapon_count: [...retainedCardSummaries.values()].filter((item) => item.coverage === "covered").length,
         retained_result_count: retainedResultCount,
         started_at: startedAt,
         completed_at: new Date().toISOString(),
@@ -508,7 +525,7 @@ export function useAccountWorkspace(input: {
     activityError,
     importedWishlist,
     setImportedWishlist,
-    vaultCommunityInstanceMatch,
+    vaultRecommendationCardSummary,
     isVaultCommunityMatchLoading,
     vaultRecommendationScan,
     loginBungie,
@@ -575,17 +592,36 @@ function buildWeaponRecommendationInputKeys(summary: AccountSummary): string[] {
     .sort();
 }
 
-function mergeIncrementalRecommendationMatches(
-  current: ReadonlyMap<string, VaultItemInstanceMatchInfo>,
-  fresh: ReadonlyMap<string, VaultItemInstanceMatchInfo>,
+function mergeIncrementalRecommendationCardSummaries(
+  current: ReadonlyMap<string, RecommendationCardSummary>,
+  fresh: ReadonlyMap<string, RecommendationCardSummary>,
   affectedWeaponHashes: ReadonlySet<number>
-): Map<string, VaultItemInstanceMatchInfo> {
-  const merged = new Map<string, VaultItemInstanceMatchInfo>();
-  for (const [key, match] of current) {
-    if (!affectedWeaponHashes.has(match.hash)) merged.set(key, match);
+): Map<string, RecommendationCardSummary> {
+  const merged = new Map<string, RecommendationCardSummary>();
+  for (const [key, summary] of current) {
+    if (!affectedWeaponHashes.has(summary.hash)) merged.set(key, summary);
   }
-  for (const [key, match] of fresh) merged.set(key, match);
+  for (const [key, summary] of fresh) merged.set(key, summary);
   return merged;
+}
+
+function reconcileRecommendationCardSummaries(
+  current: ReadonlyMap<string, RecommendationCardSummary>,
+  fresh: ReadonlyMap<string, RecommendationCardSummary>,
+  changedInstanceIds: ReadonlySet<string>
+): Map<string, RecommendationCardSummary> {
+  if (!current.size) return new Map(fresh);
+  const reconciled = new Map<string, RecommendationCardSummary>();
+  for (const [key, summary] of fresh) {
+    const previous = current.get(key);
+    reconciled.set(
+      key,
+      !previous || !summary.instance_id || changedInstanceIds.has(summary.instance_id)
+        ? summary
+        : previous
+    );
+  }
+  return reconciled;
 }
 
 function formatCachedTime(value: string): string {

@@ -19,8 +19,8 @@ export function AccountMenuProvider() {
       isShowingCachedAccount={account.isShowingCachedAccount}
       accountError={account.accountError}
       accountWarning={account.accountWarning}
-      itemDetailError={writeActions.itemDetail.itemDetailError}
-      itemDetailLoadingKey={writeActions.itemDetail.itemDetailLoadingKey}
+      itemDetailError=""
+      itemDetailLoadingKey=""
       activitySummary={account.activitySummary}
       activityMessage={account.activityMessage}
       activityError={account.activityError}
@@ -31,14 +31,14 @@ export function AccountMenuProvider() {
       activeLoadoutLookup={session.home.activeLoadoutLookup}
       activeLoadoutTemplate={session.loadouts.activeTemplate}
       wishlist={account.importedWishlist}
-      communityInstanceMatch={account.vaultCommunityInstanceMatch}
+      recommendationCardSummary={account.vaultRecommendationCardSummary}
       onConfigureBungie={session.onConfigure}
       onLoginBungie={() => void account.loginBungie()}
       onLoadAccount={session.refreshAccountManually}
       onRefreshActivity={() => void account.refreshAccountDerivedData()}
       onSelectCharacter={account.setSelectedCharacterId}
       onEquipHighestPowerItems={(character) => void writeActions.loadoutWriteActions.equipHighestPowerItems(character)}
-      onOpenItem={(item, options) => void writeActions.itemDetail.openItemDetail(item, options)}
+      onOpenItem={(item, options) => session.itemDetail.openItemDetail(item, options)}
     />
   );
 }

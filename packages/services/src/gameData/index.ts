@@ -3,7 +3,8 @@ export type {
   GameDataRuntimeCapabilities,
   ItemDetailQuery,
   ItemSearchQuery,
-  PerkSearchQuery
+  PerkSearchQuery,
+  WeaponIdentityQuery
 } from "./catalog.js";
 export { createJsonGameDataCatalog } from "./jsonCatalog.js";
 export type { JsonGameDataCatalogOptions } from "./jsonCatalog.js";

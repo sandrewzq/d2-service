@@ -5,6 +5,7 @@ import type { LocalTargetRules } from "@d2-tools/core/analysis/targets";
 import type { EquipmentTargetStore } from "@d2-tools/core/targets/equipmentTargets";
 import type {
   LocalCommunityRecommendationTable,
+  VaultCommunityMatchOptions,
   VaultCommunityMatchResult,
   VaultItemMatchInput
 } from "@d2-tools/core/community-perks";
@@ -24,7 +25,10 @@ export type ProfileService = {
     membership_id: string;
     character_ids: string[];
   }): Promise<ActivityHistorySummary>;
-  matchCommunityVaultItems?: (items: VaultItemMatchInput[]) => Promise<VaultCommunityMatchResult>;
+  matchCommunityVaultItems?: (
+    items: VaultItemMatchInput[],
+    options?: VaultCommunityMatchOptions
+  ) => Promise<VaultCommunityMatchResult>;
 };
 
 export type LocalDataService = {

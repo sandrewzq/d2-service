@@ -11,6 +11,7 @@ import {
 import type { DefinitionComponentName } from "@d2-tools/core/manifest/definitions";
 import { loadDefinitionComponent } from "../manifest/definitions.js";
 import { getGameDataRuntimeCapabilities, type GameDataCatalog } from "./catalog.js";
+import { buildWeaponIdentityRelations, relatedWeaponIdentityRelations } from "./weaponIdentity.js";
 
 export type JsonGameDataCatalogOptions = {
   getDataDir: () => string;
@@ -131,6 +132,15 @@ export function createJsonGameDataCatalog(options: JsonGameDataCatalogOptions): 
         sandboxPerkDefinitions: load("DestinySandboxPerkDefinition") ?? undefined,
         includeAllPerks: true
       });
+    },
+
+    async getWeaponIdentityRelations(input) {
+      const definitions = load("DestinyInventoryItemDefinition");
+      if (!definitions) throw new Error("请先初始化资料库");
+      return relatedWeaponIdentityRelations(
+        buildWeaponIdentityRelations(Object.values(definitions)),
+        input.item_hashes
+      );
     }
   };
 }

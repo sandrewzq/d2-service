@@ -232,6 +232,7 @@ describe("account workspace", () => {
               canonical_weapon_name: "Test Gun",
               coverage: "covered",
               match_status: "full_match",
+              recommendation_state: "priority",
               matched: 1,
               partial: 0,
               available: 1,
@@ -318,8 +319,7 @@ describe("account workspace", () => {
     expect(result.data.targetRules.action_policy).toBe("notify_only");
     expect(result.data.wishlist?.title).toBe("Test Wishlist");
     expect(result.data.activitySummary?.recent.total).toBe(1);
-    expect(result.data.vaultCommunityInstanceMatch.get("hash:123")?.matched).toBe(1);
-    expect(result.data.vaultCommunityInstanceMatch.get("hash:123")?.source_label).toBe("本地社区表");
+    expect(result.data.vaultRecommendationCardSummary.get("hash:123")?.matched).toBe(1);
   });
 
   it("loads the activity slice without triggering community matching", async () => {

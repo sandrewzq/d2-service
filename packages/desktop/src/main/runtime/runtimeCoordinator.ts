@@ -14,6 +14,10 @@ import {
 import { getHomeBriefing, type HomeBriefingRefreshOptions } from "./homeBriefing.js";
 import { measureRuntime } from "./runtimeMetrics.js";
 import { closeArmorPlannerRuntime } from "./armorPlannerRuntime.js";
+import {
+  closeRecommendationRuntime,
+  resumeRecommendationRuntime
+} from "./recommendationRuntime.js";
 
 let initialized = false;
 let runtimeGeneration = 0;
@@ -62,18 +66,23 @@ export async function shutdownRuntimeCoordinator(): Promise<void> {
   invalidateWarmupStages();
   resetAccountSession();
   resetSharedBungieSession();
-  await Promise.all([closeGameDataRuntime(), closeArmorPlannerRuntime()]);
+  await Promise.all([
+    closeGameDataRuntime(),
+    closeArmorPlannerRuntime(),
+    closeRecommendationRuntime()
+  ]);
   initialized = false;
 }
 
 export async function quiesceRuntimeForManifestActivation(): Promise<void> {
   invalidateWarmupStages();
   resetAccountSession();
-  await closeGameDataRuntime();
+  await Promise.all([closeGameDataRuntime(), closeRecommendationRuntime()]);
 }
 
 export function resumeRuntimeAfterManifestActivation(): void {
   resumeGameDataRuntime();
+  resumeRecommendationRuntime();
   invalidateWarmupStages();
   void warmRuntimeInBackground();
 }

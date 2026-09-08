@@ -17,7 +17,7 @@ export function VendorsMenuProvider() {
         selectVendor: session.vendors.selectVendor,
         refreshVendors: () => void session.vendors.refresh(),
         onOpenItem: (item, context) => {
-          session.writeActions.itemDetail.closeSelectedItemDetail();
+          session.itemDetail.closeSelectedItemDetail();
           void session.vendorDefinitionDetail.open(item, context);
         }
       }}

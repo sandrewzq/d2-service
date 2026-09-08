@@ -1,12 +1,12 @@
 import { VaultPage } from "../../features/vault/VaultPage";
-import { useAccountSummaryStore } from "../../shared/stores/accountEntityStore";
+import { useVaultAccountStore } from "../../shared/stores/accountEntityStore";
 import { useDesktopMenuSession } from "./DesktopMenuProviderContext";
 import { useCallback, useMemo } from "react";
 
 export function VaultMenuProvider() {
   const session = useDesktopMenuSession();
   const account = session.account;
-  const accountSummary = useAccountSummaryStore();
+  const accountSummary = useVaultAccountStore();
   const writeActions = session.writeActions;
   const cleanupProtectedItemKeys = useMemo(() => ({
     instanceIds: new Set([
@@ -50,13 +50,13 @@ export function VaultMenuProvider() {
       activeLoadoutName={session.loadouts.activeTemplate?.name}
       selectedCharacterId={account.selectedCharacterId}
       tags={account.vaultTags}
-      openingItemKey={writeActions.itemDetail.itemDetailLoadingKey}
+      openingItemKey=""
       locateRequest={session.vaultLocateRequest}
       targetLocateRequest={session.vaultTargetLocateRequest}
       wishlist={account.importedWishlist}
       localTargetRules={account.localTargetRules}
       equipmentTargetStore={account.equipmentTargetStore}
-      communityInstanceMatch={account.vaultCommunityInstanceMatch}
+      recommendationCardSummary={account.vaultRecommendationCardSummary}
       recommendationScan={account.vaultRecommendationScan}
       onContextFactsChange={session.setVaultFacts}
       onLocalTargetRulesChanged={account.setLocalTargetRules}
@@ -78,7 +78,7 @@ export function VaultMenuProvider() {
           is_vault_item?: boolean;
           is_postmaster_item?: boolean;
         };
-        void writeActions.itemDetail.openItemDetail(item, {
+        session.itemDetail.openItemDetail(item, {
           source_character_id: located.source_character_id,
           source_kind: located.source_kind,
           is_vault_item: located.is_vault_item,

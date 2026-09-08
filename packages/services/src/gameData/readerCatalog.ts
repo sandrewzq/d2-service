@@ -193,6 +193,10 @@ export function createReaderGameDataCatalog(
       });
     },
 
+    async getWeaponIdentityRelations(input) {
+      return options.searchIndex.getWeaponIdentityRelations(input.item_hashes);
+    },
+
     close() {
       try {
         options.searchIndex.close();

@@ -1,4 +1,6 @@
 import type {
+  RecommendationCardSummary,
+  VaultCommunityMatchOptions,
   VaultItemInstanceMatchInfo,
   VaultCommunityMatchResult,
   VaultItemMatchInfo,
@@ -37,7 +39,7 @@ export type {
   BuildGuideParseResult,
   BuildGuideRequirement
 } from "@d2-tools/core/assistant/guideSchema";
-export type { VaultCommunityMatchResult, VaultItemInstanceMatchInfo, VaultItemMatchInfo, VaultItemMatchInput, WeaponRecommendation };
+export type { RecommendationCardSummary, VaultCommunityMatchOptions, VaultCommunityMatchResult, VaultItemInstanceMatchInfo, VaultItemMatchInfo, VaultItemMatchInput, WeaponRecommendation };
 export type {
   DimWishlistImportPreview
 };

@@ -1,10 +1,10 @@
 import type { AccountOperationFeedbackView, VaultRecommendationScanState } from "@d2-tools/app/account";
-import type { AccountSummary, DimWishlist, EquipmentTargetStore, LocalTargetRules, VaultItemInstanceMatchInfo, VaultTags } from "../api/types";
+import type { AccountItemSummary, AccountSummary, DimWishlist, EquipmentTargetStore, ItemSearchResult, LocalTargetRules, VaultTags } from "../api/types";
 import type { ArmorStatSummary, WeaponStatKey, WeaponStatSummary } from "@d2-tools/core/account/summary";
 import type { ArmorStatKey } from "@d2-tools/core/loadouts/analysis";
 import { ArmorDetailContent, getLocaleCopy, LibraryDefinitionDialog, SharedItemDetailDialog, WeaponDetailContent } from "@d2-tools/ui";
 import { buildLibraryDefinitionDetailView, buildLibraryOwnership } from "@d2-tools/app/library";
-import { collectSelectedSameNameItems, createSelectedItemPreview, type ArmorDetailSources, type WeaponDetailSources } from "@d2-tools/app/items";
+import { collectSelectedSameNameItems, createSelectedItemPreview, selectBestSameNameItem, type ArmorDetailSources, type WeaponDetailSources } from "@d2-tools/app/items";
 import type { useVendorDefinitionDetail } from "../features/vendors/useVendorDefinitionDetail";
 import { ItemDetailModal } from "../shared/components/ItemDetailModal";
 import {
@@ -15,6 +15,7 @@ import {
 } from "../shared/components/item-detail/buildWeaponDetailView";
 import { buildArmorDetailView } from "../shared/components/item-detail/buildArmorDetailView";
 import type { useItemDetailWorkspace } from "../shared/hooks/useItemDetailWorkspace";
+import { itemDetailOverlayCommands } from "../shared/stores/itemDetailOverlayStore";
 
 type ItemDetailWorkspace = ReturnType<typeof useItemDetailWorkspace>;
 type VendorDefinitionDetailWorkspace = ReturnType<typeof useVendorDefinitionDetail>;
@@ -23,11 +24,15 @@ export function HomePageItemDetailModal(props: {
   accountSummary: AccountSummary | null;
   accountOperationFeedback?: AccountOperationFeedbackView;
   aiSettingsEnableLightgg: boolean;
-  communityInstanceMatch: Map<string, VaultItemInstanceMatchInfo>;
   recommendationScan: VaultRecommendationScanState;
   importedWishlist: DimWishlist | null;
   interfaceLocale: "zh-CN" | "en-US";
   itemDetail: ItemDetailWorkspace;
+  itemDetailOverlay: {
+    openingItem: AccountItemSummary | ItemSearchResult;
+    isReady: boolean;
+  } | null;
+  itemActionMessage?: string;
   isRunningItemAction: boolean;
   localTargetRules: LocalTargetRules;
   equipmentTargetStore: EquipmentTargetStore;
@@ -176,7 +181,7 @@ export function HomePageItemDetailModal(props: {
                     const item = vendorSameNameItems.find((candidate) => candidate.instance_id === instance.instance_id);
                     if (!item) return;
                     props.vendorDefinitionDetail.close();
-                    void props.itemDetail.openItemDetail(item, {
+                    itemDetailOverlayCommands.openItemDetail(item, {
                       source_character_id: item.source_character_id,
                       source_kind: item.source_kind,
                       is_vault_item: item.is_vault_item,
@@ -220,16 +225,14 @@ export function HomePageItemDetailModal(props: {
     );
   }
 
-  return itemDetail.selectedItem ? (
+  return props.itemDetailOverlay ? (
     <ItemDetailModal
       accountSummary={props.accountSummary}
       accountOperationFeedback={props.accountOperationFeedback}
       aiSettingsEnableLightgg={props.aiSettingsEnableLightgg}
       communityRecommendations={itemDetail.communityRecommendations}
       communityRecommendationError={itemDetail.communityRecommendationError}
-      communityInstanceMatch={itemDetail.selectedItem.instance_id
-        ? props.communityInstanceMatch.get(itemDetail.selectedItem.instance_id)
-        : undefined}
+      communityInstanceMatch={itemDetail.communityInstanceEvidence ?? undefined}
       recommendationScan={props.recommendationScan}
       importedWishlist={props.importedWishlist}
       localTargetRules={props.localTargetRules}
@@ -239,6 +242,7 @@ export function HomePageItemDetailModal(props: {
       isRunningItemAction={props.isRunningItemAction}
       itemAiError={itemDetail.itemAiError}
       itemAiResult={itemDetail.itemAiResult}
+      itemActionMessage={props.itemActionMessage}
       itemNoteDraft={itemDetail.itemNoteDraft}
       itemNoteMessage={itemDetail.itemNoteMessage}
       itemShareMessage={itemDetail.itemShareMessage}
@@ -247,22 +251,35 @@ export function HomePageItemDetailModal(props: {
       isItemVersionsLoading={itemDetail.isSelectedItemVersionsLoading}
       sameNameItems={itemDetail.selectedSameNameItems}
       selectedActionCharacterId={itemDetail.selectedActionCharacterId}
-      selectedItem={itemDetail.selectedItem}
+      selectedItem={props.itemDetailOverlay.isReady ? itemDetail.selectedItem : null}
+      openingItem={props.itemDetailOverlay.openingItem}
+      isReady={props.itemDetailOverlay.isReady}
+      itemDetailError={itemDetail.itemDetailError}
       vaultTags={props.vaultTags}
       onApplySameNameBatchTags={(items, mode) => void itemDetail.applySameNameBatchTags(items, mode)}
       onApplySameNameCurrentKeepTags={(items, currentItemKey, mode) => void itemDetail.applySameNameCurrentKeepTags(items, currentItemKey, mode)}
-      onClose={itemDetail.closeSelectedItemDetail}
+      onClose={itemDetailOverlayCommands.closeSelectedItemDetail}
       onCopyItemActionPlanText={(input) => void itemDetail.copyItemActionPlanText(input)}
       onCopySameNameLocator={(items) => void itemDetail.copySameNameLocator(items)}
       onCopySelectedItemChatGuide={() => void itemDetail.copySelectedItemChatGuide()}
       onCopySelectedItemSummary={() => void itemDetail.copySelectedItemSummary()}
       onCopyWishlistInsight={() => void itemDetail.copyWishlistInsight()}
       onGenerateItemAiAdvice={(userKnowledge, allowExternalSearch) => void itemDetail.generateItemAiAdvice(userKnowledge, allowExternalSearch)}
-      onOpenBestSameNameItem={(items) => itemDetail.openBestSameNameItem(items)}
-      onOpenItemDetail={(item, source) => void itemDetail.openItemDetail(item, source)}
+      onOpenBestSameNameItem={(items) => {
+        const bestItem = selectBestSameNameItem(items);
+        if (!bestItem) return;
+        itemDetailOverlayCommands.openItemDetail(bestItem, {
+          source_character_id: bestItem.source_character_id,
+          source_kind: bestItem.source_kind,
+          is_vault_item: bestItem.is_vault_item,
+          is_postmaster_item: bestItem.is_postmaster_item
+        });
+      }}
+      onOpenItemDetail={itemDetailOverlayCommands.openItemDetail}
       onRunItemWriteAction={(label, action, options) => itemDetail.runItemWriteAction(label, action, options)}
       onLoadSelectedItemFullDetail={itemDetail.loadSelectedItemFullDetail}
       onRefreshSelectedItemDetail={itemDetail.refreshSelectedItemDetail}
+      onActivateItemDetailSection={itemDetail.activateItemDetailSection}
       onSaveSelectedItemNote={() => void itemDetail.saveSelectedItemNote()}
       onSaveSelectedItemTag={(tag) => void itemDetail.saveSelectedItemTag(tag)}
       onSelectedActionCharacterIdChange={itemDetail.setSelectedActionCharacterId}

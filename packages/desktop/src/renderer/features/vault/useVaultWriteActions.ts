@@ -2,25 +2,18 @@ import { api } from "../../api/client";
 import type { AccountItemActionPatch, AccountItemSummary, AccountSummary, BatchItemActionResult, ItemActionResult, VaultTags, VaultTagValue } from "../../api/types";
 import { services } from "../../api/services";
 import {
-  buildVaultBatchTransferProgressMessage,
   buildVaultCleanupActionLabel,
   buildVaultCleanupNoTargetMessage,
   buildVaultCleanupWriteResultMessage,
   getVaultActionItemKey,
   selectVaultActionableItems
 } from "../../shared/domain/vault/vaultCleanup";
-
-type DiagnosticsBridge = {
-  loadActionLog: () => Promise<void>;
-};
+import { startRendererPerformanceSpan } from "../../shared/performance/rendererPerformanceDiagnostics";
 
 export function useVaultWriteActions(input: {
   accountSummary: AccountSummary | null;
-  diagnostics: DiagnosticsBridge;
   setVaultTags: (tags: VaultTags) => void;
   setAccountError: (message: string) => void;
-  setIsRunningItemAction: (isRunning: boolean) => void;
-  setItemActionMessage: (message: string) => void;
   applyAcceptedAccountActionPatches: (patches: readonly AccountItemActionPatch[]) => void;
 }) {
   async function saveVaultTag(item: AccountItemSummary, tag: VaultTagValue) {
@@ -61,28 +54,20 @@ export function useVaultWriteActions(input: {
     if (!actionableItems.length) {
       return "没有可执行的装备。可能已经全部解锁，或缺少实例 ID。";
     }
-    input.setIsRunningItemAction(true);
-    input.setItemActionMessage("");
-
     let successCount = 0;
     let failedCount = 0;
     const accountPatches: AccountItemActionPatch[] = [];
-    try {
-      for (const item of actionableItems) {
-        try {
-          const result = await run(item);
-          if (result.account_patch) accountPatches.push(result.account_patch);
-          successCount += 1;
-        } catch {
-          failedCount += 1;
-        }
+    for (const item of actionableItems) {
+      try {
+        const result = await run(item);
+        if (result.account_patch) accountPatches.push(result.account_patch);
+        successCount += 1;
+      } catch {
+        failedCount += 1;
       }
-      if (accountPatches.length) {
-        input.applyAcceptedAccountActionPatches(accountPatches);
-      }
-      void input.diagnostics.loadActionLog().catch(() => undefined);
-    } finally {
-      input.setIsRunningItemAction(false);
+    }
+    if (accountPatches.length) {
+      input.applyAcceptedAccountActionPatches(accountPatches);
     }
 
     const resultMessage = buildVaultCleanupWriteResultMessage({ label, successCount, failedCount });
@@ -126,8 +111,11 @@ export function useVaultWriteActions(input: {
     if (item.locked === state) return `这件装备已经${state ? "锁定" : "解锁"}。`;
 
     const account = input.accountSummary;
-    input.setIsRunningItemAction(true);
-    input.setItemActionMessage(`正在${actionLabel}：${item.name}`);
+    const requestSpan = startRendererPerformanceSpan("vault-item-write.request", {
+      action: state ? "lock" : "unlock",
+      itemHash: item.hash,
+      itemCount: 1
+    });
     try {
       const result = await api.setItemLockState({
         membership_type: account.membership_type,
@@ -136,17 +124,17 @@ export function useVaultWriteActions(input: {
         item_name: item.name,
         state
       });
+      requestSpan.end({ status: "success", hasAccountPatch: Boolean(result.account_patch) });
       if (result.account_patch) {
         input.applyAcceptedAccountActionPatches([result.account_patch]);
       }
-      void input.diagnostics.loadActionLog().catch(() => undefined);
       const message = result.message || `已提交${actionLabel}：${item.name}`;
       return result.account_patch
         ? message
         : `${message} 页面会在下次账号同步时校准。`;
-    } finally {
-      input.setIsRunningItemAction(false);
-      input.setItemActionMessage("");
+    } catch (error) {
+      requestSpan.end({ status: "error" });
+      throw error;
     }
   }
 
@@ -168,8 +156,11 @@ export function useVaultWriteActions(input: {
     if (!actionableItems.length) {
       throw new Error("没有可执行的装备。可能缺少实例 ID。");
     }
-    input.setIsRunningItemAction(true);
-    input.setItemActionMessage(buildVaultBatchTransferProgressMessage(actionableItems.length));
+    const requestSpan = startRendererPerformanceSpan("vault-item-write.request", {
+      action: actionableItems.length === 1 ? "quick-transfer" : "batch-transfer",
+      itemHash: actionableItems.length === 1 ? actionableItems[0]?.hash : undefined,
+      itemCount: actionableItems.length
+    });
 
     try {
       const result = await api.batchTransferItems({
@@ -184,10 +175,14 @@ export function useVaultWriteActions(input: {
           transfer_to_vault: false
         }))
       });
+      requestSpan.end({
+        status: "success",
+        successCount: result.success_count,
+        patchCount: result.account_patches.length
+      });
       if (result.account_patches.length) {
         input.applyAcceptedAccountActionPatches(result.account_patches);
       }
-      void input.diagnostics.loadActionLog().catch(() => undefined);
       const missingPatchCount = Math.max(0, result.success_count - result.account_patches.length);
       return missingPatchCount
         ? {
@@ -196,10 +191,8 @@ export function useVaultWriteActions(input: {
           }
         : result;
     } catch (error) {
+      requestSpan.end({ status: "error" });
       throw error instanceof Error ? error : new Error("批量转移失败");
-    } finally {
-      input.setIsRunningItemAction(false);
-      input.setItemActionMessage("");
     }
   }
 

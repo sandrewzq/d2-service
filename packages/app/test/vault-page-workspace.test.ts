@@ -25,18 +25,7 @@ describe("vault page workspace", () => {
       activeLoadoutName: "宗师配装",
       tags: { items: { "item-1": { tag: "keep" } } },
       targetRules: emptyLocalTargetRules,
-      wishlist: { title: "DIM", rules: [] },
-      communityInstanceMatch: new Map([["item-1", {
-        hash: 100,
-        instance_id: "item-1",
-        canonical_weapon_name: "测试武器",
-        coverage: "covered",
-        match_status: "full_match",
-        matched: 1,
-        partial: 0,
-        available: 2,
-        modes: ["pve"]
-      }]])
+      wishlist: { title: "DIM", rules: [] }
     });
 
     expect(model.vaultItems.map((item) => item.instance_id)).toEqual(["item-1"]);
@@ -48,7 +37,6 @@ describe("vault page workspace", () => {
     expect(model.tags.items["item-1"]?.tag).toBe("keep");
     expect(model.targetRules).toBe(emptyLocalTargetRules);
     expect(model.wishlist?.title).toBe("DIM");
-    expect(model.communityInstanceMatch.get("item-1")?.matched).toBe(1);
   });
 });
 

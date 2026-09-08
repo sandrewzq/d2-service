@@ -40,6 +40,7 @@ export type WeaponDetailContentActions = {
   applyPendingPerks?: () => void | Promise<void>;
   refreshConfiguration?: () => void | Promise<void>;
   loadConfiguration?: () => void | Promise<void>;
+  activateSection?: (section: WeaponDetailSection) => void;
   runAnalysis?: (request: { prompt: string; allow_external_search: boolean }) => void;
 };
 
@@ -92,6 +93,7 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
     preferredWeaponTargetSource(model, props.recommendationEvidence)
   ));
   const [instanceRailOpen, setInstanceRailOpen] = useState(false);
+  const [mountedSections, setMountedSections] = useState<Set<WeaponDetailSection>>(() => new Set(["configuration"]));
   const section = props.activeSection ?? internalSection;
   const sectionIdPrefix = useId();
   const detailRef = useRef<HTMLElement>(null);
@@ -99,6 +101,8 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
   const instanceRailTriggerRef = useRef<HTMLButtonElement>(null);
   const instanceRailCloseRef = useRef<HTMLButtonElement>(null);
   const observedSectionRef = useRef<WeaponDetailSection>("configuration");
+  const activateSectionRef = useRef(props.actions?.activateSection);
+  const visibleSectionsRef = useRef(new Map<WeaponDetailSection, number>());
   const sectionRefs = useRef<Record<WeaponDetailSection, HTMLElement | null>>({
     overview: null,
     configuration: null,
@@ -106,6 +110,7 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
     upgrades: null,
     analysis: null
   });
+  activateSectionRef.current = props.actions?.activateSection;
 
   useEffect(() => {
     setPoolOpen(false);
@@ -114,8 +119,16 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
     setAllowExternalSearch(false);
     setTargetSource(preferredWeaponTargetSource(model, props.recommendationEvidence));
     setInstanceRailOpen(false);
+    setMountedSections(new Set(["configuration"]));
     observedSectionRef.current = "configuration";
+    visibleSectionsRef.current.clear();
   }, [model.identity.hash, model.context.object_id, model.context.kind]);
+
+  useEffect(() => {
+    for (const mountedSection of mountedSections) {
+      if (mountedSection !== "configuration") activateSectionRef.current?.(mountedSection);
+    }
+  }, [mountedSections]);
 
   useEffect(() => {
     const availableSources = availableWeaponTargetSources(model, props.recommendationEvidence);
@@ -141,29 +154,49 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
     const detail = detailRef.current;
     const scrollRoot = detail?.closest<HTMLElement>(".shared-item-detail-body");
     if (!detail || !scrollRoot) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setMountedSections(new Set(sectionLabels.map((item) => item.key)));
+      return;
+    }
 
-    const updateActiveSection = () => {
-      const rootTop = scrollRoot.getBoundingClientRect().top;
-      const activationLine = rootTop + 96;
-      let nextSection: WeaponDetailSection = "configuration";
-      for (const item of sectionLabels) {
-        const sectionElement = sectionRefs.current[item.key];
-        if (sectionElement && sectionElement.getBoundingClientRect().top <= activationLine) {
-          nextSection = item.key;
-        }
+    const sectionElements = sectionLabels.flatMap(({ key }) => {
+      const element = sectionRefs.current[key];
+      return element ? [{ key, element }] : [];
+    });
+    const sectionByElement = new Map(sectionElements.map(({ key, element }) => [element, key]));
+    const mountObserver = new IntersectionObserver((entries) => {
+      const enteringSections = entries.flatMap((entry) => {
+        const key = sectionByElement.get(entry.target as HTMLElement);
+        return entry.isIntersecting && key ? [key] : [];
+      });
+      if (!enteringSections.length) return;
+      setMountedSections((current) => {
+        if (enteringSections.every((key) => current.has(key))) return current;
+        return new Set([...current, ...enteringSections]);
+      });
+    }, { root: scrollRoot, rootMargin: "160px 0px", threshold: 0.01 });
+    const activeObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const key = sectionByElement.get(entry.target as HTMLElement);
+        if (!key) continue;
+        if (entry.isIntersecting) visibleSectionsRef.current.set(key, entry.boundingClientRect.top);
+        else visibleSectionsRef.current.delete(key);
       }
-      if (observedSectionRef.current === nextSection) return;
+      const nextSection = [...visibleSectionsRef.current]
+        .sort((left, right) => Math.abs(left[1]) - Math.abs(right[1]))[0]?.[0];
+      if (!nextSection || observedSectionRef.current === nextSection) return;
       observedSectionRef.current = nextSection;
       if (props.activeSection === undefined) setInternalSection(nextSection);
       props.onSectionChange?.(nextSection);
-    };
-
-    scrollRoot.addEventListener("scroll", updateActiveSection, { passive: true });
-    window.addEventListener("resize", updateActiveSection);
-    updateActiveSection();
+    }, { root: scrollRoot, rootMargin: "-88px 0px -68% 0px", threshold: [0, 0.01, 0.5] });
+    for (const { element } of sectionElements) {
+      mountObserver.observe(element);
+      activeObserver.observe(element);
+    }
     return () => {
-      scrollRoot.removeEventListener("scroll", updateActiveSection);
-      window.removeEventListener("resize", updateActiveSection);
+      mountObserver.disconnect();
+      activeObserver.disconnect();
+      visibleSectionsRef.current.clear();
     };
   }, [model.identity.hash, model.context.object_id, props.activeSection, props.onSectionChange]);
 
@@ -171,7 +204,13 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
     observedSectionRef.current = next;
     if (props.activeSection === undefined) setInternalSection(next);
     props.onSectionChange?.(next);
-    sectionRefs.current[next]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMountedSections((current) => current.has(next) ? current : new Set([...current, next]));
+    const schedule = typeof requestAnimationFrame === "function"
+      ? requestAnimationFrame
+      : (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 16);
+    schedule(() => {
+      sectionRefs.current[next]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const handleInstanceRailKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -252,29 +291,37 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
             />
           </section>
           <section ref={(node) => { sectionRefs.current.recommendations = node; }} id={`${sectionIdPrefix}-recommendations`} className="weapon-detail-section weapon-detail-recommendation-section">
-            <RecommendationSection
-              model={model}
-              evidence={props.recommendationEvidence}
-              source={targetSource}
-              onSourceChange={setTargetSource}
-            />
+            {mountedSections.has("recommendations") ? (
+              <RecommendationSection
+                model={model}
+                evidence={props.recommendationEvidence}
+                source={targetSource}
+                onSourceChange={setTargetSource}
+              />
+            ) : <DeferredWeaponSection label="推荐 Roll" />}
           </section>
           <section ref={(node) => { sectionRefs.current.overview = node; }} id={`${sectionIdPrefix}-overview`} className="weapon-detail-section">
-            <OverviewSection model={model} onOpenSource={props.actions?.openSource} />
+            {mountedSections.has("overview")
+              ? <OverviewSection model={model} onOpenSource={props.actions?.openSource} />
+              : <DeferredWeaponSection label="属性与获取" />}
           </section>
           <section ref={(node) => { sectionRefs.current.upgrades = node; }} id={`${sectionIdPrefix}-upgrades`} className="weapon-detail-section">
-            <UpgradeSection model={model} />
+            {mountedSections.has("upgrades")
+              ? <UpgradeSection model={model} />
+              : <DeferredWeaponSection label="升级与锻造" />}
           </section>
           <section ref={(node) => { sectionRefs.current.analysis = node; }} id={`${sectionIdPrefix}-analysis`} className="weapon-detail-section">
-            <AnalysisSection
-              model={model}
-              analysis={props.analysis}
-              prompt={analysisPrompt}
-              onPromptChange={setAnalysisPrompt}
-              allowExternalSearch={allowExternalSearch}
-              onAllowExternalSearchChange={setAllowExternalSearch}
-              onRun={props.actions?.runAnalysis}
-            />
+            {mountedSections.has("analysis") ? (
+              <AnalysisSection
+                model={model}
+                analysis={props.analysis}
+                prompt={analysisPrompt}
+                onPromptChange={setAnalysisPrompt}
+                allowExternalSearch={allowExternalSearch}
+                onAllowExternalSearchChange={setAllowExternalSearch}
+                onRun={props.actions?.runAnalysis}
+              />
+            ) : <DeferredWeaponSection label="AI 分析" />}
           </section>
         </div>
         <aside
@@ -319,6 +366,15 @@ export function WeaponDetailContent(props: WeaponDetailContentProps) {
         onClick={() => setInstanceRailOpen(false)}
       />
     </article>
+  );
+}
+
+function DeferredWeaponSection(props: { label: string }) {
+  return (
+    <div className="weapon-detail-deferred-section" role="status" aria-label={`${props.label}将在接近视口时载入`}>
+      <span aria-hidden="true" />
+      <span aria-hidden="true" />
+    </div>
   );
 }
 
@@ -395,7 +451,7 @@ function WeaponIdentity(props: {
             <dl><dt>发布类型</dt><dd>{releaseKindLabel(identity.release?.kind)}</dd></dl>
             <dl><dt>定义版本</dt><dd>{definitionVersionLabel}</dd></dl>
             <dl><dt>光等上限编号</dt><dd>{identity.definition_version?.power_cap_hash ?? "资料未返回"}</dd></dl>
-            <dl><dt>版本水印</dt><dd>{watermarks.length ? <span className="weapon-detail-definition-watermarks">{watermarks.map((icon, index) => <GameAssetImage key={`${icon}:${index}`} src={icon} alt={`官方版本水印 ${index + 1}`} title="官方定义版本水印" loading="eager" />)}</span> : "资料未返回"}</dd></dl>
+            <dl><dt>版本水印</dt><dd>{watermarks.length ? <span className="weapon-detail-definition-watermarks">{watermarks.map((icon, index) => <GameAssetImage key={`${icon}:${index}`} src={icon} alt={`官方版本水印 ${index + 1}`} title="官方定义版本水印" loading="lazy" />)}</span> : "资料未返回"}</dd></dl>
             <dl><dt>装备编号</dt><dd>{identity.hash}</dd></dl>
             <dl><dt>数据来源</dt><dd>资料库定义{context.kind === "account_instance" ? " + 当前装备" : context.kind === "vendor_offer" ? " + 商人当前售卖" : ""}</dd></dl>
             <dl><dt>操作方式</dt><dd>{context.read_only ? "只读查看" : "可管理装备"}</dd></dl>
@@ -440,7 +496,7 @@ function Fact(props: {
     >
       {props.iconKind && props.iconType
         ? <GameCombatIcon kind={props.iconKind} type={props.iconType} src={props.icon} />
-        : <GameAssetImage src={props.icon} alt="" loading="eager" />}
+        : <GameAssetImage src={props.icon} alt="" loading="lazy" />}
       {props.label}
     </span>
   );
@@ -512,7 +568,7 @@ function OverviewSection(props: {
                   ].join(" ")}
                 >
                   <div className="weapon-detail-source-identity">
-                    <GameAssetImage src={source.icon} alt="" loading="eager" />
+                    <GameAssetImage src={source.icon} alt="" loading="lazy" />
                     <strong data-ui-part="value" data-text-tone="primary" data-info-priority="context">{source.label}</strong>
                   </div>
                   <div className="weapon-detail-source-copy">
@@ -936,7 +992,7 @@ function PerkColumn(props: {
           const stateLabel = selection
             ? selection.pending ? "待应用" : selection.selected ? "当前已选" : selection.can_apply ? "这件武器拥有 · 可切换" : "这件武器拥有"
             : undefined;
-          const content = <>{stateLabel || perk.enhanced_of_hash ? <small>{[stateLabel, perk.enhanced_of_hash ? "强化版本" : undefined].filter(Boolean).join(" · ")}</small> : null}<GameAssetImage className="game-definition-icon" src={perk.icon} alt="" loading="eager" /><span><strong>{perk.name}</strong><p>{perk.description}</p></span></>;
+          const content = <>{stateLabel || perk.enhanced_of_hash ? <small>{[stateLabel, perk.enhanced_of_hash ? "强化版本" : undefined].filter(Boolean).join(" · ")}</small> : null}<GameAssetImage className="game-definition-icon" src={perk.icon} alt="" loading="lazy" /><span><strong>{perk.name}</strong><p>{perk.description}</p></span></>;
           return props.interactive && selection?.can_apply ? (
             <button key={perk.hash} type="button" className={["weapon-detail-perk", selection.selected && "is-selected", selection.pending && "is-pending"].filter(Boolean).join(" ")} aria-pressed={selection.selected || selection.pending} onClick={() => props.onSelect?.(perk)}>{content}</button>
           ) : <article key={perk.hash} className={["weapon-detail-perk", selection?.selected && "is-selected", selection?.pending && "is-pending"].filter(Boolean).join(" ")}>{content}</article>;
@@ -1138,32 +1194,34 @@ function RecommendationSourceEvidenceCard(props: {
           )}
         </span>
       </summary>
-      <div className="weapon-detail-source-evidence-body">
-        {source.note ? <p className="weapon-detail-source-quote" data-ui-kind="callout" data-callout-tone="info">{source.note}</p> : null}
-        <div className="weapon-detail-source-trace">
-          {source.source_location ? <span>原表位置：{source.source_location}</span> : null}
-          {source.source_url
-            ? <a href={source.source_url} target="_blank" rel="noreferrer">查看原始来源</a>
-            : <span>原始链接未提供</span>}
+      {open ? (
+        <div className="weapon-detail-source-evidence-body">
+          {source.note ? <p className="weapon-detail-source-quote" data-ui-kind="callout" data-callout-tone="info">{source.note}</p> : null}
+          <div className="weapon-detail-source-trace">
+            {source.source_location ? <span>原表位置：{source.source_location}</span> : null}
+            {source.source_url
+              ? <a href={source.source_url} target="_blank" rel="noreferrer">查看原始来源</a>
+              : <span>原始链接未提供</span>}
+          </div>
+          {source.state === "weapon_only" || !specifiedSlots.length ? (
+            <p className="weapon-detail-match-empty">该来源推荐这把武器，但没有指定需要核对的枪管、第二列、大师、Perk 或起源特性，因此不作 Roll 对照。</p>
+          ) : (
+            <>
+              <div className="weapon-detail-source-slot-list" aria-label={`${sourceLabel}推荐项核对`}>
+                {specifiedSlots.map((slot) => (
+                  <RecommendationSourceSlotRow key={slot.slot} model={props.model} slot={slot} />
+                ))}
+              </div>
+              {unrequestedSlotLabels.length ? (
+                <p className="weapon-detail-source-unrequested">
+                  <strong>其他栏位未要求</strong>
+                  <span>{unrequestedSlotLabels.join("、")}</span>
+                </p>
+              ) : null}
+            </>
+          )}
         </div>
-        {source.state === "weapon_only" || !specifiedSlots.length ? (
-          <p className="weapon-detail-match-empty">该来源推荐这把武器，但没有指定需要核对的枪管、第二列、大师、Perk 或起源特性，因此不作 Roll 对照。</p>
-        ) : (
-          <>
-            <div className="weapon-detail-source-slot-list" aria-label={`${sourceLabel}推荐项核对`}>
-              {specifiedSlots.map((slot) => (
-                <RecommendationSourceSlotRow key={slot.slot} model={props.model} slot={slot} />
-              ))}
-            </div>
-            {unrequestedSlotLabels.length ? (
-              <p className="weapon-detail-source-unrequested">
-                <strong>其他栏位未要求</strong>
-                <span>{unrequestedSlotLabels.join("、")}</span>
-              </p>
-            ) : null}
-          </>
-        )}
-      </div>
+      ) : null}
     </details>
   );
 }
@@ -1453,7 +1511,7 @@ function RecommendationPerkIcon(props: {
           <GameAssetImage
             src={normalizeRecommendationIconUrl(perk.icon)}
             alt=""
-            loading="eager"
+            loading="lazy"
             fallback={<span className="weapon-detail-recommendation-perk-placeholder" aria-hidden="true">◆</span>}
           />
         </span>
@@ -1510,7 +1568,7 @@ function UpgradeSection({ model }: { model: WeaponDetailViewModel }) {
       <SectionHeading eyebrow="升级与锻造" title={upgrades.catalyst ? "催化剂、杰作与当前进度" : "大师杰作、模组与强化"} description="这件武器的状态与版本能力分别标明来源，不把未返回的信息补成结论。" />
       <DataBlockHeading title="升级状态" source={upgrades.catalyst ? (upgrades.catalyst.acquired === undefined ? "资料库定义" : "账号进度 + 资料库定义 · 当前读取") : objectSource} />
       <div className={["weapon-detail-upgrade-layout", !upgrades.catalyst && "without-catalyst"].filter(Boolean).join(" ")}>
-        {upgrades.catalyst ? <article className="weapon-detail-catalyst"><header><GameAssetImage className="game-definition-icon" src={upgrades.catalyst.icon} alt="" loading="eager" /><div><strong>{upgrades.catalyst.name}</strong><span>{upgrades.catalyst.objective || catalystStateLabel(model)}</span></div></header>{upgrades.catalyst.acquired !== undefined ? <progress value={upgrades.catalyst.progress ?? (upgrades.catalyst.complete ? 100 : 0)} max={100} /> : null}{upgrades.catalyst.acquisition ? <p>获取：{upgrades.catalyst.acquisition}</p> : null}{upgrades.catalyst.effects.length ? <ul>{upgrades.catalyst.effects.map((effect) => <li key={effect}>{effect}</li>)}</ul> : null}</article> : null}
+        {upgrades.catalyst ? <article className="weapon-detail-catalyst"><header><GameAssetImage className="game-definition-icon" src={upgrades.catalyst.icon} alt="" loading="lazy" /><div><strong>{upgrades.catalyst.name}</strong><span>{upgrades.catalyst.objective || catalystStateLabel(model)}</span></div></header>{upgrades.catalyst.acquired !== undefined ? <progress value={upgrades.catalyst.progress ?? (upgrades.catalyst.complete ? 100 : 0)} max={100} /> : null}{upgrades.catalyst.acquisition ? <p>获取：{upgrades.catalyst.acquisition}</p> : null}{upgrades.catalyst.effects.length ? <ul>{upgrades.catalyst.effects.map((effect) => <li key={effect}>{effect}</li>)}</ul> : null}</article> : null}
         {rows.length ? (
           <div className="weapon-detail-upgrade-table" role="table" aria-label="升级与锻造状态">
             <div role="row"><strong role="columnheader">项目</strong><strong role="columnheader">当前查看</strong><strong role="columnheader">状态</strong><strong role="columnheader">数据来源</strong></div>

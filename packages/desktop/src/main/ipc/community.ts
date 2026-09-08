@@ -8,8 +8,8 @@ import {
   type LocalCommunityRecommendationTable,
   type SavePersonalWeaponKnowledgeInput,
   type SourceOptions,
-  type VaultCommunityMatchResult,
-  type VaultItemInstanceMatchInfo,
+  type VaultCommunityMatchOptions,
+  type WeaponIdentityRelation,
   type VaultItemMatchInput
 } from "@d2-tools/core/community-perks";
 import { loadConfig } from "@d2-tools/services/config/store";
@@ -21,6 +21,7 @@ import {
 } from "@d2-tools/services/community/localCommunityRecommendations";
 import { createDefaultCommunityPerkService } from "@d2-tools/services/community/perkRecommendation";
 import {
+  collectWeaponRecommendationCandidateItemHashes,
   collectWeaponRecommendationItemHashes,
   collectWeaponRecommendationNamesWithoutItemIds,
   collectWeaponRecommendationPlugHashes,
@@ -47,12 +48,7 @@ import {
 } from "@d2-tools/services/community/recommendationManagement";
 import {
   advanceVaultRecommendationMatchCacheRevision,
-  buildVaultRecommendationMatchRevision,
-  createVaultWeaponRollFingerprint,
-  partitionVaultRecommendationMatchCache,
-  saveVaultRecommendationMatchCache,
-  type VaultRecommendationMatchCacheContext,
-  type VaultRecommendationMatchCachePartition
+  buildVaultRecommendationMatchRevision
 } from "@d2-tools/services/community/vaultRecommendationMatchCache";
 import {
   deletePersonalWeaponKnowledge,
@@ -69,6 +65,7 @@ import { classifyCommunityIpcError, encodeDesktopIpcFailure } from "../../contra
 import { getDesktopManifestStatus } from "./manifest.js";
 import { getAccountSnapshot } from "../runtime/accountSession.js";
 import { removeDimWishlistEquipmentTargets } from "./targets.js";
+import { matchVaultRecommendationsInWorker } from "../runtime/recommendationRuntime.js";
 
 const pendingKnowledgeImports = new Map<string, { path: string; fingerprint: string }>();
 
@@ -267,13 +264,28 @@ export function registerCommunityIpcHandlers(): void {
       [itemHash],
       { projection: "community-match" }
     );
-    const relatedItemHashes = collectRelatedWeaponRecommendationItemHashes(config.data.data_dir, [{
+    const targetWeaponIdentityRelations = await loadWeaponIdentityRelations([itemHash]);
+    const queries = [{
       item_hash: itemHash,
       localized_names: [
         options?.item_name?.trim() ?? "",
         rootItems[String(itemHash)]?.displayProperties?.name?.trim() ?? ""
       ].filter(Boolean)
-    }]);
+    }];
+    const candidateItemHashes = collectWeaponRecommendationCandidateItemHashes(
+      config.data.data_dir,
+      queries,
+      targetWeaponIdentityRelations
+    );
+    const weaponIdentityRelations = mergeWeaponIdentityRelations(
+      targetWeaponIdentityRelations,
+      await loadWeaponIdentityRelations(candidateItemHashes)
+    );
+    const relatedItemHashes = collectRelatedWeaponRecommendationItemHashes(
+      config.data.data_dir,
+      queries,
+      weaponIdentityRelations
+    );
     const dimPerkHashes = dimRulePerkHashes(config.data.data_dir, [itemHash]);
     const definitions = await loadCommunityDefinitions(
       uniqueHashes([itemHash, ...relatedItemHashes]),
@@ -286,24 +298,38 @@ export function registerCommunityIpcHandlers(): void {
       plugSetDefinitions: { ...definitions.plugSets, ...options?.plugSetDefinitions },
       englishItemDefinitions: options?.englishItemDefinitions,
       englishPlugSetDefinitions: options?.englishPlugSetDefinitions,
+      weaponIdentityRelations,
       item_name: options?.item_name
     };
 
     return service.getRecommendationsWithAllSources(itemHash, merged);
   });
 
-  ipcMain.handle("community:vault:match", async (_event, items: VaultItemMatchInput[]) => {
+  ipcMain.handle("community:vault:match", async (
+    _event,
+    items: VaultItemMatchInput[],
+    options?: VaultCommunityMatchOptions
+  ) => {
     return encodeDesktopIpcFailure(() => {
-      const result = matchVaultCommunityItems(items);
-      startBackgroundTask({
-        type: "community-analysis",
-        title: "分析仓库推荐",
-        message: "正在匹配内置推荐知识库、DIM Wishlist 和自定义推荐规则。",
-        run: async () => {
-          await result;
-        }
-      });
+      const result = matchVaultCommunityItems(items, options);
+      if (options?.include_evidence === false) {
+        startBackgroundTask({
+          type: "community-analysis",
+          title: "分析仓库推荐",
+          message: "正在匹配内置推荐知识库、DIM Wishlist 和自定义推荐规则。",
+          run: async () => {
+            await result;
+          }
+        });
+      }
       return result;
+    }, classifyCommunityIpcError);
+  });
+
+  ipcMain.handle("community:vault:evidence:get", async (_event, item: VaultItemMatchInput) => {
+    return encodeDesktopIpcFailure(async () => {
+      const result = await matchVaultCommunityItems([item]);
+      return result.matches[0] ?? null;
     }, classifyCommunityIpcError);
   });
 
@@ -366,7 +392,10 @@ function formatKnowledgeImportIssue(preview: WeaponKnowledgeImportPreview): stri
   return `武器推荐 CSV 没有可导入的有效记录。第 ${issue.row_number} 行“${issue.weapon_name}”的${issue.field}“${issue.value}”：${issue.message}`;
 }
 
-async function matchVaultCommunityItems(items: VaultItemMatchInput[]): Promise<VaultCommunityMatchResult> {
+async function matchVaultCommunityItems(
+  items: VaultItemMatchInput[],
+  options: VaultCommunityMatchOptions = {}
+) {
   const config = loadConfig();
   const manifestStatus = getDesktopManifestStatus();
   const versionCheck = loadManifestVersionCheckCache(config.data.data_dir);
@@ -423,114 +452,17 @@ async function matchVaultCommunityItems(items: VaultItemMatchInput[]): Promise<V
     severity: "warning" as const,
     message: "中文推荐知识库当前不可用；仍会继续核对 DIM 和本机自定义推荐。"
   }];
-  const cacheContext = buildVaultMatchCacheContext(
-    config.data.data_dir,
-    loadOAuthToken(config.data.data_dir)?.membership_id?.trim() ?? "",
-    manifestStatus.version ?? "",
-    manifestStatus.language ?? "",
-    knowledgeStatus?.source_fingerprint ?? ""
-  );
-  const cachePartition = readVaultMatchCache(config.data.data_dir, items, cacheContext);
-  const matchesByIndex = new Map(cachePartition.cached_by_index);
-  if (cachePartition.missing.length) {
-    // 仓库/资料库批量匹配只使用本地来源，避免触发大量 AI 查询。
-    const service = createDefaultCommunityPerkService(config);
-    const missingItems = cachePartition.missing.map((entry) => entry.item);
-    const itemHashes = missingItems.map((item) => item.hash);
-    const rootItems = await getDefinitions(
-      "DestinyInventoryItemDefinition",
-      itemHashes,
-      { projection: "community-match" }
-    );
-    const relatedItemHashes = collectRelatedWeaponRecommendationItemHashes(
-      config.data.data_dir,
-      missingItems.map((item) => ({
-        item_hash: item.hash,
-        localized_names: [
-          item.item_name?.trim() ?? "",
-          rootItems[String(item.hash)]?.displayProperties?.name?.trim() ?? ""
-        ].filter(Boolean)
-      }))
-    );
-    const definitions = await loadCommunityDefinitions(
-      uniqueHashes([...itemHashes, ...relatedItemHashes]),
-      dimRulePerkHashes(config.data.data_dir, itemHashes)
-    );
-    const freshMatches = await service.matchVaultItemInstances(missingItems, {
-      manifest_version: manifestStatus.version,
-      itemDefinitions: definitions.items,
-      plugSetDefinitions: definitions.plugSets
-    });
-    cachePartition.missing.forEach((entry, index) => {
-      const match = freshMatches[index];
-      if (match) matchesByIndex.set(entry.index, match);
-    });
-    try {
-      saveVaultRecommendationMatchCache(
-        config.data.data_dir,
-        cachePartition.missing.flatMap((entry, index) => {
-          const match = freshMatches[index];
-          return match ? [{ item: entry.item, roll_fingerprint: entry.roll_fingerprint, match }] : [];
-        }),
-        cacheContext
-      );
-    } catch {
-      // 派生缓存不可用时继续返回本次实时核对结果。
-    }
-  }
-  const matches = items.flatMap((_item, index) => {
-    const match = matchesByIndex.get(index);
-    return match ? [match] : [];
+  const result = await matchVaultRecommendationsInWorker({
+    data_dir: config.data.data_dir,
+    account_key: loadOAuthToken(config.data.data_dir)?.membership_id?.trim() ?? "",
+    manifest_version: manifestStatus.version ?? "",
+    manifest_language: manifestStatus.language ?? config.data.manifest_language,
+    curated_revision: knowledgeStatus?.source_fingerprint ?? "",
+    recommendation_schema_version: knowledgeStatus?.schema_version,
+    items,
+    include_evidence: options.include_evidence !== false
   });
-  return {
-    matches,
-    issues,
-    ...(manifestStatus.version ? { manifest_version: manifestStatus.version } : {}),
-    ...(cacheContext.recommendation_revision
-      ? { recommendation_revision: cacheContext.recommendation_revision }
-      : {}),
-    ...(knowledgeStatus ? { recommendation_schema_version: knowledgeStatus.schema_version } : {})
-  };
-}
-
-function buildVaultMatchCacheContext(
-  dataDir: string,
-  accountKey: string,
-  manifestVersion: string,
-  manifestLanguage: string,
-  curatedRevision: string
-): VaultRecommendationMatchCacheContext {
-  let recommendationRevision = curatedRevision;
-  try {
-    recommendationRevision = buildVaultRecommendationMatchRevision(dataDir, curatedRevision);
-  } catch {
-    // 推荐库不可读时仍使用当前已知 revision，缓存只作为优化。
-  }
-  return {
-    account_key: accountKey,
-    manifest_version: manifestVersion,
-    manifest_language: manifestLanguage,
-    recommendation_revision: recommendationRevision
-  };
-}
-
-function readVaultMatchCache(
-  dataDir: string,
-  items: VaultItemMatchInput[],
-  context: VaultRecommendationMatchCacheContext
-): VaultRecommendationMatchCachePartition {
-  try {
-    return partitionVaultRecommendationMatchCache(dataDir, items, context);
-  } catch {
-    return {
-      cached_by_index: new Map<number, VaultItemInstanceMatchInfo>(),
-      missing: items.map((item, index) => ({
-        index,
-        item,
-        roll_fingerprint: createVaultWeaponRollFingerprint(item)
-      }))
-    };
-  }
+  return { ...result, issues };
 }
 
 async function loadCommunityDefinitions(itemHashes: number[], extraPlugHashes: number[] = []): Promise<{
@@ -578,6 +510,26 @@ async function loadCommunityDefinitions(itemHashes: number[], extraPlugHashes: n
     items: { ...rootItems, ...plugItems },
     plugSets
   };
+}
+
+async function loadWeaponIdentityRelations(itemHashes: number[]): Promise<WeaponIdentityRelation[]> {
+  if (!itemHashes.length) return [];
+  try {
+    return await getGameDataCatalog().getWeaponIdentityRelations({
+      item_hashes: uniqueHashes(itemHashes)
+    });
+  } catch {
+    // 旧索引或关系读取异常时保留精确 Hash 行为，不退回模糊名称合并。
+    return [];
+  }
+}
+
+function mergeWeaponIdentityRelations(
+  ...groups: ReadonlyArray<readonly WeaponIdentityRelation[]>
+): WeaponIdentityRelation[] {
+  const relations = new Map<number, WeaponIdentityRelation>();
+  for (const relation of groups.flat()) relations.set(relation.item_hash, relation);
+  return [...relations.values()];
 }
 
 function dimRulePerkHashes(dataDir: string, itemHashes: number[]): number[] {

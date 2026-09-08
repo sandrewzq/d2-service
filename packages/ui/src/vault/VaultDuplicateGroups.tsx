@@ -104,13 +104,13 @@ export function VaultDuplicateGroups(props: {
   localTargetRules?: LocalTargetRules | null;
   equipmentTargetStore?: EquipmentTargetStore | null;
   highlightedItemKeys?: LoadoutTemplateLookup | null;
-  communityInstanceMatch?: Map<string, VaultItemInstanceMatchInfo>;
   cleanupProtectionByItemKey?: Map<string, string[]>;
   locateRequest?: { groupKey: string; requestId: number } | null;
   openingItemKey?: string;
   isBatchSaving: boolean;
   recommendationRevision?: string;
   onLoadItemDetail?: (item: AccountItemSummary) => Promise<AccountItemSummary>;
+  onLoadRecommendationEvidence?: (items: AccountItemSummary[]) => Promise<VaultItemInstanceMatchInfo[]>;
   onOpenItem: (item: AccountItemSummary) => void;
   onApplyGroupTags: (groupName: string, inputs: SaveVaultTagInput[]) => void | Promise<void>;
   onPendingChange?: (hasPendingChanges: boolean) => void;
@@ -133,8 +133,11 @@ export function VaultDuplicateGroups(props: {
   // 在菜单层保留请求表，既能避免重复 IPC，也能把批量读取限制在可控并发内。
   const detailRequestByItemKeyRef = useRef(new Map<string, Promise<AccountItemSummary>>());
   const mountedRef = useRef(true);
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
   const pendingChangeCount = useMemo(() => groups.reduce((count, group) => (
     count + group.items.filter((entry) => (
@@ -372,11 +375,11 @@ export function VaultDuplicateGroups(props: {
         <div className="duplicate-compare-workspace">
           {revisionResetMessage ? <p className="status-message status-warning" role="status">{revisionResetMessage}</p> : null}
           <DuplicateComparePanel
-            key={activeGroup.group_key}
+            key={`${activeGroup.group_key}\u0000${props.recommendationRevision ?? ""}`}
             group={activeGroup}
             itemByKey={comparisonItemByKey}
             evidenceByItemKey={evidenceByItemKey}
-            communityInstanceMatch={props.communityInstanceMatch}
+            recommendationSummaryByInstance={props.recommendationSummaryByInstance}
             referenceKey={referenceKey}
             referenceIsAutomatic={!explicitReferenceKey}
             hasNextPendingGroup={filteredGroups.some((group) => group.group_key !== activeGroup.group_key && !isGroupPersistedComplete(group))}
@@ -390,6 +393,7 @@ export function VaultDuplicateGroups(props: {
             onOpenItem={props.onOpenItem}
             onRequestRollDetails={requestActiveGroupRollDetails}
             onRetryRollDetails={retryActiveGroupRollDetails}
+            onLoadRecommendationEvidence={props.onLoadRecommendationEvidence}
             onApplyGroupTags={props.onApplyGroupTags}
             onNextGroup={() => {
               const currentIndex = filteredGroups.findIndex((group) => group.group_key === activeGroup.group_key);
@@ -408,7 +412,7 @@ function DuplicateComparePanel(props: {
   group: DuplicateItemGroup;
   itemByKey: Map<string, AccountItemSummary>;
   evidenceByItemKey: ReadonlyMap<string, DuplicateEvidence>;
-  communityInstanceMatch?: Map<string, VaultItemInstanceMatchInfo>;
+  recommendationSummaryByInstance?: VaultRecommendationSummaryIndex;
   referenceKey: string;
   referenceIsAutomatic: boolean;
   hasNextPendingGroup: boolean;
@@ -422,19 +426,29 @@ function DuplicateComparePanel(props: {
   onOpenItem: (item: AccountItemSummary) => void;
   onRequestRollDetails: () => void;
   onRetryRollDetails: () => void;
+  onLoadRecommendationEvidence?: (items: AccountItemSummary[]) => Promise<VaultItemInstanceMatchInfo[]>;
   onApplyGroupTags: (groupName: string, inputs: SaveVaultTagInput[]) => void | Promise<void>;
   onNextGroup: () => void;
 }) {
-  const rows = props.group.items.flatMap((entry) => {
+  const rows = useMemo(() => props.group.items.flatMap((entry) => {
     const item = props.itemByKey.get(entry.item_key);
     return item ? [{ entry, item }] : [];
-  });
+  }), [props.group.group_key, props.itemByKey]);
   const savedDisposition = Object.fromEntries(props.group.items.map((entry) => [entry.item_key, dispositionFromTag(entry.tag)]));
   const pendingDisposition = props.pendingDisposition ?? savedDisposition;
   // 首屏保持稳定的“当前启用”视图；完整 Roll 只在详情齐全后由用户主动开启。
   const [rollViewMode, setRollViewMode] = useState<"full" | "active">("active");
   const [comparisonView, setComparisonView] = useState("roll");
   const [protectionConflictCount, setProtectionConflictCount] = useState(0);
+  const [recommendationEvidenceByInstance, setRecommendationEvidenceByInstance] = useState<Map<string, VaultItemInstanceMatchInfo>>(new Map());
+  const [recommendationEvidenceStatus, setRecommendationEvidenceStatus] = useState<"idle" | "loading" | "ready" | "error" | "unavailable">("idle");
+  const recommendationEvidenceMountedRef = useRef(true);
+  useEffect(() => {
+    recommendationEvidenceMountedRef.current = true;
+    return () => {
+      recommendationEvidenceMountedRef.current = false;
+    };
+  }, []);
   useEffect(() => {
     if (props.rollDataStatus !== "ready") setRollViewMode("active");
   }, [props.rollDataStatus]);
@@ -442,13 +456,35 @@ function DuplicateComparePanel(props: {
   const referenceIndex = Math.max(0, rows.findIndex((row) => row.entry.item_key === props.referenceKey));
   const sourceOptions = useMemo(() => buildDuplicateSourceOptions(
     rows.map((row) => row.item),
-    props.communityInstanceMatch
-  ), [props.communityInstanceMatch, props.group.group_key, props.itemByKey]);
+    props.recommendationSummaryByInstance
+  ), [props.group.group_key, props.itemByKey, props.recommendationSummaryByInstance]);
   const selectedSourceId = comparisonView.startsWith("source:") ? comparisonView.slice("source:".length) : "";
   const selectedSource = sourceOptions.find((source) => source.sourceId === selectedSourceId);
   useEffect(() => {
     if (selectedSourceId && !selectedSource) setComparisonView("roll");
   }, [selectedSource, selectedSourceId]);
+  useEffect(() => {
+    if (!selectedSource || recommendationEvidenceStatus !== "idle") return;
+    const loadEvidence = props.onLoadRecommendationEvidence;
+    if (!loadEvidence) {
+      setRecommendationEvidenceStatus("unavailable");
+      return;
+    }
+    setRecommendationEvidenceStatus("loading");
+    void loadEvidence(rows.map((row) => row.item)).then(
+      (matches) => {
+        if (!recommendationEvidenceMountedRef.current) return;
+        setRecommendationEvidenceByInstance(new Map(matches.map((match) => [
+          match.instance_id ?? `hash:${match.hash}`,
+          match
+        ])));
+        setRecommendationEvidenceStatus("ready");
+      },
+      () => {
+        if (recommendationEvidenceMountedRef.current) setRecommendationEvidenceStatus("error");
+      }
+    );
+  }, [props.group.group_key, props.onLoadRecommendationEvidence, recommendationEvidenceStatus, rows, selectedSource]);
   const allRollColumns = useMemo(() => buildComparisonColumns(rows.map((row) => row.item)), [props.group.group_key, props.itemByKey]);
   const coreRollColumns = useMemo(() => {
     if (rows[0]?.item.group_key !== "weapons") return allRollColumns;
@@ -456,12 +492,13 @@ function DuplicateComparePanel(props: {
     return core.length ? core : allRollColumns;
   }, [allRollColumns, rows]);
   const sourceColumns = useMemo(() => selectedSource
-    ? buildSourceComparisonColumns(rows.map((row) => row.item), selectedSource.sourceId, props.communityInstanceMatch)
-    : [], [props.communityInstanceMatch, props.group.group_key, props.itemByKey, selectedSource]);
+    ? buildSourceComparisonColumns(rows.map((row) => row.item), selectedSource.sourceId, recommendationEvidenceByInstance)
+    : [], [props.group.group_key, props.itemByKey, recommendationEvidenceByInstance, selectedSource]);
   const hasRollColumns = allRollColumns.some((column) => column.kind === "roll");
   const effectiveRollViewMode = hasRollColumns && props.rollDataStatus === "ready" ? rollViewMode : "active";
   const rollColumns = effectiveRollViewMode === "full" ? allRollColumns : coreRollColumns;
-  const columns = selectedSource ? sourceColumns : rollColumns;
+  const isSourceComparisonReady = Boolean(selectedSource && recommendationEvidenceStatus === "ready");
+  const columns = isSourceComparisonReady ? sourceColumns : rollColumns;
   const showsFullRoll = !selectedSource && hasRollColumns && effectiveRollViewMode === "full";
   const referenceValues = referenceRow ? columns.map((column) => column.valueFor(referenceRow.item)) : [];
   const summary = summarizeGroupDisposition(props.group, pendingDisposition);
@@ -583,8 +620,19 @@ function DuplicateComparePanel(props: {
           <button type="button" data-ui-kind="button" data-control-variant="secondary" disabled={!referenceRow} onClick={() => referenceRow && props.onOpenItem(referenceRow.item)}>查看基准详情</button>
         </div>
       </header>
+      {selectedSource && recommendationEvidenceStatus === "loading" ? (
+        <div className="duplicate-source-note" role="status">正在读取当前同名组的完整推荐依据，实例 Roll 比较仍可继续查看。</div>
+      ) : null}
+      {selectedSource && recommendationEvidenceStatus === "error" ? (
+        <div className="duplicate-source-note" role="alert">完整推荐依据读取失败。<button type="button" onClick={() => setRecommendationEvidenceStatus("idle")}>重试</button></div>
+      ) : null}
+      {selectedSource && recommendationEvidenceStatus === "unavailable" ? (
+        <div className="duplicate-source-note" role="status">当前环境不支持读取完整推荐依据。</div>
+      ) : null}
       {selectedSource && !sourceColumns.length ? (
-        <div className="duplicate-source-note" role="status">{selectedSource.sourceLabel} 只推荐这把武器，没有指定需要比较的 Perk 项。</div>
+        recommendationEvidenceStatus === "ready"
+          ? <div className="duplicate-source-note" role="status">{selectedSource.sourceLabel} 只推荐这把武器，没有指定需要比较的 Perk 项。</div>
+          : null
       ) : null}
       <div className="duplicate-compare-table">
         <div className="duplicate-table-head" style={gridStyle}><span>基准</span><span>实例</span>{columns.map((column) => <span key={column.key}>{column.label}</span>)}<span>保护与证据</span><span>整理状态</span></div>
@@ -828,16 +876,17 @@ const recommendationSlotOrder: RecommendationRequirementSlot[] = [
 
 function buildDuplicateSourceOptions(
   items: AccountItemSummary[],
-  instanceMatchMap?: Map<string, VaultItemInstanceMatchInfo>
+  recommendationSummaryByInstance?: VaultRecommendationSummaryIndex
 ): DuplicateSourceOption[] {
   const options = new Map<string, DuplicateSourceOption>();
   for (const item of items) {
-    const sourceMatches = instanceMatchMap?.get(getVaultCommunityInstanceKey(item))?.source_matches ?? [];
-    for (const source of sourceMatches) {
-      if (options.has(source.source_id)) continue;
-      options.set(source.source_id, {
-        sourceId: source.source_id,
-        sourceLabel: displayVaultRecommendationSourceLabel(source.source_id, source.source_label)
+    const sourceSummaries = recommendationSummaryByInstance?.get(getVaultCommunityInstanceKey(item)) ?? [];
+    for (const source of sourceSummaries) {
+      if (source.sourceId === "dim_wishlist" || source.sourceId === "dim_voltron") continue;
+      if (options.has(source.sourceId)) continue;
+      options.set(source.sourceId, {
+        sourceId: source.sourceId,
+        sourceLabel: displayVaultRecommendationSourceLabel(source.sourceId, source.sourceLabel)
       });
     }
   }
@@ -1027,7 +1076,6 @@ function itemEvidence(item: AccountItemSummary, props: {
   localTargetRules?: LocalTargetRules | null;
   equipmentTargetStore?: EquipmentTargetStore | null;
   highlightedItemKeys?: LoadoutTemplateLookup | null;
-  communityInstanceMatch?: Map<string, VaultItemInstanceMatchInfo>;
   cleanupProtectionByItemKey?: Map<string, string[]>;
 }): DuplicateEvidence {
   const target = evaluateLocalTargets(normalizeCoreItem(item), props.localTargetRules ?? undefined);

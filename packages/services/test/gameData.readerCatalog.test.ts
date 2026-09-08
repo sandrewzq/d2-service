@@ -124,6 +124,9 @@ function createSearchIndex(
     getItemVersionHashes(itemHashes, limit) {
       return [...itemHashes].slice(0, limit);
     },
+    getWeaponIdentityRelations() {
+      return [];
+    },
     getRelatedItemSummary(perkHashes) {
       const hashes = [...perkHashes].includes(101) ? [301] : [];
       return { total: hashes.length, hashes };

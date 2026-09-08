@@ -1,5 +1,6 @@
 import { Worker } from "node:worker_threads";
 import type { DefinitionComponentData, DefinitionComponentName } from "@d2-tools/core/manifest/definitions";
+import type { WeaponIdentityRelation } from "@d2-tools/core/community-perks";
 import type {
   PerkRelatedEquipmentPage,
   PerkRelatedEquipmentQuery,
@@ -13,7 +14,8 @@ import type {
   GameDataRuntimeCapabilities,
   ItemDetailQuery,
   ItemSearchQuery,
-  PerkSearchQuery
+  PerkSearchQuery,
+  WeaponIdentityQuery
 } from "@d2-tools/services/gameData";
 import { measureRuntime } from "./runtimeMetrics.js";
 
@@ -23,6 +25,7 @@ type GameDataOperation =
   | "searchPerks"
   | "getPerkRelatedEquipment"
   | "getItemDetail"
+  | "getWeaponIdentityRelations"
   | "getDefinitions"
   | "listArmorSets"
   | "getArmorPlannerManifestData"
@@ -58,6 +61,7 @@ const operationTimeoutMs: Record<GameDataOperation, number> = {
   searchPerks: 15_000,
   getPerkRelatedEquipment: 15_000,
   getItemDetail: 15_000,
+  getWeaponIdentityRelations: 15_000,
   getDefinitions: 30_000,
   listArmorSets: 30_000,
   getArmorPlannerManifestData: 30_000,
@@ -95,6 +99,13 @@ const catalog: GameDataCatalog = {
     return measureRuntime(
       "game-data.item-detail",
       () => request<ItemSearchResult | null>("getItemDetail", input),
+      { measurePayload: true }
+    );
+  },
+  getWeaponIdentityRelations(input: WeaponIdentityQuery) {
+    return measureRuntime(
+      "game-data.weapon-identity",
+      () => request<WeaponIdentityRelation[]>("getWeaponIdentityRelations", input),
       { measurePayload: true }
     );
   }

@@ -27,6 +27,7 @@ import { useLocalLoadoutPlans } from "../features/loadouts/useLocalLoadoutPlans"
 import { useDiagnosticsSettings } from "../features/settings/useDiagnosticsSettings";
 import { useVendorsWorkspace } from "../features/vendors/useVendorsWorkspace";
 import { useVendorDefinitionDetail } from "../features/vendors/useVendorDefinitionDetail";
+import { itemDetailOverlayCommands } from "../shared/stores/itemDetailOverlayStore";
 import type { DesktopMenuSession } from "./providers/DesktopMenuProviderContext";
 import {
   useDesktopProductWriteActions,
@@ -96,6 +97,7 @@ export function useDesktopProductShell(props: {
   const accountWorkspace = useAccountWorkspace({
     state: props.state,
     diagnostics,
+    subscribeToEntityPatches: activePage !== "vault",
     onLoginComplete: props.onLoginComplete,
     onManifestInitialized: props.onManifestInitialized
   });
@@ -116,7 +118,6 @@ export function useDesktopProductShell(props: {
     setLocalTargetRules,
     equipmentTargetStore,
     setEquipmentTargetStore,
-    vaultCommunityInstanceMatch,
     refreshAccountSnapshot
   } = accountWorkspace;
   const refreshAccountAfterWrite = () => refreshAccountSnapshot("write-action");
@@ -164,14 +165,14 @@ export function useDesktopProductShell(props: {
         items: getAllKnownAccountItemsWithSource(accountSummary),
         tags: vaultTags,
         highlightedItemKeys: cleanupProtectedItemKeys,
-        communityInstanceMatch: vaultCommunityInstanceMatch,
+        recommendationCardSummary: accountWorkspace.vaultRecommendationCardSummary,
         recommendationReady: accountWorkspace.vaultRecommendationScan.phase === "complete"
       })
     : new Map<string, string[]>(), [
       accountSummary,
       cleanupProtectedItemKeys,
       accountWorkspace.vaultRecommendationScan.phase,
-      vaultCommunityInstanceMatch,
+      accountWorkspace.vaultRecommendationCardSummary,
       vaultTags
     ]);
   const localLoadoutPlans = useLocalLoadoutPlans({ refreshAccount: refreshAccountAfterWrite });
@@ -181,27 +182,20 @@ export function useDesktopProductShell(props: {
     diagnostics,
     vaultTags,
     setVaultTags,
-    importedWishlist,
-    localTargetRules,
-    cleanupProtectionByItemKey: itemDetailCleanupProtection,
-    itemDetailCacheScopeKey,
-    recommendationRevision: accountWorkspace.vaultRecommendationScan.recommendation_revision,
     setAccountError,
-    loadoutLibrary,
-    onRecentHistoryChanged: library.setLibraryHistory
+    loadoutLibrary
   });
   const accountWriteSyncActivity = writeActions.accountWriteSyncActivity;
   const refreshAccountManually = () => {
     writeActions.clearCompletedWriteFeedback();
     return refreshAccountSnapshot("manual");
   };
-  const itemDetail = writeActions.itemDetail;
   const vendorDefinitionDetail = useVendorDefinitionDetail({ vendorSourcePaths, vaultTags });
   const isRunningItemAction = writeActions.isRunningItemAction;
 
   function handlePageChange(page: ShellPageKey) {
     if (startupStep !== "home" && page !== "home" && page !== "settings") return;
-    itemDetail.closeSelectedItemDetail();
+    itemDetailOverlayCommands.closeSelectedItemDetail();
     vendorDefinitionDetail.close();
     if (page === "settings") {
       setSettingsInitialSection("overview");
@@ -211,14 +205,14 @@ export function useDesktopProductShell(props: {
 
   function openBungieSettings() {
     setSettingsInitialSection("bungie");
-    itemDetail.closeSelectedItemDetail();
+    itemDetailOverlayCommands.closeSelectedItemDetail();
     vendorDefinitionDetail.close();
     setActivePage("settings");
   }
 
   function openStartupSettings() {
     setSettingsInitialSection(startupStep === "bungie-config" ? "bungie" : "account");
-    itemDetail.closeSelectedItemDetail();
+    itemDetailOverlayCommands.closeSelectedItemDetail();
     vendorDefinitionDetail.close();
     setActivePage("settings");
   }
@@ -424,6 +418,7 @@ export function useDesktopProductShell(props: {
     localLoadoutPlans,
     vendors: vendorsWorkspace,
     vendorDefinitionDetail,
+    itemDetail: itemDetailOverlayCommands,
     writeActions
   };
 
@@ -461,19 +456,25 @@ export function useDesktopProductShell(props: {
     handleAssistantModeChange: setAssistantMode,
     handlePageChange,
     handleProductPreferencesChange,
-    itemDetailModalProps: {
+    itemDetailHostProps: {
       accountSummary,
       accountOperationFeedback: writeActions.accountOperationFeedback,
       aiSettingsEnableLightgg: diagnostics.aiSettings.enable_lightgg,
+      applyAcceptedAccountActionPatches,
+      cleanupProtectionByItemKey: itemDetailCleanupProtection,
+      detailCacheScopeKey: itemDetailCacheScopeKey,
+      diagnostics,
       importedWishlist,
-      itemDetail,
       isRunningItemAction,
       localTargetRules,
       equipmentTargetStore,
-      communityInstanceMatch: vaultCommunityInstanceMatch,
       recommendationScan: accountWorkspace.vaultRecommendationScan,
+      recommendationRevision: accountWorkspace.vaultRecommendationScan.recommendation_revision,
       onLocateOwnedItem: locateVaultItem,
+      onRecentHistoryChanged: library.setLibraryHistory,
       interfaceLocale: diagnostics.languagePreferences.interfaceLocale,
+      setAccountError,
+      setVaultTags,
       vendorDefinitionDetail,
       vaultTags
     },

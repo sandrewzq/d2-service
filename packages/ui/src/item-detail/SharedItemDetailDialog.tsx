@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type RefObject
 } from "react";
+import { createPortal } from "react-dom";
 
 export type SharedItemDetailView = {
   name: string;
@@ -34,7 +35,11 @@ export type SharedItemDetailDialogProps = {
 };
 
 export function SharedItemDetailDialog(props: SharedItemDetailDialogProps) {
+  const portalTarget = typeof document === "undefined"
+    ? null
+    : document.querySelector<HTMLElement>(".app-shell") ?? document.body;
   const titleId = useId();
+  const backdropRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(props.onClose);
@@ -54,6 +59,16 @@ export function SharedItemDetailDialog(props: SharedItemDetailDialogProps) {
       : "正在读取完整定义与装备状态";
 
   useEffect(() => {
+    const overlayRoot = backdropRef.current;
+    const isolatedElements = typeof document === "undefined" || !overlayRoot?.parentElement
+      ? []
+      : [...overlayRoot.parentElement.children]
+          .filter((element): element is HTMLElement => (
+            element instanceof HTMLElement
+            && element !== overlayRoot
+          ))
+          .map((element) => ({ element, wasInert: element.inert }));
+    for (const { element } of isolatedElements) element.inert = true;
     closeButtonRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
@@ -82,12 +97,19 @@ export function SharedItemDetailDialog(props: SharedItemDetailDialogProps) {
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true);
+      for (const { element, wasInert } of isolatedElements) element.inert = wasInert;
       (props.returnFocusRef?.current ?? initialFocus.current)?.focus();
     };
   }, [props.returnFocusRef]);
 
-  return (
-    <div className="modal-backdrop" role="presentation" onClick={props.onClose}>
+  const dialog = (
+    <div
+      ref={backdropRef}
+      className="modal-backdrop"
+      data-overlay-root="item-detail"
+      role="presentation"
+      onClick={props.onClose}
+    >
       <section
         ref={dialogRef}
         className={`item-modal shared-item-detail-dialog shared-item-detail-${props.variant ?? "default"}`}
@@ -149,6 +171,10 @@ export function SharedItemDetailDialog(props: SharedItemDetailDialogProps) {
       </section>
     </div>
   );
+
+  return !portalTarget
+    ? dialog
+    : createPortal(dialog, portalTarget);
 }
 
 export function SharedItemDetailLoading() {

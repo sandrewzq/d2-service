@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import { useBackgroundTasks } from "../../shared/hooks/useBackgroundTasks";
 import { useAccountSummaryStore } from "../../shared/stores/accountEntityStore";
 import { useDesktopMenuSession } from "./DesktopMenuProviderContext";
+import { useEffect } from "react";
 
 export function SettingsMenuProvider() {
   const session = useDesktopMenuSession();
@@ -11,6 +12,10 @@ export function SettingsMenuProvider() {
   const accountSummary = useAccountSummaryStore();
   // 完整任务历史只在设置页实际挂载时订阅。
   const { backgroundTasks } = useBackgroundTasks();
+
+  useEffect(() => {
+    void diagnostics.loadActionLog();
+  }, []);
 
   return (
     <SettingsPage

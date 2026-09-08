@@ -226,7 +226,7 @@ function prepareDesktopManifestData() {
       INSERT INTO metadata(key, value) VALUES
         ('manifest_version', '${manifestVersion}'),
         ('language', '${language}'),
-        ('schema_version', '3');
+        ('schema_version', '4');
       CREATE TABLE search_documents (
         kind TEXT NOT NULL,
         hash INTEGER NOT NULL,
@@ -244,6 +244,16 @@ function prepareDesktopManifestData() {
         canonical_hash INTEGER NOT NULL,
         relation_key TEXT NOT NULL,
         rank INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE weapon_identity_relation (
+        item_hash INTEGER PRIMARY KEY,
+        family_key TEXT NOT NULL,
+        release_group_key TEXT NOT NULL,
+        variant_kind TEXT NOT NULL,
+        variant_tags TEXT NOT NULL,
+        canonical_item_hash INTEGER NOT NULL,
+        release_label TEXT NOT NULL DEFAULT '',
+        relation_evidence TEXT NOT NULL
       );
     `);
   } finally {

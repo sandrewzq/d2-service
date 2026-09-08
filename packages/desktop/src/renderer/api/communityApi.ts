@@ -6,7 +6,9 @@ import type {
   FileExportResult,
   RecommendationManagedRule,
   RecommendationManagementSnapshot,
+  VaultCommunityMatchOptions,
   VaultCommunityMatchResult,
+  VaultItemInstanceMatchInfo,
   VaultItemMatchInput,
   WeaponKnowledgeImportResult,
   WeaponKnowledgeImportSelection,
@@ -46,6 +48,7 @@ export type CommunityApi = {
   setPersonalWeaponKnowledgeEnabled(id: string, enabled: boolean): Promise<PersonalWeaponKnowledgeTable>;
   deletePersonalWeaponKnowledge(id: string): Promise<PersonalWeaponKnowledgeTable>;
   getCommunityPerkRecommendations(item_hash: number, options?: { item_name?: string }): Promise<WeaponRecommendation | null>;
-  matchCommunityVaultItems(items: VaultItemMatchInput[]): Promise<VaultCommunityMatchResult>;
+  matchCommunityVaultItems(items: VaultItemMatchInput[], options?: VaultCommunityMatchOptions): Promise<VaultCommunityMatchResult>;
+  getCommunityVaultItemMatchEvidence(item: VaultItemMatchInput): Promise<VaultItemInstanceMatchInfo | null>;
   clearLightggCache(): Promise<void>;
 };

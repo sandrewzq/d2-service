@@ -3,7 +3,7 @@ import type { DimWishlist } from "@d2-tools/core/analysis/wishlistImport";
 import type { VaultRecommendationScanState } from "@d2-tools/app/account";
 import type {
   LocalCommunityRecommendationTable,
-  VaultItemInstanceMatchInfo
+  RecommendationCardSummary
 } from "@d2-tools/core/community-perks";
 import type { VaultTags } from "@d2-tools/core/vault/tags";
 import type { LoadoutTemplateLookup } from "@d2-tools/app/loadouts";
@@ -45,7 +45,7 @@ export function VaultRecommendationEvidencePanel(props: {
   items: AccountItemSummary[];
   tags: VaultTags;
   wishlist?: DimWishlist | null;
-  communityInstanceMatch?: Map<string, VaultItemInstanceMatchInfo>;
+  recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>;
   recommendationSummaryByInstance?: VaultRecommendationSummaryIndex;
   highlightedItemKeys?: LoadoutTemplateLookup | null;
   sourceState?: VaultRecommendationSourceState;
@@ -66,20 +66,21 @@ export function VaultRecommendationEvidencePanel(props: {
   onOrganizeItem?: (item: AccountItemSummary) => void;
 }) {
   const [isWishlistManagerOpen, setIsWishlistManagerOpen] = useState(false);
+  const [isCopyingAuditReport, setIsCopyingAuditReport] = useState(false);
   const [panelFeedback, setPanelFeedback] = useState<{ tone: "ready" | "error"; message: string } | null>(null);
   const [visibleLimit, setVisibleLimit] = useState(200);
   const recommendationScan = props.sourceState?.recommendationScan;
   const rows = useMemo(() => buildInstanceWeaponRows(
     props.items,
     props.recommendationSummaryByInstance,
-    props.communityInstanceMatch,
+    props.recommendationCardSummary,
     recommendationScan?.phase === "complete",
     props.tags
-  ), [props.communityInstanceMatch, props.items, props.recommendationSummaryByInstance, props.tags, recommendationScan?.phase]);
+  ), [props.items, props.recommendationCardSummary, props.recommendationSummaryByInstance, props.tags, recommendationScan?.phase]);
   const coveredRows = useMemo(() => rows.filter((row) => row.summaries.length > 0), [rows]);
   const sourceState = props.sourceState;
   const hasManagedSource = props.managedSources?.some((source) => source.configured && source.state === "active") ?? false;
-  const hasInstanceScan = Boolean(props.communityInstanceMatch?.size) || recommendationScan?.phase === "complete";
+  const hasInstanceScan = Boolean(props.recommendationCardSummary?.size) || recommendationScan?.phase === "complete";
   const hasConfiguredSource = Boolean(
     (recommendationScan && recommendationScan.phase !== "idle")
     || hasInstanceScan
@@ -103,9 +104,9 @@ export function VaultRecommendationEvidencePanel(props: {
     sourceId: props.activeSourceId,
     primaryFilter: props.activePrimaryFilter,
     completeFilter: props.activeCompleteFilter,
-    communityInstanceMatch: props.communityInstanceMatch,
+    recommendationCardSummary: props.recommendationCardSummary,
     recommendationScanComplete: recommendationScan?.phase === "complete"
-  }), [props.activeCompleteFilter, props.activePrimaryFilter, props.activeSourceId, props.communityInstanceMatch, props.filterFactByInstance, recommendationScan?.phase, rows]);
+  }), [props.activeCompleteFilter, props.activePrimaryFilter, props.activeSourceId, props.filterFactByInstance, props.recommendationCardSummary, recommendationScan?.phase, rows]);
   const filteredRows = filterState.rows;
   const visibleRows = filteredRows.slice(0, visibleLimit);
 
@@ -152,13 +153,14 @@ export function VaultRecommendationEvidencePanel(props: {
 
       <div className="vault-recommendation-summary" data-ui-kind="callout" data-status="neutral">
         <span>{formatRecommendationScanDetail(recommendationScan)} · 当前有来源记录 {coveredRows.length} 件。</span>
-        {props.onCopyAuditReport ? <ControlButton size="compact" variant="quiet" onClick={() => {
+        {props.onCopyAuditReport ? <ControlButton size="compact" variant="quiet" disabled={isCopyingAuditReport} aria-busy={isCopyingAuditReport} onClick={() => {
           setPanelFeedback(null);
+          setIsCopyingAuditReport(true);
           void Promise.resolve(props.onCopyAuditReport?.()).then(
             () => setPanelFeedback({ tone: "ready", message: "只读验收报告已复制。" }),
             () => setPanelFeedback({ tone: "error", message: "复制失败，请稍后重试。" })
-          );
-        }}>复制验收报告</ControlButton> : null}
+          ).finally(() => setIsCopyingAuditReport(false));
+        }}>{isCopyingAuditReport ? "正在生成报告" : "复制验收报告"}</ControlButton> : null}
       </div>
 
       {rows.length ? (
@@ -319,7 +321,7 @@ function recommendationEvidenceEmptyState(
 function buildInstanceWeaponRows(
   items: AccountItemSummary[],
   recommendationSummaryByInstance?: VaultRecommendationSummaryIndex,
-  communityInstanceMatch?: Map<string, VaultItemInstanceMatchInfo>,
+  recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>,
   includeUncovered = false,
   tags?: VaultTags
 ): InstanceWeaponRow[] {
@@ -331,7 +333,7 @@ function buildInstanceWeaponRows(
       if (!summaries.length && !includeUncovered) return [];
       const recommendationState = inferVaultRecommendationResult(
         summaries,
-        communityInstanceMatch?.get(instanceKey)?.recommendation_state
+        recommendationCardSummary?.get(instanceKey)?.recommendation_state
       );
       const disposition = tags?.items[instanceKey]?.tag;
       return [{
@@ -363,7 +365,7 @@ function buildRecommendationEvidenceFilterState(input: {
   sourceId: string;
   primaryFilter: VaultRecommendationPrimaryFilter;
   completeFilter: VaultRecommendationCompleteFilter;
-  communityInstanceMatch?: ReadonlyMap<string, VaultItemInstanceMatchInfo>;
+  recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>;
   recommendationScanComplete: boolean;
 }): {
   rows: InstanceWeaponRow[];
@@ -382,7 +384,7 @@ function buildRecommendationEvidenceFilterState(input: {
   for (const row of input.rows) {
     const instanceKey = getVaultCommunityInstanceKey(row.item);
     const fact = getVaultRecommendationFilterFact(input.factIndex, instanceKey, input.sourceId);
-    const primaryKey = fact?.primaryKey ?? (input.recommendationScanComplete || input.communityInstanceMatch?.has(instanceKey)
+    const primaryKey = fact?.primaryKey ?? (input.recommendationScanComplete || input.recommendationCardSummary?.has(instanceKey)
       ? "uncovered"
       : undefined);
     if (primaryKey) {

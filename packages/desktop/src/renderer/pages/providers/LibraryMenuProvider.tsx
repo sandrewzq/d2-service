@@ -6,7 +6,7 @@ export function LibraryMenuProvider() {
   const session = useDesktopMenuSession();
   const library = session.library;
   const accountSummary = useAccountSummaryStore();
-  const itemDetail = session.writeActions.itemDetail;
+  const itemDetail = session.itemDetail;
 
   return (
     <LibraryPage
@@ -40,7 +40,7 @@ export function LibraryMenuProvider() {
         isLoadingManifestStatus: library.isLoadingManifestStatus,
         isInitializingManifest: library.isInitializingManifest,
         manifestTask: library.manifestTask,
-        itemDetailLoadingKey: itemDetail.itemDetailLoadingKey
+        itemDetailLoadingKey: ""
       }}
       actions={{
         onViewModeChange: library.setLibraryViewMode,

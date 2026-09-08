@@ -71,6 +71,7 @@ export type DefinitionRecord = {
   }>;
   iconWatermark?: string;
   itemTypeDisplayName?: string;
+  itemType?: number;
   classType?: number;
   inventory?: {
     tierType?: number;
@@ -107,6 +108,7 @@ export type DefinitionRecord = {
   breakerTypeHash?: number;
   enumValue?: number;
   isAdept?: boolean;
+  isHolofoil?: boolean;
   sourceData?: {
     sourceString?: string;
   };

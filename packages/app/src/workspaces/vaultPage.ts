@@ -1,7 +1,6 @@
 import type { AccountItemSummary } from "@d2-tools/core/account/summary";
 import type { DimWishlist } from "@d2-tools/core/analysis/wishlistImport";
 import type { LocalTargetRules } from "@d2-tools/core/analysis/targets";
-import type { VaultItemInstanceMatchInfo } from "@d2-tools/core/community-perks";
 import type { VaultTags } from "@d2-tools/core/vault/tags";
 import type { D2Services } from "@d2-tools/services";
 import { runQuery, type QueryState } from "../queryState.js";
@@ -22,7 +21,6 @@ export type VaultPageModel = {
   tags: VaultTags;
   targetRules: LocalTargetRules;
   wishlist: DimWishlist | null;
-  communityInstanceMatch: Map<string, VaultItemInstanceMatchInfo>;
 };
 
 export type VaultPageWorkspace = VaultPageModel;
@@ -44,7 +42,6 @@ export type VaultPageInput = {
   tags: VaultTags;
   targetRules: LocalTargetRules;
   wishlist: DimWishlist | null;
-  communityInstanceMatch?: Map<string, VaultItemInstanceMatchInfo>;
 };
 
 export async function loadVaultPageWorkspace(
@@ -64,8 +61,7 @@ export async function loadVaultPageWorkspace(
       activeLoadoutLookup: null,
       tags: accountWorkspace.data.tags,
       targetRules: accountWorkspace.data.targetRules,
-      wishlist: accountWorkspace.data.wishlist,
-      communityInstanceMatch: accountWorkspace.data.vaultCommunityInstanceMatch
+      wishlist: accountWorkspace.data.wishlist
     });
   });
 }
@@ -89,8 +85,7 @@ export function createVaultPageWorkspace(input: VaultPageInput): VaultPageWorksp
     activeLoadoutName: input.activeLoadoutName,
     tags: input.tags,
     targetRules: input.targetRules,
-    wishlist: input.wishlist,
-    communityInstanceMatch: input.communityInstanceMatch ?? new Map()
+    wishlist: input.wishlist
   };
 }
 
@@ -121,13 +116,13 @@ function locateCharacterItem(
   sourceKind: Exclude<VaultItemSourceKind, "vault">,
   sourceLabel: string
 ): VaultLocatedItem {
-  return {
+  return getCachedLocatedItem(item, `${character.character_id}:${sourceKind}`, () => ({
     ...item,
     source_character_id: character.character_id,
     source_kind: sourceKind,
     source_label: `${character.class_name} · ${sourceLabel}`,
     ...(sourceKind === "postmaster" ? { is_postmaster_item: true } : {})
-  };
+  }));
 }
 
 function locateVaultItem(
@@ -135,10 +130,29 @@ function locateVaultItem(
   sourceKind: "vault",
   sourceLabel: string
 ): VaultLocatedItem {
-  return {
+  return getCachedLocatedItem(item, sourceKind, () => ({
     ...item,
     source_kind: sourceKind,
     source_label: sourceLabel,
     is_vault_item: true
-  };
+  }));
+}
+
+const locatedItemCache = new WeakMap<AccountItemSummary, Map<string, VaultLocatedItem>>();
+
+function getCachedLocatedItem(
+  item: AccountItemSummary,
+  locationKey: string,
+  create: () => VaultLocatedItem
+): VaultLocatedItem {
+  let byLocation = locatedItemCache.get(item);
+  if (!byLocation) {
+    byLocation = new Map();
+    locatedItemCache.set(item, byLocation);
+  }
+  const cached = byLocation.get(locationKey);
+  if (cached) return cached;
+  const located = create();
+  byLocation.set(locationKey, located);
+  return located;
 }

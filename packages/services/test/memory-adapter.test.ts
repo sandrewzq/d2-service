@@ -34,6 +34,7 @@ describe("memory services adapter", () => {
         canonical_weapon_name: "测试武器",
         coverage: "covered",
         match_status: "full_match",
+        recommendation_state: "priority",
         matched: 1,
         partial: 0,
         available: 1,
@@ -63,7 +64,7 @@ describe("memory services adapter", () => {
     }
 
     expect(account.data.account.account_name).toBe("memory-user");
-    expect(account.data.vaultCommunityInstanceMatch.get("vault-1")?.source_label).toBe("内存推荐");
+    expect(account.data.vaultRecommendationCardSummary.get("vault-1")?.matched).toBe(1);
     expect(vault.data.vaultItems.map((item) => item.name)).toEqual(["内存手炮"]);
     expect(vault.data.tags.items["vault-1"]?.tag).toBe("keep");
     expect(assistant.data.reply.text).toBe("内存回复");

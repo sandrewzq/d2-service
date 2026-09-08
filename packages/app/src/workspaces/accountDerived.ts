@@ -1,8 +1,9 @@
 import type { AccountSummary } from "@d2-tools/core/account/summary";
 import type { ActivityHistorySummary } from "@d2-tools/core/activities/history";
-import type {
-  VaultItemInstanceMatchInfo,
-  VaultRecommendationDependencyIssue
+import {
+  createRecommendationCardSummary,
+  type RecommendationCardSummary,
+  type VaultRecommendationDependencyIssue
 } from "@d2-tools/core/community-perks";
 import type { D2Services } from "@d2-tools/services";
 import { runQuery, type QueryState } from "../queryState.js";
@@ -10,7 +11,8 @@ import { loadAccountWorkspace, type AccountWorkspace } from "./account.js";
 
 export type AccountDerivedWorkspace = {
   activitySummary: ActivityHistorySummary | null;
-  vaultCommunityInstanceMatch: Map<string, VaultItemInstanceMatchInfo>;
+  vaultRecommendationCardSummary: Map<string, RecommendationCardSummary>;
+  vaultRecommendationChangedInstanceIds: string[];
   vaultRecommendationIssues: VaultRecommendationDependencyIssue[];
   vaultRecommendationManifestVersion?: string;
   vaultRecommendationRevision?: string;
@@ -97,8 +99,9 @@ export async function loadAccountDerivedWorkspace(
       && (!scopedWeaponHashes || scopedWeaponHashes.has(item.hash))
     ));
     const matchCommunityVaultItems = services.profile.matchCommunityVaultItems;
-    const vaultCommunityInstanceMatch = new Map<string, VaultItemInstanceMatchInfo>();
+    const vaultRecommendationCardSummary = new Map<string, RecommendationCardSummary>();
     let vaultRecommendationIssues: VaultRecommendationDependencyIssue[] = [];
+    let vaultRecommendationChangedInstanceIds: string[] = [];
     let vaultRecommendationManifestVersion = "";
     let vaultRecommendationRevision = "";
     let vaultRecommendationSchemaVersion: number | undefined;
@@ -113,20 +116,23 @@ export async function loadAccountDerivedWorkspace(
             hash: plug.hash,
             socket_index: plug.socket_index
           }))
-        }))
+        })),
+        { include_evidence: false }
       );
       vaultRecommendationIssues = result.issues;
+      vaultRecommendationChangedInstanceIds = result.changed_instance_ids ?? [];
       vaultRecommendationManifestVersion = result.manifest_version ?? "";
       vaultRecommendationRevision = result.recommendation_revision ?? "";
       vaultRecommendationSchemaVersion = result.recommendation_schema_version;
-      for (const item of result.matches) {
-        vaultCommunityInstanceMatch.set(item.instance_id ?? `hash:${item.hash}`, item);
+      for (const summary of result.card_summaries ?? result.matches.map(createRecommendationCardSummary)) {
+        vaultRecommendationCardSummary.set(summary.instance_id ?? `hash:${summary.hash}`, summary);
       }
     }
 
     return {
       activitySummary,
-      vaultCommunityInstanceMatch,
+      vaultRecommendationCardSummary,
+      vaultRecommendationChangedInstanceIds,
       vaultRecommendationIssues,
       ...(vaultRecommendationManifestVersion
         ? { vaultRecommendationManifestVersion }

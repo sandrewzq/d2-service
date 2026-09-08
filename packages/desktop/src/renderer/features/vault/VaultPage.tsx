@@ -5,24 +5,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LoadoutTemplateLookup } from "../../shared/domain/loadouts/loadoutLookup";
 import type {
   AccountItemSummary,
-  AccountSummary,
   ArmorSetCatalogItem,
   BatchItemActionResult,
   DimWishlist,
   EquipmentTargetStore,
   LocalTargetRules,
   LocalCommunityRecommendationTable,
+  RecommendationCardSummary,
   SaveVaultTagInput,
-  VaultItemInstanceMatchInfo,
   VaultTags,
   VaultTagValue
 } from "../../api/types";
 import { api } from "../../api/client";
 import { services } from "../../api/services";
 import { loadAccountItemDetailCached } from "../../shared/hooks/useItemDetail";
+import type { VaultAccountStoreSnapshot } from "../../shared/stores/accountEntityStore";
 
 export function VaultPage(props: {
-  account: AccountSummary | null;
+  account: VaultAccountStoreSnapshot | null;
   isBungieConfigured: boolean;
   isAccountLoggedIn: boolean;
   isLoadingAccount: boolean;
@@ -41,7 +41,7 @@ export function VaultPage(props: {
   wishlist: DimWishlist | null;
   localTargetRules: LocalTargetRules;
   equipmentTargetStore: EquipmentTargetStore;
-  communityInstanceMatch: Map<string, VaultItemInstanceMatchInfo>;
+  recommendationCardSummary: ReadonlyMap<string, RecommendationCardSummary>;
   recommendationScan: VaultRecommendationScanState;
   onContextFactsChange?: (facts: string[]) => void;
   onLocalTargetRulesChanged: (rules: LocalTargetRules) => void;
@@ -75,6 +75,13 @@ export function VaultPage(props: {
         })
       : Promise.resolve(item)
   ), [detailScopeKey]);
+  const loadRecommendationEvidence = useCallback(async (items: AccountItemSummary[]) => {
+    const result = await api.matchCommunityVaultItems(
+      items.map(toVaultMatchInput),
+      { include_evidence: true }
+    );
+    return result.matches;
+  }, []);
   const wishlistActions = useMemo<VaultWishlistActions>(() => ({
     save: async (wishlist) => {
       const affectedWeaponHashes = collectWishlistWeaponHashes(props.wishlist, wishlist);
@@ -186,8 +193,7 @@ export function VaultPage(props: {
     activeLoadoutName: props.activeLoadoutName,
     tags: props.tags,
     targetRules: props.localTargetRules,
-    wishlist: props.wishlist,
-    communityInstanceMatch: props.communityInstanceMatch
+    wishlist: props.wishlist
   }) : null, [
     props.account,
     props.selectedCharacterId,
@@ -195,8 +201,7 @@ export function VaultPage(props: {
     props.activeLoadoutName,
     props.tags,
     props.localTargetRules,
-    props.wishlist,
-    props.communityInstanceMatch
+    props.wishlist
   ]);
 
   if (!props.isBungieConfigured || !props.isAccountLoggedIn || !props.account) {
@@ -265,7 +270,7 @@ export function VaultPage(props: {
       wishlist={model.wishlist}
       localTargetRules={model.targetRules}
       equipmentTargetStore={props.equipmentTargetStore}
-      communityInstanceMatch={model.communityInstanceMatch}
+      recommendationCardSummary={props.recommendationCardSummary}
       recommendationSourceState={{
         recommendationScan: props.recommendationScan,
         customRules: localCommunityTable,
@@ -273,17 +278,26 @@ export function VaultPage(props: {
         customRulesLoadError: localCommunityLoadError
       }}
       wishlistActions={wishlistActions}
+      onLoadRecommendationEvidence={loadRecommendationEvidence}
       onCopyRecommendationAudit={async () => {
+        const items = [
+          ...account.characters.flatMap((character) => [
+            ...character.equipped_items,
+            ...character.inventory_items,
+            ...character.postmaster_items
+          ]),
+          ...account.vault.items
+        ];
+        const result = await api.matchCommunityVaultItems(
+          items.filter((item) => item.group_key === "weapons").map(toVaultMatchInput),
+          { include_evidence: true }
+        );
         await navigator.clipboard.writeText(buildVaultRecommendationAuditReport({
-          items: [
-            ...account.characters.flatMap((character) => [
-              ...character.equipped_items,
-              ...character.inventory_items,
-              ...character.postmaster_items
-            ]),
-            ...account.vault.items
-          ],
-          instanceMatches: model.communityInstanceMatch,
+          items,
+          instanceMatches: new Map(result.matches.map((match) => [
+            match.instance_id ?? `hash:${match.hash}`,
+            match
+          ])),
           scan: props.recommendationScan
         }));
       }}
@@ -319,6 +333,21 @@ export function VaultPage(props: {
       onSaveTag={props.onSaveTag}
     />
   );
+}
+
+function toVaultMatchInput(item: AccountItemSummary) {
+  return {
+    hash: item.hash,
+    ...(item.instance_id ? { instance_id: item.instance_id } : {}),
+    item_name: item.name,
+    ...(item.weapon_roll ? { weapon_roll: item.weapon_roll } : {}),
+    ...(item.socket_plugs ? {
+      socket_plugs: item.socket_plugs.map((plug) => ({
+        hash: plug.hash,
+        socket_index: plug.socket_index
+      }))
+    } : {})
+  };
 }
 
 function collectWishlistWeaponHashes(...wishlists: Array<DimWishlist | null | undefined>): number[] {

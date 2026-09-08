@@ -1,8 +1,9 @@
 import { ProductShellHost } from "@d2-tools/ui";
 import type { StartupState } from "../api/types";
-import { HomePageItemDetailModal } from "./HomePageItemDetailModal";
+import { HomePageItemDetailHost } from "./HomePageItemDetailHost";
 import { HomePageRoutes } from "./HomePageRoutes";
 import { DesktopMenuSessionProvider } from "./providers/DesktopMenuProviderContext";
+import { RendererPerformanceProfiler } from "../shared/performance/RendererPerformanceProfiler";
 import { useDesktopProductShell } from "./useDesktopProductShell";
 
 export function HomePage(props: {
@@ -32,8 +33,12 @@ export function HomePage(props: {
         assistantPanel={shell.assistantPanel}
         renderPage={() => (
           <>
-            {shell.startupGate ?? <HomePageRoutes activePage={shell.activePage} />}
-            <HomePageItemDetailModal {...shell.itemDetailModalProps} />
+            <RendererPerformanceProfiler id={`menu:${shell.activePage}`}>
+              {shell.startupGate ?? <HomePageRoutes activePage={shell.activePage} />}
+            </RendererPerformanceProfiler>
+            <RendererPerformanceProfiler id="item-detail-overlay">
+              <HomePageItemDetailHost {...shell.itemDetailHostProps} />
+            </RendererPerformanceProfiler>
           </>
         )}
       />

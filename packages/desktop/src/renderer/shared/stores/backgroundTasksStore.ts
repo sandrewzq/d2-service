@@ -7,6 +7,8 @@ let tasks: BackgroundTaskSnapshot[] = [];
 let started = false;
 let revision = 0;
 const listeners = new Set<Listener>();
+let pendingTasks: BackgroundTaskSnapshot[] | null = null;
+let publishFrame: number | null = null;
 
 export function getBackgroundTasksSnapshot(): BackgroundTaskSnapshot[] {
   return tasks;
@@ -32,7 +34,21 @@ export function ensureBackgroundTasksStoreStarted(): void {
     .catch(() => undefined);
 
   api.onBackgroundTasksChanged((nextTasks) => {
-    publish(nextTasks);
+    schedulePublish(nextTasks);
+  });
+}
+
+function schedulePublish(nextTasks: BackgroundTaskSnapshot[]): void {
+  pendingTasks = nextTasks;
+  if (publishFrame !== null) return;
+  const schedule = typeof requestAnimationFrame === "function"
+    ? requestAnimationFrame
+    : (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 16);
+  publishFrame = schedule(() => {
+    publishFrame = null;
+    const next = pendingTasks;
+    pendingTasks = null;
+    if (next) publish(next);
   });
 }
 

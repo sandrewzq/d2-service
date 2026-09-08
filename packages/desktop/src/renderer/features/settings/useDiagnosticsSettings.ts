@@ -16,7 +16,7 @@ import {
   useLanguagePreferencesState
 } from "./useDiagnosticsSettingsState";
 import { useAppUpdateFlow } from "./useAppUpdateFlow";
-import { useBackgroundTasksByTypes } from "../../shared/hooks/useBackgroundTasks";
+import { useBackgroundTaskSummariesByTypes } from "../../shared/hooks/useBackgroundTasks";
 import { useManifestStatus } from "../../shared/hooks/useManifestStatus";
 
 const shellBackgroundTaskTypes = [
@@ -43,7 +43,7 @@ export function useDiagnosticsSettings(input: {
   const appUpdateFlow = useAppUpdateFlow();
   // 根 Shell 只订阅会出现在全局状态区的任务。账号写后同步等高频任务
   // 留在对应功能域，避免每次进度变化重建整个菜单 Context。
-  const backgroundTaskState = useBackgroundTasksByTypes(shellBackgroundTaskTypes);
+  const backgroundTaskState = useBackgroundTaskSummariesByTypes(shellBackgroundTaskTypes);
   const manifestStatusState = useManifestStatus();
   const colorModeState = useColorModeState(input.initialColorMode);
   const densityState = useDensityState(input.initialDensity);

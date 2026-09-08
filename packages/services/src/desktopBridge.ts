@@ -5,6 +5,7 @@ import type { LocalTargetRules } from "@d2-tools/core/analysis/targets";
 import type { EquipmentTargetStore } from "@d2-tools/core/targets/equipmentTargets";
 import type {
   LocalCommunityRecommendationTable,
+  VaultCommunityMatchOptions,
   VaultCommunityMatchResult,
   VaultItemMatchInput,
   WeaponRecommendation
@@ -21,7 +22,10 @@ import { createGuideContextService } from "./guideContextService.js";
 export type DesktopBridgeApi = {
   getAccountSummary(options?: { force?: boolean; authoritative?: boolean }): Promise<AccountSummary>;
   getActivitySummary(input: { membership_type: number; membership_id: string; character_ids: string[] }): Promise<ActivityHistorySummary>;
-  matchCommunityVaultItems(items: VaultItemMatchInput[]): Promise<VaultCommunityMatchResult>;
+  matchCommunityVaultItems(
+    items: VaultItemMatchInput[],
+    options?: VaultCommunityMatchOptions
+  ): Promise<VaultCommunityMatchResult>;
   getDimWishlist(): Promise<DimWishlist | null>;
   saveDimWishlist(wishlist: DimWishlist): Promise<DimWishlist>;
   clearDimWishlist(): Promise<null>;
@@ -49,7 +53,7 @@ export function createDesktopBridgeServices(api: DesktopBridgeApi): D2Services {
   const profile: D2Services["profile"] = {
       getAccountSummary: (options) => api.getAccountSummary(options),
       getActivitySummary: (input) => api.getActivitySummary(input),
-      matchCommunityVaultItems: (items) => api.matchCommunityVaultItems(items)
+      matchCommunityVaultItems: (items, options) => api.matchCommunityVaultItems(items, options)
     };
   const localData: D2Services["localData"] = {
       getDimWishlist: () => api.getDimWishlist(),

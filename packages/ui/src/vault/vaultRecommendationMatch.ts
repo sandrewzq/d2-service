@@ -1,6 +1,9 @@
 import type { AccountItemSummary } from "@d2-tools/core/account/summary";
 import type { DimWishlist } from "@d2-tools/core/analysis/wishlistImport";
 import type {
+  RecommendationCardDimSummary,
+  RecommendationCardSourceSummary,
+  RecommendationCardSummary,
   RecommendationSourceMatch,
   VaultItemInstanceMatchInfo
 } from "@d2-tools/core/community-perks";
@@ -81,6 +84,13 @@ const sourceOrder = new Map([
   ["dim_wishlist", 4]
 ]);
 const dimRulesByWishlist = new WeakMap<DimWishlist, Map<number, DimWishlist["rules"]>>();
+let cachedSummaryIndexInput: {
+  instanceMatchMap?: ReadonlyMap<string, VaultItemInstanceMatchInfo>;
+  cardSummaryMap?: ReadonlyMap<string, RecommendationCardSummary>;
+  wishlist?: DimWishlist | null;
+  itemSignatures: Map<string, string>;
+  index: Map<string, VaultRecommendationSourceSummary[]>;
+} | null = null;
 
 export function getVaultCommunityInstanceKey(item: AccountItemSummary): string {
   return item.instance_id ?? `hash:${item.hash}`;
@@ -89,21 +99,27 @@ export function getVaultCommunityInstanceKey(item: AccountItemSummary): string {
 export function buildVaultRecommendationSourceSummaries(
   item: AccountItemSummary,
   instanceMatch?: VaultItemInstanceMatchInfo,
-  wishlist?: DimWishlist | null
+  wishlist?: DimWishlist | null,
+  cardSummary?: RecommendationCardSummary
 ): VaultRecommendationSourceSummary[] {
-  const summaries = (instanceMatch?.source_matches ?? [])
-    .filter((source) => (
-      source.source_id !== "dim_voltron"
-      && source.source_id !== "dim_wishlist"
-    ))
-    .map(sourceMatchSummary);
+  const summaries = cardSummary
+    ? cardSummary.sources
+        .filter((source) => !isDimRecommendationSource(source.source_id))
+        .map(cardSourceSummary)
+    : (instanceMatch?.source_matches ?? [])
+        .filter((source) => !isDimRecommendationSource(source.source_id))
+        .map(sourceMatchSummary);
   // DIM 必须按完整愿望单组合核对。CSV 中为阅读汇总而展开的 dim_voltron
   // 候选池不能伪装成人工来源栏位，否则会把不同组合错误拼成 x/y。
-  const dimSummary = instanceMatch
-    ? instanceMatch.dim_wishlist
-      ? buildDimInstanceSummary(instanceMatch.dim_wishlist)
+  const dimSummary = cardSummary
+    ? cardSummary.dim
+      ? buildDimInstanceSummary(cardSummary.dim)
       : null
-    : buildDimWishlistSummary(item, wishlist);
+    : instanceMatch
+      ? instanceMatch.dim_wishlist
+        ? buildDimInstanceSummary(instanceMatch.dim_wishlist)
+        : null
+      : buildDimWishlistSummary(item, wishlist);
   if (dimSummary) summaries.push(dimSummary);
   return summaries.sort(compareSourceSummaries);
 }
@@ -111,22 +127,61 @@ export function buildVaultRecommendationSourceSummaries(
 export function buildVaultRecommendationSummaryIndex(
   items: readonly AccountItemSummary[],
   instanceMatchMap?: ReadonlyMap<string, VaultItemInstanceMatchInfo>,
-  wishlist?: DimWishlist | null
+  wishlist?: DimWishlist | null,
+  cardSummaryMap?: ReadonlyMap<string, RecommendationCardSummary>
 ): Map<string, VaultRecommendationSourceSummary[]> {
+  const weaponItems = items.filter((item) => item.group_key === "weapons");
+  const itemSignatures = new Map(weaponItems.map((item) => {
+    const instanceKey = getVaultCommunityInstanceKey(item);
+    return [instanceKey, recommendationItemSignature(item)] as const;
+  }));
+  if (
+    cachedSummaryIndexInput?.instanceMatchMap === instanceMatchMap
+    && cachedSummaryIndexInput.cardSummaryMap === cardSummaryMap
+    && cachedSummaryIndexInput.wishlist === wishlist
+    && sameRecommendationItemSignatures(cachedSummaryIndexInput.itemSignatures, itemSignatures)
+  ) {
+    return cachedSummaryIndexInput.index;
+  }
+
   const index = new Map<string, VaultRecommendationSourceSummary[]>();
-  for (const item of items) {
-    if (item.group_key !== "weapons") continue;
+  for (const item of weaponItems) {
     const instanceKey = getVaultCommunityInstanceKey(item);
     index.set(
       instanceKey,
-      buildVaultRecommendationSourceSummaries(item, instanceMatchMap?.get(instanceKey), wishlist)
+      buildVaultRecommendationSourceSummaries(
+        item,
+        instanceMatchMap?.get(instanceKey),
+        wishlist,
+        cardSummaryMap?.get(instanceKey)
+      )
     );
   }
+  cachedSummaryIndexInput = { instanceMatchMap, cardSummaryMap, wishlist, itemSignatures, index };
   return index;
 }
 
+function recommendationItemSignature(item: AccountItemSummary): string {
+  return [
+    item.hash,
+    item.weapon_roll?.fingerprint ?? "",
+    (item.socket_plugs ?? []).map((plug) => plug.hash).join(",")
+  ].join(":");
+}
+
+function sameRecommendationItemSignatures(
+  previous: ReadonlyMap<string, string>,
+  next: ReadonlyMap<string, string>
+): boolean {
+  if (previous.size !== next.size) return false;
+  for (const [instanceKey, signature] of next) {
+    if (previous.get(instanceKey) !== signature) return false;
+  }
+  return true;
+}
+
 function buildDimInstanceSummary(
-  match: NonNullable<VaultItemInstanceMatchInfo["dim_wishlist"]>
+  match: NonNullable<VaultItemInstanceMatchInfo["dim_wishlist"]> | RecommendationCardDimSummary
 ): VaultRecommendationSourceSummary {
   const missingRequirementCount = Math.max(0, match.best_requirement_count - match.best_matched_requirement_count);
   const isClose = match.matched_combo_count === 0 && match.best_matched_requirement_count > 0 && missingRequirementCount > 0;
@@ -421,6 +476,41 @@ function sourceMatchSummary(source: RecommendationSourceMatch): VaultRecommendat
     resultText: presentation.summary,
     text: `${shortSourceLabel}：${presentation.summary}`,
     detail: presentation.detail
+  };
+}
+
+function cardSourceSummary(source: RecommendationCardSourceSummary): VaultRecommendationSourceSummary {
+  const sourceLabel = displayVaultRecommendationSourceLabel(source.source_id, source.source_label);
+  const shortSourceLabel = compactVaultRecommendationSourceLabel(source.source_id, sourceLabel);
+  const resultText = source.state === "weapon_only" || source.requirement_count === 0
+    ? "仅推荐武器 · 未指定 Roll"
+    : `${source.perk_requirement_count > 0
+        ? `Perk ${source.matched_perk_count}/${source.perk_requirement_count}`
+        : "Perk 未要求"} · 完整 ${source.matched_requirement_count}/${source.requirement_count}${source.uncheckable_requirement_count > 0
+          ? ` · ${source.uncheckable_requirement_count} 项无法判断`
+          : ""}`;
+  return {
+    sourceId: source.source_id,
+    sourceLabel,
+    shortLabel: shortSourceLabel,
+    state: source.state,
+    matched: source.matched_requirement_count,
+    available: source.requirement_count,
+    matchedPerkCount: source.matched_perk_count,
+    perkRequirementCount: source.perk_requirement_count,
+    uncheckablePerkCount: source.uncheckable_perk_count,
+    matchedRequirementCount: source.matched_requirement_count,
+    requirementCount: source.requirement_count,
+    uncheckableRequirementCount: source.uncheckable_requirement_count,
+    dimBestMatchedRequirementCount: 0,
+    dimBestRequirementCount: 0,
+    unit: "item",
+    purposes: source.purposes,
+    resultText,
+    text: `${shortSourceLabel}：${resultText}`,
+    detail: source.state === "weapon_only" || source.requirement_count === 0
+      ? `${sourceLabel}：来源推荐这把武器，但没有指定需要核对的 Roll。`
+      : `${sourceLabel}：${resultText}。同栏候选任选其一，不同栏位分别核对。`
   };
 }
 

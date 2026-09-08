@@ -21,6 +21,7 @@ import type {
   RecommendationRequirementSlot,
   RecommendationSourceRecord,
   SourceOptions,
+  WeaponIdentityRelation,
   WeaponRecommendation
 } from "@d2-tools/core/community-perks";
 import {
@@ -31,6 +32,7 @@ import {
   recommendationMetadataValue
 } from "./recommendationDatabase.js";
 import { reconcileRecommendationRuleOverrides } from "./recommendationOverrides.js";
+import { buildWeaponIdentityRelations } from "../gameData/weaponIdentity.js";
 
 const requiredCsvHeaders = [
   "页面", "分类", "武器", "评级", "排名", "来源URL", "页面更新时间", "来源位置",
@@ -146,6 +148,10 @@ type KnowledgeCache = {
 };
 
 const knowledgeCaches = new Map<string, KnowledgeCache | null>();
+const fallbackWeaponIdentityRelations = new WeakMap<
+  DefinitionComponentData,
+  WeaponIdentityRelation[]
+>();
 
 export function invalidateWeaponRecommendationKnowledgeCache(dataDir: string): void {
   knowledgeCaches.delete(recommendationDatabasePath(dataDir));
@@ -472,11 +478,13 @@ export function createWeaponRecommendationKnowledgeSource(dataDir: string): Comm
         itemDefinition?.displayProperties?.name
       ].filter((value): value is string => Boolean(value?.trim()));
       const englishName = options.englishItemDefinitions?.[String(item_hash)]?.displayProperties?.name;
+      const identityRelations = weaponIdentityRelationsForOptions(options);
       const matching = selectKnowledgeRecommendations(
         knowledge,
         item_hash,
         localizedNames,
-        englishName
+        englishName,
+        identityRelations
       );
       if (matching.length === 0) return null;
 
@@ -526,20 +534,30 @@ export function createWeaponRecommendationKnowledgeSource(dataDir: string): Comm
   };
 }
 
+function weaponIdentityRelationsForOptions(options: SourceOptions): WeaponIdentityRelation[] {
+  if (options.weaponIdentityRelations?.length) return options.weaponIdentityRelations;
+  if (!options.itemDefinitions) return [];
+  const cached = fallbackWeaponIdentityRelations.get(options.itemDefinitions);
+  if (cached) return cached;
+  const relations = buildWeaponIdentityRelations(Object.values(options.itemDefinitions));
+  fallbackWeaponIdentityRelations.set(options.itemDefinitions, relations);
+  return relations;
+}
+
 function selectKnowledgeRecommendations(
   knowledge: KnowledgeCache,
   itemHash: number,
   localizedNames: string[],
-  englishName?: string
+  englishName?: string,
+  identityRelations: readonly WeaponIdentityRelation[] = []
 ): KnowledgeRecommendation[] {
-  const exactMatches = knowledge.byItemHash.get(itemHash) ?? [];
-  const englishKey = normalizeName(englishName ?? "");
-  const localizedKeys = [...new Set(localizedNames.map(normalizeName).filter(Boolean))];
-  const candidates = uniqueById([
-    ...exactMatches,
-    ...(englishKey ? knowledge.byName.get(englishKey) ?? [] : []),
-    ...localizedKeys.flatMap((name) => knowledge.byName.get(name) ?? [])
-  ]);
+  const candidates = collectKnowledgeCandidates(
+    knowledge,
+    itemHash,
+    localizedNames,
+    englishName,
+    identityRelations
+  );
   const bySource = new Map<string, KnowledgeRecommendation[]>();
   for (const candidate of candidates) {
     const bucket = bySource.get(candidate.source_id) ?? [];
@@ -548,28 +566,65 @@ function selectKnowledgeRecommendations(
   }
 
   const selected: KnowledgeRecommendation[] = [];
+  const identityIndex = indexWeaponIdentityRelations(identityRelations);
+  const targetIdentity = identityIndex.byItemHash.get(itemHash);
+  const targetVariants = new Set(targetIdentity?.variant_tags ?? []);
+  const exactNameKeys = new Set(weaponLookupKeys([...localizedNames, englishName ?? ""], false));
   for (const sourceCandidates of bySource.values()) {
-    const sourceExactMatches = sourceCandidates.filter((candidate) => candidate.item_hashes.includes(itemHash));
+    const sourceExactMatches = sourceCandidates.filter((candidate) => (
+      candidate.item_hashes.includes(itemHash)
+      && (!targetIdentity || recommendationReleaseGroupKeys(candidate, identityIndex)
+        .has(targetIdentity.release_group_key))
+    ));
     if (sourceExactMatches.length) {
       selected.push(...sourceExactMatches);
       continue;
     }
-    if (englishKey) {
-      const sourceEnglishMatches = sourceCandidates.filter((candidate) => (
-        candidate.normalized_english_name === englishKey
-      ));
-      if (sourceEnglishMatches.length) {
-        selected.push(...sourceEnglishMatches);
-        continue;
-      }
+    const releaseMatches = sourceCandidates.filter((candidate) => (
+      targetIdentity
+      && recommendationReleaseGroupKeys(candidate, identityIndex).has(targetIdentity.release_group_key)
+      && recommendationAppliesToTargetVariant(candidate, targetVariants)
+    ));
+    if (releaseMatches.length) {
+      selected.push(...releaseMatches);
+      continue;
     }
-    // Hash 只用于优先确认身份。旧版、复刻版或高阶版拥有不同 Hash 时，
-    // 只要当前来源中的官方中文名称唯一，仍共享同一条武器推荐。
-    if (sourceCandidates.length === 1) {
-      selected.push(sourceCandidates[0]);
+    const nameOnlyMatches = sourceCandidates.filter((candidate) => (
+      candidate.item_hashes.length === 0
+      && [candidate.normalized_weapon_name, candidate.normalized_english_name]
+        .some((key) => key && exactNameKeys.has(key))
+      && recommendationAppliesToTargetVariant(candidate, targetVariants, true)
+    ));
+    if (nameOnlyMatches.length === 1) {
+      selected.push(nameOnlyMatches[0]);
     }
   }
-  return uniqueById(selected);
+  const unique = uniqueById(selected);
+  return targetIdentity
+    ? unique.map((recommendation) => scopeRecommendationToReleaseGroup(
+        recommendation,
+        targetIdentity.release_group_key,
+        identityIndex
+      ))
+    : unique;
+}
+
+function collectKnowledgeCandidates(
+  knowledge: KnowledgeCache,
+  itemHash: number,
+  localizedNames: string[],
+  englishName?: string,
+  identityRelations: readonly WeaponIdentityRelation[] = []
+): KnowledgeRecommendation[] {
+  const relatedHashes = releaseRelatedItemHashes(
+    itemHash,
+    indexWeaponIdentityRelations(identityRelations)
+  );
+  const lookupKeys = weaponLookupKeys([...localizedNames, englishName ?? ""]);
+  return uniqueById([
+    ...[...relatedHashes].flatMap((hash) => knowledge.byItemHash.get(hash) ?? []),
+    ...lookupKeys.flatMap((key) => knowledge.byName.get(key) ?? [])
+  ]);
 }
 
 export function collectRelatedWeaponRecommendationItemHashes(
@@ -578,7 +633,8 @@ export function collectRelatedWeaponRecommendationItemHashes(
     item_hash: number;
     localized_names?: string[];
     english_name?: string;
-  }>
+  }>,
+  identityRelations: readonly WeaponIdentityRelation[] = []
 ): number[] {
   const knowledge = loadKnowledgeCache(dataDir);
   if (!knowledge) return [];
@@ -587,7 +643,31 @@ export function collectRelatedWeaponRecommendationItemHashes(
       knowledge,
       query.item_hash,
       query.localized_names ?? [],
-      query.english_name
+      query.english_name,
+      identityRelations
+    ).flatMap((recommendation) => recommendation.item_hashes)
+  )));
+}
+
+export function collectWeaponRecommendationCandidateItemHashes(
+  dataDir: string,
+  queries: ReadonlyArray<{
+    item_hash: number;
+    localized_names?: string[];
+    english_name?: string;
+  }>,
+  identityRelations: readonly WeaponIdentityRelation[] = []
+): number[] {
+  const knowledge = loadKnowledgeCache(dataDir);
+  if (!knowledge) return [];
+  const relationIndex = indexWeaponIdentityRelations(identityRelations);
+  return uniqueHashes(queries.flatMap((query) => (
+    collectKnowledgeCandidates(
+      knowledge,
+      query.item_hash,
+      query.localized_names ?? [],
+      query.english_name,
+      relatedIdentityRelations(query.item_hash, relationIndex)
     ).flatMap((recommendation) => recommendation.item_hashes)
   )));
 }
@@ -860,7 +940,7 @@ function loadKnowledgeCache(dataDir: string): KnowledgeCache | null {
         item_hashes: itemHashesById.get(row.id) ?? [],
         requirements: requirementsById.get(row.id) ?? emptyRequirements()
       };
-      for (const key of [row.normalized_weapon_name, row.normalized_english_name].filter(Boolean)) {
+      for (const key of weaponLookupKeys([row.weapon_name, row.english_name])) {
         const bucket = byName.get(key) ?? [];
         bucket.push(recommendation);
         byName.set(key, bucket);
@@ -1464,6 +1544,173 @@ function normalizeName(value: string): string {
     .normalize("NFKC")
     .toLocaleLowerCase()
     .replace(/[\p{P}\p{Z}\s]+/gu, "");
+}
+
+type RecommendationVariantConstraint = "adept" | "timelost" | "harrowed" | "holofoil" | "exact_only";
+
+const officialWeaponVariantSuffixPattern = /\s*[（(]\s*(adept|专家|timelost|失时|harrowed|痛苦)\s*[）)]\s*$/iu;
+const sourceOnlyWeaponVariantSuffixPattern = /\s*[（(]\s*(holofoil|全息箔|brave(?:\s+version)?|勇者版本|猛攻版本|玖的仪式版本)\s*[）)]\s*$/iu;
+
+function weaponLookupKeys(values: string[], includeFamilyAliases = true): string[] {
+  const keys = new Set<string>();
+  for (const rawValue of values) {
+    const value = rawValue.trim();
+    if (!value) continue;
+    const exact = normalizeName(value);
+    if (exact) keys.add(exact);
+    if (!includeFamilyAliases) continue;
+    const family = normalizeName(stripKnownWeaponVariantSuffix(value));
+    if (family) keys.add(family);
+  }
+  return [...keys];
+}
+
+function stripKnownWeaponVariantSuffix(value: string): string {
+  return value
+    .replace(officialWeaponVariantSuffixPattern, "")
+    .replace(sourceOnlyWeaponVariantSuffixPattern, "")
+    .trim();
+}
+
+function releaseRelatedItemHashes(
+  itemHash: number,
+  index: WeaponIdentityRelationIndex
+): Set<number> {
+  const hashes = new Set<number>([itemHash]);
+  const root = index.byItemHash.get(itemHash);
+  if (!root) return hashes;
+  for (const relation of index.byReleaseGroup.get(root.release_group_key) ?? [root]) {
+    hashes.add(relation.item_hash);
+  }
+  return hashes;
+}
+
+type WeaponIdentityRelationIndex = {
+  byItemHash: Map<number, WeaponIdentityRelation>;
+  byReleaseGroup: Map<string, WeaponIdentityRelation[]>;
+  recommendationReleaseGroups: Map<number, ReadonlySet<string>>;
+};
+
+const weaponIdentityRelationIndexes = new WeakMap<
+  readonly WeaponIdentityRelation[],
+  WeaponIdentityRelationIndex
+>();
+
+function indexWeaponIdentityRelations(
+  relations: readonly WeaponIdentityRelation[]
+): WeaponIdentityRelationIndex {
+  const cached = weaponIdentityRelationIndexes.get(relations);
+  if (cached) return cached;
+  const byItemHash = new Map<number, WeaponIdentityRelation>();
+  const byReleaseGroup = new Map<string, WeaponIdentityRelation[]>();
+  for (const relation of relations) {
+    byItemHash.set(relation.item_hash, relation);
+    const group = byReleaseGroup.get(relation.release_group_key) ?? [];
+    group.push(relation);
+    byReleaseGroup.set(relation.release_group_key, group);
+  }
+  const index = {
+    byItemHash,
+    byReleaseGroup,
+    recommendationReleaseGroups: new Map<number, ReadonlySet<string>>()
+  };
+  weaponIdentityRelationIndexes.set(relations, index);
+  return index;
+}
+
+function relatedIdentityRelations(
+  itemHash: number,
+  index: WeaponIdentityRelationIndex
+): WeaponIdentityRelation[] {
+  const root = index.byItemHash.get(itemHash);
+  if (!root) return [];
+  return index.byReleaseGroup.get(root.release_group_key) ?? [root];
+}
+
+function recommendationAppliesToTargetVariant(
+  recommendation: KnowledgeRecommendation,
+  targetVariants: ReadonlySet<string>,
+  allowExactOnly = false
+): boolean {
+  const constraint = recommendationVariantConstraint(recommendation);
+  if (!constraint) return true;
+  if (constraint === "exact_only") return allowExactOnly;
+  return targetVariants.has(constraint);
+}
+
+function recommendationReleaseGroupKeys(
+  recommendation: KnowledgeRecommendation,
+  index: WeaponIdentityRelationIndex
+): ReadonlySet<string> {
+  const cached = index.recommendationReleaseGroups.get(recommendation.id);
+  if (cached) return cached;
+  const groups = new Map<string, WeaponIdentityRelation[]>();
+  for (const itemHash of recommendation.item_hashes) {
+    const relation = index.byItemHash.get(itemHash);
+    if (!relation) continue;
+    const group = groups.get(relation.release_group_key) ?? [];
+    group.push(relation);
+    groups.set(relation.release_group_key, group);
+  }
+  if (groups.size <= 1) {
+    const resolved = new Set(groups.keys());
+    index.recommendationReleaseGroups.set(recommendation.id, resolved);
+    return resolved;
+  }
+
+  // 旧版按名称补 ID 时可能把所有同名历史复刻一起写入。这里不把这些 Hash
+  // 当成多条精确规则，而是只保留官方 releases.* 能证明的最新发布组。
+  const ranked = [...groups.entries()].map(([releaseGroupKey, relations]) => ({
+    releaseGroupKey,
+    rank: Math.max(...relations.map(releaseGroupRank))
+  }));
+  const highestRank = Math.max(...ranked.map((entry) => entry.rank));
+  if (!Number.isFinite(highestRank)) {
+    const unresolved = new Set<string>();
+    index.recommendationReleaseGroups.set(recommendation.id, unresolved);
+    return unresolved;
+  }
+  const highestGroups = ranked.filter((entry) => entry.rank === highestRank);
+  const resolved = highestGroups.length === 1
+    ? new Set([highestGroups[0].releaseGroupKey])
+    : new Set<string>();
+  index.recommendationReleaseGroups.set(recommendation.id, resolved);
+  return resolved;
+}
+
+function scopeRecommendationToReleaseGroup(
+  recommendation: KnowledgeRecommendation,
+  releaseGroupKey: string,
+  index: WeaponIdentityRelationIndex
+): KnowledgeRecommendation {
+  const scopedItemHashes = recommendation.item_hashes.filter((itemHash) => (
+    index.byItemHash.get(itemHash)?.release_group_key === releaseGroupKey
+  ));
+  return scopedItemHashes.length > 0 && scopedItemHashes.length !== recommendation.item_hashes.length
+    ? { ...recommendation, item_hashes: scopedItemHashes }
+    : recommendation;
+}
+
+function releaseGroupRank(relation: WeaponIdentityRelation): number {
+  const matches = [...(relation.release_label ?? "").matchAll(/(?:^|\W)releases\.v(\d+)\./giu)];
+  return matches.length
+    ? Math.max(...matches.map((match) => Number(match[1])))
+    : Number.NEGATIVE_INFINITY;
+}
+
+function recommendationVariantConstraint(
+  recommendation: KnowledgeRecommendation
+): RecommendationVariantConstraint | null {
+  for (const value of [recommendation.english_name, recommendation.weapon_name]) {
+    const official = value.match(officialWeaponVariantSuffixPattern)?.[1]?.toLocaleLowerCase() ?? "";
+    if (official === "timelost" || official === "失时") return "timelost";
+    if (official === "harrowed" || official === "痛苦") return "harrowed";
+    if (official === "adept" || official === "专家") return "adept";
+    const sourceOnly = value.match(sourceOnlyWeaponVariantSuffixPattern)?.[1]?.toLocaleLowerCase() ?? "";
+    if (sourceOnly === "holofoil" || sourceOnly === "全息箔") return "holofoil";
+    if (sourceOnly) return "exact_only";
+  }
+  return null;
 }
 
 function weaponIdentityKey(row: Record<string, string>): string {

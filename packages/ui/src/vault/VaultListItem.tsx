@@ -6,6 +6,10 @@ import { ammoFilterLabels, armorStatLabels, formatArmorStatsInline, getAccountIt
 import { GameAssetImage } from "../media/GameAssetImage.js";
 import { VaultAmmoTypeIcon, VaultDamageTypeIcon } from "./VaultWeaponFactIcons.js";
 import type { VaultRecommendationSourceSummary } from "./vaultRecommendationMatch.js";
+import {
+  useVaultQuickAction,
+  type VaultQuickActionStore
+} from "./vaultQuickActionStore.js";
 
 type VaultListItemProps = {
   item: AccountItemSummary;
@@ -19,7 +23,7 @@ type VaultListItemProps = {
   isOpening?: boolean;
   currentCharacterId?: string;
   currentCharacterLabel?: string;
-  activeQuickAction?: { itemKey: string; action: "lock" | "unlock" | "transfer" } | null;
+  quickActionStore: VaultQuickActionStore;
   quickActionsDisabled?: boolean;
   onSelectItem: (item: AccountItemSummary) => void;
   onToggleSelected: (item: AccountItemSummary) => void;
@@ -62,7 +66,7 @@ export function VaultListItem(props: VaultListItemProps) {
   const sourceSummaries = isWeapon ? props.sourceSummaries : [];
   const totalSourceCount = sourceSummaries.length + props.additionalSourceCount;
   const itemKey = getVaultItemKey(props.item);
-  const activeQuickAction = props.activeQuickAction?.itemKey === itemKey ? props.activeQuickAction.action : undefined;
+  const activeQuickAction = useVaultQuickAction(props.quickActionStore, itemKey);
   const canUseQuickActions = Boolean(props.item.instance_id && props.onQuickAction);
   const canTransfer = canUseQuickActions && getItemSourceKind(props.item) === "vault" && Boolean(props.currentCharacterId);
   const lockQuickAction = props.item.locked ? "unlock" : "lock";
@@ -214,7 +218,7 @@ export function VaultListItem(props: VaultListItemProps) {
             data-ui-kind="button"
             data-control-variant="quiet"
             data-vault-action="lock"
-            disabled={props.quickActionsDisabled}
+            disabled={props.quickActionsDisabled || Boolean(activeQuickAction)}
             aria-busy={Boolean(activeLockQuickAction)}
             title={`一键${lockQuickActionLabel}：${props.item.name}`}
             onClick={() => void props.onQuickAction?.(props.item, lockQuickAction)}
@@ -227,7 +231,7 @@ export function VaultListItem(props: VaultListItemProps) {
               data-ui-kind="button"
               data-control-variant="secondary"
               data-vault-action="transfer"
-              disabled={props.quickActionsDisabled}
+              disabled={props.quickActionsDisabled || Boolean(activeQuickAction)}
               aria-busy={activeQuickAction === "transfer"}
               title={`取出到当前角色${props.currentCharacterLabel ? `（${props.currentCharacterLabel}）` : ""}`}
               onClick={() => void props.onQuickAction?.(props.item, "transfer")}
@@ -254,8 +258,7 @@ function sameVaultListItemProps(previous: VaultListItemProps, next: VaultListIte
     && previous.isOpening === next.isOpening
     && previous.currentCharacterId === next.currentCharacterId
     && previous.currentCharacterLabel === next.currentCharacterLabel
-    && previous.activeQuickAction?.itemKey === next.activeQuickAction?.itemKey
-    && previous.activeQuickAction?.action === next.activeQuickAction?.action
+    && previous.quickActionStore === next.quickActionStore
     && previous.quickActionsDisabled === next.quickActionsDisabled
     && sameSourceSummaries(previous.sourceSummaries, next.sourceSummaries)
     && previous.onSelectItem === next.onSelectItem

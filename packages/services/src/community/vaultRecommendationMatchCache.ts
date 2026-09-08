@@ -12,7 +12,7 @@ import { recommendationOverrideRevision } from "./recommendationOverrides.js";
 const databaseFileName = "account-cache.sqlite";
 // 旧缓存可能是在中文推荐库不可用、或未解析名称被误判为无法核对时生成；
 // 当前匹配语义已改变，必须整体失效，避免继续显示历史错误结果。
-const matchAlgorithmVersion = 11;
+const matchAlgorithmVersion = 12;
 
 export type VaultRecommendationMatchCacheContext = {
   account_key: string;

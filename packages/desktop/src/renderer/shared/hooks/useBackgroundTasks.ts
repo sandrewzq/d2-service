@@ -23,6 +23,13 @@ export function useBackgroundTasksByTypes(types: readonly BackgroundTaskType[]) 
   return useBackgroundTaskState(backgroundTasks);
 }
 
+export function useBackgroundTaskSummariesByTypes(types: readonly BackgroundTaskType[]) {
+  const typeKey = types.join("\u0000");
+  const selectTasks = useMemo(() => createTaskSummarySelector(typeKey), [typeKey]);
+  const backgroundTasks = useBackgroundTaskSelection(selectTasks, areSameTaskSnapshots);
+  return useBackgroundTaskState(backgroundTasks);
+}
+
 export function useBackgroundTasksByIds(taskIds: readonly string[]) {
   const taskIdKey = taskIds.join("\u0000");
   const selectTasks = useMemo(() => createTaskIdSelector(taskIdKey), [taskIdKey]);
@@ -83,6 +90,30 @@ function selectAllBackgroundTasks(tasks: BackgroundTaskSnapshot[]): BackgroundTa
 function createTaskTypeSelector(typeKey: string) {
   const typeSet = new Set(typeKey.split("\u0000").filter(Boolean) as BackgroundTaskType[]);
   return (tasks: BackgroundTaskSnapshot[]) => tasks.filter((task) => typeSet.has(task.type));
+}
+
+function createTaskSummarySelector(typeKey: string) {
+  const selectByType = createTaskTypeSelector(typeKey);
+  return (tasks: BackgroundTaskSnapshot[]) => selectByType(tasks).map((task) => ({
+    task_id: task.task_id,
+    type: task.type,
+    status: task.status,
+    title: task.title,
+    message: task.message,
+    phase: task.phase,
+    availability: task.availability,
+    progress_percent: task.progress_percent === undefined
+      ? undefined
+      : Math.round(task.progress_percent),
+    started_at: task.started_at,
+    updated_at: task.started_at ?? task.updated_at,
+    finished_at: task.finished_at,
+    next_retry_at: task.next_retry_at,
+    attempt: task.attempt,
+    error: task.error,
+    can_cancel: task.can_cancel,
+    can_retry: task.can_retry
+  }));
 }
 
 function createTaskIdSelector(taskIdKey: string) {

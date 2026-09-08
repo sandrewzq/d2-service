@@ -1,8 +1,10 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { WeaponIdentityRelation, WeaponVariantKind } from "@d2-tools/core/community-perks";
 import type { DefinitionRecord } from "@d2-tools/core/manifest/definitions";
 import { toSignedHash, toUnsignedHash } from "./definitionReader.js";
+import { buildWeaponIdentityRelations } from "./weaponIdentity.js";
 import type {
   GameDataSearchIndex,
   GameDataSearchIndexBuildResult,
@@ -29,7 +31,7 @@ type IndexedItem = {
 };
 
 const nonEquipmentItemTypes = new Set([0, 19, 20, 30]);
-const searchIndexSchemaVersion = "3";
+const searchIndexSchemaVersion = "4";
 
 export function buildSqliteSearchIndex(
   options: BuildSqliteSearchIndexOptions
@@ -79,9 +81,22 @@ export function buildSqliteSearchIndex(
         rank
       ) VALUES (?, ?, ?, ?)
     `);
+    const insertWeaponIdentityRelation = index.prepare(`
+      INSERT INTO weapon_identity_relation(
+        item_hash,
+        family_key,
+        release_group_key,
+        variant_kind,
+        variant_tags,
+        canonical_item_hash,
+        release_label,
+        relation_evidence
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
     const plugPerks = new Map<number, number[]>();
     const indexedItems: IndexedItem[] = [];
+    const weaponDefinitions: DefinitionRecord[] = [];
     let itemCount = 0;
     let perkCount = 0;
     let relationCount = 0;
@@ -110,6 +125,7 @@ export function buildSqliteSearchIndex(
           });
           itemCount += 1;
         }
+        if (name && isWeaponDefinition(definition)) weaponDefinitions.push(definition);
 
         const perkHashes = uniqueNumbers(
           (definition.perks ?? [])
@@ -170,6 +186,18 @@ export function buildSqliteSearchIndex(
           item.rank
         );
       }
+      for (const relation of buildWeaponIdentityRelations(weaponDefinitions)) {
+        insertWeaponIdentityRelation.run(
+          toSignedHash(relation.item_hash),
+          relation.family_key,
+          relation.release_group_key,
+          relation.variant_kind,
+          JSON.stringify(relation.variant_tags),
+          toSignedHash(relation.canonical_item_hash),
+          relation.release_label ?? "",
+          relation.relation_evidence
+        );
+      }
     });
 
     const plugSets = loadPlugSets(source);
@@ -202,6 +230,10 @@ export function buildSqliteSearchIndex(
         ON perk_plugs(perk_hash, plug_hash);
       CREATE INDEX item_version_relation_group_idx
         ON item_version_relation(relation_key, canonical_hash, rank);
+      CREATE INDEX weapon_identity_relation_release_idx
+        ON weapon_identity_relation(release_group_key, item_hash);
+      CREATE INDEX weapon_identity_relation_family_idx
+        ON weapon_identity_relation(family_key, release_group_key);
     `);
     index.exec("PRAGMA optimize;");
 
@@ -241,6 +273,10 @@ export function createSqliteSearchIndex(
 
     getItemVersionHashes(itemHashes, limit) {
       return queryItemVersionHashes(database, itemHashes, limit);
+    },
+
+    getWeaponIdentityRelations(itemHashes) {
+      return queryWeaponIdentityRelations(database, itemHashes);
     },
 
     getRelatedItemSummary(perkHashes) {
@@ -319,6 +355,18 @@ function createSchema(database: DatabaseSync): void {
       canonical_hash INTEGER NOT NULL,
       relation_key TEXT NOT NULL,
       rank INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE weapon_identity_relation (
+      item_hash INTEGER PRIMARY KEY,
+      family_key TEXT NOT NULL,
+      release_group_key TEXT NOT NULL,
+      variant_kind TEXT NOT NULL CHECK(variant_kind IN (
+        'standard', 'adept', 'timelost', 'harrowed', 'holofoil', 'named_variant'
+      )),
+      variant_tags TEXT NOT NULL,
+      canonical_item_hash INTEGER NOT NULL,
+      release_label TEXT NOT NULL DEFAULT '',
+      relation_evidence TEXT NOT NULL CHECK(relation_evidence IN ('release_trait', 'isolated'))
     );
   `);
 }
@@ -449,6 +497,80 @@ function queryItemVersionHashes(
     }
   }
   return [...results];
+}
+
+function queryWeaponIdentityRelations(
+  database: DatabaseSync,
+  itemHashes: Iterable<number>
+): WeaponIdentityRelation[] {
+  const relations = new Map<number, WeaponIdentityRelation>();
+  const requestedHashes = [...new Set([...itemHashes].map(toUnsignedHash))];
+  for (let offset = 0; offset < requestedHashes.length; offset += 250) {
+    const batch = requestedHashes.slice(offset, offset + 250);
+    const placeholders = batch.map(() => "?").join(", ");
+    const rows = database.prepare(`
+      SELECT DISTINCT
+        related.item_hash,
+        related.family_key,
+        related.release_group_key,
+        related.variant_kind,
+        related.variant_tags,
+        related.canonical_item_hash,
+        related.release_label,
+        related.relation_evidence
+      FROM weapon_identity_relation AS source
+      JOIN weapon_identity_relation AS related
+        ON related.release_group_key = source.release_group_key
+      WHERE source.item_hash IN (${placeholders})
+      ORDER BY related.item_hash
+    `).all(...batch.map(toSignedHash)) as Array<{
+      item_hash: number;
+      family_key: string;
+      release_group_key: string;
+      variant_kind: WeaponVariantKind;
+      variant_tags: string;
+      canonical_item_hash: number;
+      release_label: string;
+      relation_evidence: "release_trait" | "isolated";
+    }>;
+    for (const row of rows) {
+      const normalizedHash = toUnsignedHash(row.item_hash);
+      relations.set(normalizedHash, {
+        item_hash: normalizedHash,
+        family_key: row.family_key,
+        release_group_key: row.release_group_key,
+        variant_kind: row.variant_kind,
+        variant_tags: parseWeaponVariantTags(row.variant_tags, row.variant_kind),
+        canonical_item_hash: toUnsignedHash(row.canonical_item_hash),
+        ...(row.release_label ? { release_label: row.release_label } : {}),
+        relation_evidence: row.relation_evidence
+      });
+    }
+  }
+  return [...relations.values()];
+}
+
+function parseWeaponVariantTags(
+  value: string,
+  fallback: WeaponVariantKind
+): WeaponVariantKind[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [fallback];
+    const tags = parsed.filter(isWeaponVariantKind);
+    return tags.length ? [...new Set(tags)] : [fallback];
+  } catch {
+    return [fallback];
+  }
+}
+
+function isWeaponVariantKind(value: unknown): value is WeaponVariantKind {
+  return value === "standard"
+    || value === "adept"
+    || value === "timelost"
+    || value === "harrowed"
+    || value === "holofoil"
+    || value === "named_variant";
 }
 
 function queryMappedHashes(
@@ -630,6 +752,10 @@ function normalizeSearchText(value: string): string {
 
 function isSearchableEquipment(definition: DefinitionRecord): boolean {
   return typeof definition.itemType !== "number" || !nonEquipmentItemTypes.has(definition.itemType);
+}
+
+function isWeaponDefinition(definition: DefinitionRecord): boolean {
+  return definition.itemType === 3;
 }
 
 function equipmentDefinitionScore(definition: DefinitionRecord): number {

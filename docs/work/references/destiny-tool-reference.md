@@ -90,7 +90,7 @@ DIM 的官方组织仓库总览：<https://github.com/orgs/DestinyItemManager/re
 
 ### T20 武器推荐数据源结论
 
-本节保存 T20“武器推荐汇总与仓库精确清理”的外部数据源调研。已验收的实现规则与阶段记录见 [T20 实施记录](../backlog/T20-weapon-recommendation-vault-cleanup.md)，这里不重复维护完成状态。
+本节保存 T20“武器推荐汇总与仓库精确清理”的外部数据源调研。v0.0.22 已发布能力见 [T20 完成摘要](../backlog/T20-weapon-recommendation-vault-cleanup.md)，这里不重复维护完成状态。
 
 #### 五个一级推荐来源
 

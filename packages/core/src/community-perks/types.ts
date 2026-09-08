@@ -139,7 +139,27 @@ export type SourceOptions = {
   plugSetDefinitions?: DefinitionComponentData;
   englishItemDefinitions?: DefinitionComponentData;
   englishPlugSetDefinitions?: DefinitionComponentData;
+  weaponIdentityRelations?: WeaponIdentityRelation[];
   item_name?: string;
+};
+
+export type WeaponVariantKind =
+  | "standard"
+  | "adept"
+  | "timelost"
+  | "harrowed"
+  | "holofoil"
+  | "named_variant";
+
+export type WeaponIdentityRelation = {
+  item_hash: number;
+  family_key: string;
+  release_group_key: string;
+  variant_kind: WeaponVariantKind;
+  variant_tags: WeaponVariantKind[];
+  canonical_item_hash: number;
+  release_label?: string;
+  relation_evidence: "release_trait" | "isolated";
 };
 
 export interface CommunityPerkSource {
@@ -181,6 +201,44 @@ export type VaultItemInstanceMatchInfo = VaultItemMatchInfo & {
   dim_wishlist?: DimWishlistInstanceMatch;
 };
 
+export type RecommendationCardSourceSummary = {
+  source_id: string;
+  source_label: string;
+  state: RecommendationSourceMatch["state"];
+  purposes: Array<"pve" | "pvp" | "general">;
+  matched_requirement_count: number;
+  requirement_count: number;
+  uncheckable_requirement_count: number;
+  matched_perk_count: number;
+  perk_requirement_count: number;
+  uncheckable_perk_count: number;
+};
+
+export type RecommendationCardDimSummary = Omit<DimWishlistInstanceMatch, "rules"> & {
+  matched_modes?: Array<"pve" | "pvp" | "general">;
+};
+
+/**
+ * 仓库卡片、筛选与整理使用的轻量推荐事实。
+ * 不包含逐栏候选、图标、说明、链接或 DIM 规则明细。
+ */
+export type RecommendationCardSummary = Pick<
+  VaultItemInstanceMatchInfo,
+  | "hash"
+  | "instance_id"
+  | "canonical_weapon_name"
+  | "coverage"
+  | "match_status"
+  | "recommendation_state"
+  | "matched"
+  | "partial"
+  | "available"
+  | "modes"
+> & {
+  sources: RecommendationCardSourceSummary[];
+  dim?: RecommendationCardDimSummary;
+};
+
 export type DimWishlistRuleInstanceMatch = {
   rule_stable_id?: string;
   mode: "pve" | "pvp" | "general";
@@ -216,8 +274,14 @@ export type VaultRecommendationDependencyIssue = {
 
 export type VaultCommunityMatchResult = {
   matches: VaultItemInstanceMatchInfo[];
+  card_summaries?: RecommendationCardSummary[];
+  changed_instance_ids?: string[];
   issues: VaultRecommendationDependencyIssue[];
   manifest_version?: string;
   recommendation_revision?: string;
   recommendation_schema_version?: number;
+};
+
+export type VaultCommunityMatchOptions = {
+  include_evidence?: boolean;
 };

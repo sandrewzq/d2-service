@@ -60,7 +60,7 @@ export function LoadoutsMenuProvider() {
       onSnapshotCurrentLoadout={(character, slot) => void writeActions.loadoutWriteActions.snapshotCurrentLoadout(character, slot)}
       onClearSavedLoadout={(character, slot) => void writeActions.loadoutWriteActions.clearSavedLoadout(character, slot)}
       onUpdateSavedLoadoutIdentifiers={(character, slot, identifiers) => void writeActions.loadoutWriteActions.updateSavedLoadoutIdentifiers(character, slot, identifiers)}
-      onOpenInGameItemDetail={(item) => void writeActions.itemDetail.openItemDetail(item)}
+      onOpenInGameItemDetail={(item) => session.itemDetail.openItemDetail(item)}
       onOpenTemplateSourceItem={(item, characterId) => void writeActions.loadoutWriteActions.openTemplateSourceItem(item, characterId)}
       onSelectLocalPlan={localPlans.selectPlan}
       onEditLocalPlan={localPlans.editPlan}
