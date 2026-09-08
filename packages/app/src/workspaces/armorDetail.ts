@@ -53,8 +53,17 @@ export type ArmorAbility = {
   kind: "intrinsic" | "special";
 };
 
+export type ArmorAbilityGroup = {
+  key: string;
+  name: string;
+  category_identifier: string;
+  options: ArmorAbility[];
+  selected_option_hash?: number;
+};
+
 export type ArmorSocket = {
   key: string;
+  hash: number;
   socket_index?: number;
   label: string;
   name: string;
@@ -135,6 +144,17 @@ export type ArmorDetailSelectedItemLike = {
     description: string;
     icon?: string;
   }>;
+  armor_ability_groups?: Array<{
+    key: string;
+    name: string;
+    category_identifier: string;
+    options: Array<{
+      hash: number;
+      name: string;
+      description: string;
+      icon?: string;
+    }>;
+  }>;
   sockets?: AccountItemSocketSummary[];
   socket_plugs?: AccountItemPlugSummary[];
   source: ItemSourceSummary;
@@ -169,6 +189,7 @@ export type ArmorDetailViewModel = {
   stat_total?: number;
   energy?: ArmorEnergySummary;
   abilities: ArmorAbility[];
+  ability_groups: ArmorAbilityGroup[];
   sockets: ArmorSocket[];
   sources: ArmorDetailSources;
   recommendations: ArmorRecommendation[];
@@ -208,6 +229,9 @@ export function buildArmorDetailViewModel(input: BuildArmorDetailViewModelInput)
   const context = buildObjectContext(item, input.context);
   const stats = input.current_stats ?? item.armor_stats;
   const breakdown = input.current_stat_breakdown ?? item.armor_stat_breakdown;
+  const currentSockets = input.current_sockets ?? item.sockets;
+  const currentSocketPlugs = input.current_socket_plugs ?? item.socket_plugs;
+  const selectedPlugHashes = collectSelectedPlugHashes(currentSockets, currentSocketPlugs);
   return {
     identity: {
       hash: item.hash,
@@ -236,9 +260,17 @@ export function buildArmorDetailViewModel(input: BuildArmorDetailViewModelInput)
       ...trait,
       kind: "intrinsic" as const
     })),
+    ability_groups: (item.armor_ability_groups ?? []).map((group) => ({
+      ...group,
+      options: group.options.map((option) => ({
+        ...option,
+        kind: "special" as const
+      })),
+      selected_option_hash: group.options.find((option) => selectedPlugHashes.has(option.hash))?.hash
+    })),
     sockets: buildArmorSockets(
-      input.current_sockets ?? item.sockets,
-      input.current_socket_plugs ?? item.socket_plugs
+      currentSockets,
+      currentSocketPlugs
     ),
     sources: input.sources ?? sourceSummaryToSources(item.source),
     recommendations: input.recommendations ?? [],
@@ -253,6 +285,16 @@ export function buildArmorDetailViewModel(input: BuildArmorDetailViewModelInput)
       instance: item.detail_loading?.instance ?? false
     }
   };
+}
+
+function collectSelectedPlugHashes(
+  sockets: AccountItemSocketSummary[] | undefined,
+  plugs: AccountItemPlugSummary[] | undefined
+): Set<number> {
+  return new Set([
+    ...(plugs ?? []).map((plug) => plug.hash),
+    ...(sockets ?? []).flatMap((socket) => socket.selected_plug ? [socket.selected_plug.hash] : [])
+  ]);
 }
 
 function buildObjectContext(
@@ -321,6 +363,7 @@ function buildArmorSockets(
     if (kind === "mod") modIndex += 1;
     return [{
       key: `${socketIndex ?? "plug"}:${plug.hash}:${index}`,
+      hash: plug.hash,
       socket_index: socketIndex,
       label: armorPlugLabel(plug, kind === "mod" ? modIndex : index + 1),
       name: plug.name,

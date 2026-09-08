@@ -47,6 +47,17 @@ export type ItemDefinitionDetailLike = {
     description: string;
     icon?: string;
   }>;
+  armor_ability_groups?: Array<{
+    key: string;
+    name: string;
+    category_identifier: string;
+    options: Array<{
+      hash: number;
+      name: string;
+      description: string;
+      icon?: string;
+    }>;
+  }>;
   ammo_type?: AmmoTypeKey;
   bucket_hash?: number;
   bucket_name?: string;
@@ -77,6 +88,7 @@ export type ItemSearchResultLike = {
   is_adept?: boolean;
   origin_traits?: ItemOriginTrait[];
   intrinsic_traits?: ItemDefinitionDetailLike["intrinsic_traits"];
+  armor_ability_groups?: ItemDefinitionDetailLike["armor_ability_groups"];
   ammo_type?: AmmoTypeKey;
   bucket_hash?: number;
   group_key?: AccountItemSummary["group_key"];
@@ -186,6 +198,7 @@ export function createSelectedItemPreview(
     is_adept: "is_adept" in item ? item.is_adept : undefined,
     origin_traits: "origin_traits" in item ? item.origin_traits : undefined,
     intrinsic_traits: "intrinsic_traits" in item ? item.intrinsic_traits : undefined,
+    armor_ability_groups: "armor_ability_groups" in item ? item.armor_ability_groups : undefined,
     ammo_type: "ammo_type" in item ? item.ammo_type : undefined,
     bucket_hash: "bucket_hash" in item ? item.bucket_hash : undefined,
     equipment_bucket_hash: "equipment_bucket_hash" in item ? item.equipment_bucket_hash : undefined,

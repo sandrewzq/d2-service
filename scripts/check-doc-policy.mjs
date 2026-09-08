@@ -99,6 +99,7 @@ export function collectDocPolicyErrors(root, gitNameStatus = readGitNameStatus(r
     "development.md",
     "faq.md",
     "player-facing-language.md",
+    "privacy.md",
     "security.md",
     "todo.md",
     "user-guide.md"

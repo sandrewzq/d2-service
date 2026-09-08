@@ -1,4 +1,5 @@
 import type { D2Config } from "../config/schema.js";
+import { isAiSettingsConfigured } from "../ai/settings.js";
 
 export type StartupStep = "bungie-config" | "login" | "home";
 export type StatusValue = "ready" | "missing" | "skipped";
@@ -45,6 +46,7 @@ export function computeStartupState(input: {
   const auth = input.auth ?? { status: input.hasToken ? "valid" : "missing" };
   const accountReady = auth.status === "valid";
   const accountLabel = getAccountLabel(auth);
+  const aiConfigured = isAiSettingsConfigured(input.config.ai);
 
   const manifestStatus = input.hasManifest && input.manifestCachedAt
     ? getManifestCardState(input.manifestCachedAt, input.now)
@@ -70,8 +72,12 @@ export function computeStartupState(input: {
       },
       manifest: manifestStatus,
       ai: {
-        status: input.config.ai.protocol.trim() ? "ready" : "skipped",
-        label: input.config.ai.protocol.trim() ? "AI 已配置" : "AI 未配置"
+        status: aiConfigured ? "ready" : "skipped",
+        label: aiConfigured
+          ? "AI 已配置"
+          : input.config.ai.protocol.trim()
+            ? "AI 待确认数据发送"
+            : "AI 未配置"
       }
     }
   };

@@ -194,6 +194,7 @@ export async function generateVaultAiAdvice(input: VaultAiAdviceInput): Promise<
   if (!settings.model) {
     throw new Error("请先填写 AI 模型名称。");
   }
+  assertAiDataSharingConsent(settings);
 
   const text = await callAiText({
     settings,
@@ -243,6 +244,7 @@ export async function generateItemAiAdvice(input: ItemAiAdviceInput): Promise<It
   if (!settings.model) {
     throw new Error("请先填写 AI 模型名称。");
   }
+  assertAiDataSharingConsent(settings);
 
   let externalSearch: AiWebSearchResult | undefined;
   let externalSearchMessage = "未请求外部知识。";
@@ -292,7 +294,7 @@ export async function generateItemAiAdvice(input: ItemAiAdviceInput): Promise<It
           formatPersonalWeaponKnowledge(input.personal_knowledge),
           formatBuiltinWeaponKnowledge(input.builtin_knowledge),
           externalSearch?.text ? `\nAI 外部搜索补充（最低优先级）：\n${externalSearch.text}` : "",
-          input.weapon_context ? `\n武器详情上下文：\n${JSON.stringify(input.weapon_context, null, 2)}` : ""
+          input.weapon_context ? `\n武器详情上下文：\n${JSON.stringify(sanitizeAiContextValue(input.weapon_context), null, 2)}` : ""
         ].filter(Boolean).join("\n")
       }
     ],
@@ -359,18 +361,15 @@ function formatBuiltinWeaponKnowledge(recommendation: WeaponRecommendation | nul
 
 export function buildAiChatContext(input: AiChatContextInput): string {
   const account = input.account;
+  const itemNamesByLocalKey = buildItemNamesByLocalKey(account);
   const context = {
     safety: {
       note: "AI 只能建议，不能直接执行锁定、转移、装备或分解。所有写操作都必须由用户在 GUI 中确认。",
-      credential_policy: "上下文只包含游戏数据摘要，不包含任何本地密钥、授权票据或应用密钥。"
+      credential_policy: "上下文只包含游戏数据摘要，不包含账号名称、Membership ID、角色 ID、装备实例 ID、物品 Hash、本地密钥、授权票据或应用密钥。"
     },
     current_page: input.pageContext ?? null,
     account: account ? {
-      account_name: account.account_name,
-      destiny_membership_id: account.destiny_membership_id,
-      membership_type: account.membership_type,
       characters: account.characters.map((character) => ({
-        character_id: character.character_id,
         class_name: character.class_name,
         light: character.light,
         equipped_items: summarizeChatItems(character.equipped_items),
@@ -380,7 +379,11 @@ export function buildAiChatContext(input: AiChatContextInput): string {
           index: slot.index,
           name: slot.name,
           item_count: slot.item_count,
-          items: slot.items
+          items: slot.items.map((item) => ({
+            name: item.name,
+            bucket: item.bucket_name,
+            plugs: item.plugs?.map((plug) => plug.name).filter(Boolean) ?? []
+          }))
         }))
       })),
       vault: {
@@ -394,8 +397,8 @@ export function buildAiChatContext(input: AiChatContextInput): string {
         type: material.item_type
       }))
     } : null,
-    tags: Object.entries(input.tags.items).map(([item_key, value]) => ({
-      item_key,
+    tags: Object.entries(input.tags.items).map(([itemKey, value]) => ({
+      item: itemNamesByLocalKey.get(itemKey) ?? "未关联装备",
       tag: value.tag,
       note: value.note
     })),
@@ -410,7 +413,7 @@ export function buildAiChatContext(input: AiChatContextInput): string {
     activity: input.activity
   };
 
-  return JSON.stringify(context, null, 2);
+  return JSON.stringify(sanitizeAiContextValue(context), null, 2);
 }
 
 export async function generateAiChatReply(input: AiChatReplyInput): Promise<AiChatReplyResult> {
@@ -425,6 +428,7 @@ export async function generateAiChatReply(input: AiChatReplyInput): Promise<AiCh
   if (!settings.model) {
     throw new Error("请先填写 AI 模型名称。");
   }
+  assertAiDataSharingConsent(settings);
 
   const text = await callAiText({
     settings,
@@ -536,6 +540,7 @@ export async function callAiWithWebSearch(input: {
   if (!settings.model) {
     throw new Error("请先填写 AI 模型名称。");
   }
+  assertAiDataSharingConsent(settings);
 
   const request = buildAiWebSearchRequest(settings, input.query);
   const response = await (input.fetcher ?? fetch)(request.url, {
@@ -868,7 +873,17 @@ function buildVaultPrompt(local: VaultAnalysisResult): string {
     facts: local.facts,
     local_analysis: local.analysis,
     local_suggestions: local.suggestions,
-    tagged_items: local.items
+    tagged_items: Object.fromEntries(Object.entries(local.items).map(([group, items]) => [
+      group,
+      items.map((item) => ({
+        name: item.name,
+        tier: item.tier,
+        item_type: item.item_type,
+        power: item.power,
+        note: item.note,
+        plugs: item.plugs
+      }))
+    ]))
   }, null, 2);
 }
 
@@ -892,8 +907,6 @@ function buildItemPrompt(item: ItemAiAdviceInput["item"]): string {
 
 function summarizeChatItems(items: AccountItemSummary[]) {
   return items.map((item) => ({
-    hash: item.hash,
-    instance_id: item.instance_id,
     name: item.name,
     tier: item.tier,
     type: item.item_type,
@@ -904,6 +917,49 @@ function summarizeChatItems(items: AccountItemSummary[]) {
     locked: item.locked,
     plugs: (item.socket_plugs ?? []).map((plug) => plug.name).filter(Boolean)
   }));
+}
+
+function buildItemNamesByLocalKey(account: AccountSummary | null): Map<string, string> {
+  const names = new Map<string, string>();
+  if (!account) return names;
+  const items = [
+    ...account.vault.items,
+    ...account.characters.flatMap((character) => [
+      ...character.equipped_items,
+      ...character.inventory_items,
+      ...character.postmaster_items
+    ])
+  ];
+  for (const item of items) {
+    if (item.instance_id) names.set(item.instance_id, item.name);
+    names.set(String(item.hash), item.name);
+  }
+  return names;
+}
+
+function sanitizeAiContextValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeAiContextValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([key]) => !shouldOmitAiContextKey(key))
+    .map(([key, nested]) => [key, sanitizeAiContextValue(nested)]));
+}
+
+function shouldOmitAiContextKey(key: string): boolean {
+  const normalized = key.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+  return normalized === "account_name"
+    || normalized === "membership_type"
+    || normalized === "open_target"
+    || normalized === "id"
+    || normalized === "hash"
+    || normalized === "hashes"
+    || /_(?:id|ids|hash|hashes)$/.test(normalized);
+}
+
+function assertAiDataSharingConsent(settings: NormalizedAiSettings): void {
+  if (!settings.data_sharing_consent) {
+    throw new Error("请先到设置页确认 AI 数据发送范围，再使用 AI 分析。");
+  }
 }
 
 async function readJson(response: Response): Promise<ChatResponse> {

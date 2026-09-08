@@ -44,6 +44,7 @@ export function SettingsMenuProvider() {
       onAiSettingsSaved={diagnostics.handleAiSettingsSaved}
       onBungieConfigSaved={session.onConfigChanged}
       onOpenBungiePortal={() => void api.openExternal("https://www.bungie.net/en/Application")}
+      onOpenLegalDocument={(document) => void api.openLegalDocument(document)}
       onOpenDataDir={() => void api.openDataDir()}
       onCheckAppUpdate={() => void diagnostics.checkAppUpdate()}
       onDownloadAppUpdate={() => void diagnostics.downloadAppUpdate()}

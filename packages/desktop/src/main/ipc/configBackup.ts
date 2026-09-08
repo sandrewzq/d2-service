@@ -103,7 +103,8 @@ export function mergePortableConfig(current: D2Config, imported: D2Config): D2Co
     ai: {
       ...current.ai,
       ...imported.ai,
-      api_key: current.ai.api_key
+      api_key: current.ai.api_key,
+      data_sharing_consent: false
     },
     features: {
       ...current.features,
@@ -177,7 +178,8 @@ function sanitizePortableConfig(config: D2Config): D2Config {
     },
     ai: {
       ...config.ai,
-      api_key: ""
+      api_key: "",
+      data_sharing_consent: false
     }
   };
 }
@@ -226,7 +228,7 @@ function validateConfigShape(value: Record<string, unknown>): D2Config {
   const features = value.features as Record<string, unknown>;
   const ai = value.ai as Record<string, unknown>;
   const currentFeatures = { ...features };
-  const currentAi = { ...ai };
+  const currentAi = { data_sharing_consent: false, ...ai };
   delete currentFeatures.write_actions_enabled;
   delete currentAi.enable_lightgg;
   delete currentAi.force_lightgg;
@@ -254,6 +256,7 @@ function validateConfigSection(
   for (const [field, expectedType] of Object.entries(fields)) {
     const fieldValue = value[field];
     if (fieldValue === undefined) {
+      if (section === "ai" && field === "data_sharing_consent") continue;
       throw new Error(`备份配置缺少 ${section}.${field} 字段。`);
     }
     if (typeof fieldValue !== expectedType) {
@@ -308,7 +311,8 @@ const configFieldTypes = {
     protocol: "string",
     api_key: "string",
     model: "string",
-    base_url: "string"
+    base_url: "string",
+    data_sharing_consent: "boolean"
   },
   features: {
     color_mode: "string",

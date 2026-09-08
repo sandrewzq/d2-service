@@ -10,6 +10,11 @@ files:
   - "dist/**/*.mjs"
   - "dist/renderer/**"
   - "package.json"
+extraResources:
+  - from: "build/LICENSE.txt"
+    to: "LICENSE.txt"
+  - from: "build/THIRD_PARTY_NOTICES.txt"
+    to: "THIRD_PARTY_NOTICES.txt"
 asar: true
 compression: maximum
 publish:
@@ -27,6 +32,7 @@ win:
 artifactName: "d2-tools-setup-${version}.${ext}"
 nsis:
   oneClick: false
+  license: build/LICENSE.txt
   allowToChangeInstallationDirectory: true
   shortcutName: "d2-tools"
   uninstallDisplayName: "d2-tools"

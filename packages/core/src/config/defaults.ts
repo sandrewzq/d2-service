@@ -16,7 +16,8 @@ export function defaultConfig(dataDir: string): D2Config {
       protocol: "",
       api_key: "",
       model: "",
-      base_url: ""
+      base_url: "",
+      data_sharing_consent: false
     },
     features: {
       color_mode: "light",

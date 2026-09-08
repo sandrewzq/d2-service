@@ -1,7 +1,12 @@
 import type { DefinitionComponentData, DefinitionRecord } from "../manifest/definitions.js";
 import { expandAliasQuery, type ItemAliases } from "./aliases.js";
 import { ammoTypeKey, classifyBucket, type AmmoTypeKey, type EquipmentGroupKey } from "./classification.js";
-import { summarizeItemIntrinsicTraits, type ItemIntrinsicTraitSummary } from "./intrinsics.js";
+import {
+  summarizeItemArmorAbilityGroups,
+  summarizeItemIntrinsicTraits,
+  type ItemArmorAbilityGroupSummary,
+  type ItemIntrinsicTraitSummary
+} from "./intrinsics.js";
 import { summarizeItemPerks, type ItemPerkGroup } from "./perks.js";
 import { summarizeItemSource, type ItemSourceSummary } from "./source.js";
 import {
@@ -55,6 +60,7 @@ export type ItemSearchResult = {
   is_adept?: boolean;
   origin_traits?: ItemOriginTrait[];
   intrinsic_traits?: ItemIntrinsicTraitSummary[];
+  armor_ability_groups?: ItemArmorAbilityGroupSummary[];
   ammo_type?: AmmoTypeKey;
   bucket_hash?: number;
   bucket_name?: string;
@@ -183,7 +189,11 @@ function toItemSearchResult(
   definitions: DefinitionComponentData,
   options: ItemSearchOptions
 ): ItemSearchResult {
-  const bucketHash = definition.inventory?.bucketTypeHash;
+  const inventoryBucketHash = definition.inventory?.bucketTypeHash;
+  const equipmentSlotHash = definition.equippingBlock?.equipmentSlotTypeHash;
+  const bucketHash = classifyBucket(inventoryBucketHash)
+    ? inventoryBucketHash
+    : equipmentSlotHash ?? inventoryBucketHash;
   const bucket = classifyBucket(bucketHash);
   const result: ItemSearchResult = {
     hash: Number(definition.hash),
@@ -269,6 +279,14 @@ function toItemSearchResult(
     const intrinsicTraits = summarizeItemIntrinsicTraits(definition, definitions);
     if (intrinsicTraits.length > 0) {
       result.intrinsic_traits = intrinsicTraits;
+    }
+    const armorAbilityGroups = summarizeItemArmorAbilityGroups(
+      definition,
+      definitions,
+      options.plugSetDefinitions
+    );
+    if (armorAbilityGroups.length > 0) {
+      result.armor_ability_groups = armorAbilityGroups;
     }
   }
 

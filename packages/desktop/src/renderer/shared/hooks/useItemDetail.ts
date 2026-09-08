@@ -168,7 +168,8 @@ export function useItemDetail(options: {
       ? touchAccountItemDetailCache(accountItemDetailCacheRef.current, accountCacheKey)
       : null;
     const needsDefinitionDetail = !cachedDetail;
-    const shouldAutoLoadDefinition = !instanceId && needsDefinitionDetail;
+    const shouldAutoLoadDefinition = needsDefinitionDetail
+      && (!instanceId || preview.group_key === "armor");
     const hasPendingCriticalDetail = shouldAutoLoadDefinition;
     const initialLoadingState = {
       definition: shouldAutoLoadDefinition,

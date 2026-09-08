@@ -79,6 +79,7 @@ d2-tools-setup-<version>.exe
 - DIM：仓库、配装、愿望单和写操作流程参考
   - GitHub：<https://github.com/DestinyItemManager/DIM>
   - 在线访问：<https://app.destinyitemmanager.com/>
+  - 运行时边界：配装导入只在本地解析用户提供的自包含完整链接，不调用 DIM 分享接口
 - D2ArmorPicker：护甲目标和方案比较参考
   - GitHub：<https://github.com/Mijago/D2ArmorPicker>
   - 在线访问：<https://d2armorpicker.com/>
@@ -109,6 +110,7 @@ d2-tools-setup-<version>.exe
 - [Bungie 配置指南](docs/bungie-setup.md)
 - [常见问题](docs/faq.md)
 - [安全说明](docs/security.md)
+- [隐私说明](docs/privacy.md)
 - [支持与反馈](SUPPORT.md)
 
 如果你遇到使用问题，建议先看 FAQ、Bungie 配置指南和支持文档；如果涉及敏感信息、凭据或安全边界，请改看 [安全策略](SECURITY.md)。
@@ -130,11 +132,12 @@ d2-tools-setup-<version>.exe
 - 公开分发包不内置任何人的 Bungie `API Key`、`Client ID` 或 `Client Secret`
 - 每个玩家都使用自己的 Bungie Application
 - OAuth token 只保存在本机数据目录
-- AI 不读取、也不发送 token、`Client Secret` 或 Bungie `API Key`
+- AI 只有在玩家阅读范围并明确确认后才会发送必要的游戏数据；请求直达玩家配置的 AI 服务，不经过 d2-tools 自建服务器
+- AI 不会把 token、`Client Secret`、Bungie `API Key`、AI API Key 或 Bungie 账号与装备标识写入模型提示；AI API Key 只作为认证请求头发送到玩家配置的服务
 - 写操作需要 Bungie Scope、操作确认和结果刷新；应用不再提供额外的本地总开关
 - d2-tools 不会直接分解装备，最终分解仍需进入游戏手动完成
 
-更完整的边界说明见 [安全说明](docs/security.md)。
+更完整的边界说明见 [安全说明](docs/security.md) 和 [隐私说明](docs/privacy.md)。
 
 ## 开发
 
@@ -176,6 +179,8 @@ Agent 在普通开发过程中默认不新增测试用例，也不自动运行�
 ## License
 
 本项目基于 [MIT License](LICENSE) 开源。
+
+Windows 安装向导会展示项目许可证；安装目录同时包含 `LICENSE.txt` 和 `THIRD_PARTY_NOTICES.txt`。应用内也可以在“设置 → 数据来源与鸣谢”直接打开项目许可证和第三方许可证清单。
 
 ## Star History
 

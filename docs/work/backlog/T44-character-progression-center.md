@@ -3,11 +3,14 @@
 > 状态：📝 候选方案，待排期
 > 优先级：P2
 > 类型：独立异步进度资源
-> 所属需求组：[T24 账号菜单角色准备与风险中心](T24-account-readiness-risk-center.md)
+> 账号菜单合同：[应用工作区账号章节](../references/ui-specs/application-workspaces.md#账号)
+> 关联依赖：奖励提升价值使用 T42 的真实掉落基准；任务摘要可复用 T43 的结构化结果
 
 ## 1. 目标
 
 在不拖慢账号装备首屏的前提下，展示当前角色仍值得完成的强力与巅峰奖励，以及赛季等级和主要声望进度。
+
+参考 DIM 的 Milestones、Ranks 和 Seasonal Rank 信息目标，但不复制完整 Progress 页面，不把所有进度组件塞入现有账号装备快照。
 
 ## 2. 范围
 

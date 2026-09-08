@@ -16,7 +16,7 @@ describe("local loadout plan store", () => {
       name: "日落虚空",
       class_name: "Titan",
       target_character_id: "character",
-      source: { kind: "dim-link", reference_url: "https://dim.gg/example" },
+      source: { kind: "dim-link", reference_url: "https://app.destinyitemmanager.com/loadouts?loadout=%7B%7D" },
       item_targets: [{
         slot: "Kinetic Weapons",
         item_hash: 100,

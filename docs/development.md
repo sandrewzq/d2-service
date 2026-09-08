@@ -434,6 +434,8 @@ packages/desktop/release/
 - `latest.yml`
 - `d2-tools-setup-<version>.exe.blockmap`
 
+安装包必须携带项目许可证和桌面运行时第三方许可证清单。`pnpm licenses:generate` 根据当前依赖生成 `packages/desktop/build/LICENSE.txt` 与 `THIRD_PARTY_NOTICES.txt`；质量门禁通过 `pnpm licenses:check` 拦截依赖变化后未更新的清单。NSIS 安装向导展示项目许可证，两份文件同时进入安装资源并可从设置页打开。
+
 ## 6. 发布
 
 当前发布主路径是 GitHub Release 自动打包 Windows NSIS 安装器，并上传自动更新元数据。
@@ -493,6 +495,8 @@ packages/desktop/release/
 
 设置页同时提供“复制备份/迁移说明”和“复制脱敏诊断”。诊断导出不包含 token、client secret 或 API Key，可用于排查更新、配置、Manifest 和写操作问题。
 
+AI 数据发送确认属于本机配置状态。旧配置迁移和便携备份恢复必须将确认重置为 `false`；协议或 Base URL 在设置页发生变化时也必须重新确认。模型提示只携带完成当前请求所需的游戏摘要，不包含 Bungie / AI 凭据、账号名、Membership、角色、装备实例、物品或 Plug 标识。连接测试与模型列表只验证玩家配置的服务，不携带游戏上下文。
+
 ## 7. 文档结构
 
 当前只保留这些文档入口：
@@ -505,6 +509,7 @@ docs/
   bungie-setup.md
   faq.md
   security.md
+  privacy.md
   todo.md
   development.md
   work/

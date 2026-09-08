@@ -9,7 +9,6 @@ import {
 
 export type DimLoadoutImportPreview = {
   source_url: string;
-  share_id?: string;
   name: string;
   class_name: string;
   item_count: number;
@@ -17,11 +16,10 @@ export type DimLoadoutImportPreview = {
   draft: CreateLocalLoadoutPlanInput;
 };
 
-export type DimShareLink = {
-  kind: "dim-share" | "url-loadout";
+export type DimLoadoutLink = {
+  kind: "url-loadout";
   source_url: string;
-  share_id?: string;
-  inline_loadout?: unknown;
+  inline_loadout: unknown;
 };
 
 export type DimLoadoutExportBlockerCode =
@@ -69,31 +67,25 @@ type DimApiLoadout = {
   notes?: string;
 };
 
-/** Accept the public DIM exchange formats without treating arbitrary URLs as importable. */
-export function parseDimShareLink(value: string): DimShareLink {
+/** Accept only self-contained DIM loadout URLs so importing never calls a DIM service. */
+export function parseDimLoadoutLink(value: string): DimLoadoutLink {
   const raw = value.trim();
-  if (!raw) throw new Error("请输入 DIM 配装分享链接。");
-
-  const dimMatch = raw.match(/^(?:(?:https?:\/\/)?dim\.gg\/)?([a-z0-9]{7,})(?:\/.*)?$/i);
-  if (dimMatch) {
-    return {
-      kind: "dim-share",
-      source_url: `https://dim.gg/${dimMatch[1]}`,
-      share_id: dimMatch[1]
-    };
-  }
+  if (!raw) throw new Error("请输入 DIM 完整配装链接。");
 
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new Error("这不是有效的 DIM 分享链接。请使用 dim.gg/... 或 DIM 的 /loadouts?loadout=... 链接。");
+    throw new Error("这不是有效的 DIM 完整配装链接。请从 DIM 复制包含 /loadouts?loadout=... 的链接。");
   }
-  if (!/(^|\.)destinyitemmanager\.com$/i.test(url.hostname) || !url.pathname.endsWith("/loadouts")) {
-    throw new Error("仅支持 DIM 的 dim.gg 分享链接或 /loadouts?loadout=... 导出链接。");
+  if (/(^|\.)dim\.gg$/i.test(url.hostname)) {
+    throw new Error("不支持 dim.gg 短链接，因为解析短链接需要访问 DIM 接口。请从 DIM 复制包含 /loadouts?loadout=... 的完整链接。");
+  }
+  if (url.protocol !== "https:" || !/(^|\.)destinyitemmanager\.com$/i.test(url.hostname) || !url.pathname.endsWith("/loadouts")) {
+    throw new Error("仅支持 DIM 的 /loadouts?loadout=... 完整配装链接。");
   }
   const serialized = url.searchParams.get("loadout");
-  if (!serialized) throw new Error("DIM 链接中没有可读取的 loadout 数据。");
+  if (!serialized) throw new Error("DIM 链接中没有可本地读取的 loadout 数据，请复制完整配装链接。");
   try {
     return { kind: "url-loadout", source_url: url.toString(), inline_loadout: JSON.parse(serialized) as unknown };
   } catch {
@@ -104,7 +96,6 @@ export function parseDimShareLink(value: string): DimShareLink {
 export function createDimLoadoutImportPreview(input: {
   source_url: string;
   payload: unknown;
-  share_id?: string;
 }): DimLoadoutImportPreview {
   const loadout = unwrapLoadout(input.payload);
   const allItems = collectLoadoutItems(loadout);
@@ -140,7 +131,6 @@ export function createDimLoadoutImportPreview(input: {
 
   return {
     source_url: input.source_url,
-    ...(input.share_id ? { share_id: input.share_id } : {}),
     name,
     class_name: className,
     item_count: itemTargets.length,
@@ -148,14 +138,14 @@ export function createDimLoadoutImportPreview(input: {
     draft: {
       name,
       class_name: className,
-      source: { kind: "dim-link", reference_url: input.source_url, label: input.share_id ? `DIM ${input.share_id}` : "DIM 导出链接" },
+      source: { kind: "dim-link", reference_url: input.source_url, label: "DIM 完整链接" },
       item_targets: itemTargets,
       ...(subclass ? { subclass_target: subclass } : {}),
       ...(armorConstraints ? { armor_constraints: armorConstraints } : {}),
       ...(notes ? { notes } : {}),
       guidance: {
         warnings,
-        evidence: [`DIM 分享链接：${input.source_url}`]
+        evidence: [`DIM 完整配装链接：${input.source_url}`]
       }
     }
   };

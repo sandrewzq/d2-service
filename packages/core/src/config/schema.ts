@@ -14,6 +14,7 @@ export type D2Config = {
     api_key: string;
     model: string;
     base_url: string;
+    data_sharing_consent?: boolean;
   };
   features: {
     color_mode: "light" | "dark";
@@ -37,6 +38,7 @@ export type ConfigEnv = Partial<Record<
   | "AI_PROTOCOL"
   | "AI_API_KEY"
   | "AI_MODEL"
-  | "AI_BASE_URL",
+  | "AI_BASE_URL"
+  | "AI_DATA_SHARING_CONSENT",
   string
 >>;

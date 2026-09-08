@@ -65,7 +65,12 @@ describe("AI chat analysis", () => {
         daily_reset: { label: "每日重置", next_reset_iso: "2026-06-20T17:00:00.000Z", time_remaining_label: "还有 3 小时" },
         weekly_reset: { label: "每周重置", next_reset_iso: "2026-06-23T17:00:00.000Z", time_remaining_label: "还有 3 天" },
         sources: {
-          rotations: { status: "ready", label: "今日轮换", message: "已确认", items: [{ title: "日落" }] },
+          rotations: {
+            status: "ready",
+            label: "今日轮换",
+            message: "已确认",
+            items: [{ title: "日落", itemHash: 12345, vendorHash: 23456, characterId: "daily-character-id" }]
+          },
           vendors: { status: "pending", label: "商人", message: "未接入" },
           lost_sector: { status: "pending", label: "遗失区域", message: "未接入" },
           weekly_report: { status: "ready", label: "本周", message: "已确认", items: [{ title: "突袭轮换" }] }
@@ -76,7 +81,6 @@ describe("AI chat analysis", () => {
       activity: null
     });
 
-    expect(context).toContain("Guardian");
     expect(context).toContain("Riskrunner");
     expect(context).toContain("Beloved");
     expect(context).toContain("Edge Transit");
@@ -88,6 +92,15 @@ describe("AI chat analysis", () => {
     expect(context).not.toContain("access_token");
     expect(context).not.toContain("refresh_token");
     expect(context).not.toContain("api_key");
+    expect(context).not.toContain("Guardian");
+    expect(context).not.toContain("membership-1");
+    expect(context).not.toContain("char-1");
+    expect(context).not.toContain("weapon-1");
+    expect(context).not.toContain("weapon-2");
+    expect(context).not.toContain("postmaster-1");
+    expect(context).not.toContain("itemHash");
+    expect(context).not.toContain("vendorHash");
+    expect(context).not.toContain("daily-character-id");
   });
 
   it("includes the full loaded account inventory context without truncating vault, material, or tag entries", () => {
@@ -249,6 +262,22 @@ describe("AI chat analysis", () => {
     });
   });
 
+  it("blocks game-data requests until data sharing is confirmed", async () => {
+    await expect(generateVaultAiAdvice({
+      config: config({
+        ai: {
+          protocol: "openai_responses",
+          api_key: "test-key",
+          model: "gpt-test",
+          base_url: "",
+          data_sharing_consent: false
+        }
+      }),
+      items,
+      tags
+    })).rejects.toThrow("请先到设置页确认 AI 数据发送范围");
+  });
+
   it("calls an OpenAI-compatible chat endpoint and reports readable API errors", async () => {
     await expect(generateVaultAiAdvice({
       config: config({
@@ -379,6 +408,7 @@ function config(overrides: Partial<D2Config>): D2Config {
       api_key: "",
       model: "",
       base_url: "",
+      data_sharing_consent: true,
       ...overrides.ai
     },
     features: {

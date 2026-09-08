@@ -198,7 +198,7 @@ export function useLocalLoadoutPlans(input: {
     } catch (previewError) {
       const message = previewError instanceof Error ? previewError.message : String(previewError);
       setDimPreview(null);
-      setError(`DIM 导入预览失败：${message}`);
+      setError(`DIM 完整链接导入失败：${message}`);
     } finally {
       setIsPreviewingDim(false);
     }

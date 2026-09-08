@@ -67,6 +67,7 @@ export type D2Config = {
     api_key: string;
     model: string;
     base_url: string;
+    data_sharing_consent?: boolean;
   };
   features: {
     color_mode: "light" | "dark";

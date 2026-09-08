@@ -398,7 +398,7 @@ export function LoadoutsPageContentView(props: LoadoutsPageContentViewProps) {
                 </button>
                 <button type="button" onClick={(event) => openDimImport(event.currentTarget.closest("details")!)}>
                   <strong>更多：导入 DIM</strong>
-                  <span>从公开分享链接预填应用配装，不依赖 DIM 运行</span>
+                  <span>从自包含的完整链接预填配装，全程本地解析</span>
                 </button>
                 <button type="button" disabled={!activeCharacter || props.isRunningItemAction} onClick={(event) => createBlankPlan(event.currentTarget.closest("details")!)}>
                   <strong>空白方案</strong>
@@ -2136,8 +2136,8 @@ function DimImportPanel(props: LoadoutsPageContentViewProps & {
     <section className="loadout-capability-notice" data-status="neutral" aria-label="DIM 配装导入">
       <div>
         <strong>导入 DIM 配装</strong>
-        <p>输入公开分享链接后先查看解析结果；确认后只会预填应用配装编辑器。</p>
-        <label className="loadout-dim-url-field"><span>DIM 分享链接</span><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://dim.gg/..." /></label>
+        <p>粘贴包含配装数据的完整链接后在本地解析；不支持 dim.gg 短链接，也不会请求 DIM 接口。确认后只会预填应用配装编辑器。</p>
+        <label className="loadout-dim-url-field"><span>DIM 完整配装链接</span><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://app.destinyitemmanager.com/loadouts?loadout=..." /></label>
         {preview ? (
           <div className="loadout-dim-preview" data-surface="list">
             <strong>{preview.name}</strong>

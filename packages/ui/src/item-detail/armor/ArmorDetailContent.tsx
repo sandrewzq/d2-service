@@ -282,11 +282,19 @@ export function ArmorDetailContent(props: ArmorDetailContentProps) {
 
 function ArmorIdentity({ model }: { model: ArmorDetailViewModel }) {
   const { identity, context } = model;
+  const primaryAbilityGroup = model.ability_groups[0];
+  const selectedGroupOption = primaryAbilityGroup?.options.find((option) => option.hash === primaryAbilityGroup.selected_option_hash);
   const feature = identity.armor_set
     ? { label: identity.armor_set.name, tone: "set", title: identity.armor_set.description }
     : model.abilities[0]
       ? { label: model.abilities[0].name, tone: "ability", title: model.abilities[0].description }
-      : undefined;
+      : primaryAbilityGroup
+        ? {
+            label: selectedGroupOption?.name ?? primaryAbilityGroup.name,
+            tone: "ability",
+            title: primaryAbilityGroup.options.map((option) => option.name).join(" / ")
+          }
+        : undefined;
   const releaseLabel = identity.release?.description ?? "官方定义未提供发布信息";
   const watermarks = identity.definition_version?.watermark_icons ?? [];
   const currentWatermark = identity.definition_version?.current_watermark_icon;
@@ -329,7 +337,7 @@ function ArmorIdentity({ model }: { model: ArmorDetailViewModel }) {
             <dl><dt>版本水印</dt><dd>{watermarks.length ? <span className="armor-detail-definition-watermarks">{watermarks.map((icon, index) => <GameAssetImage key={`${icon}:${index}`} src={icon} alt={`官方版本水印 ${index + 1}`} title="官方定义版本水印" loading="eager" />)}</span> : "资料未返回"}</dd></dl>
             <dl><dt>职业限制</dt><dd>{identity.class_name ?? "所有职业"}</dd></dl>
             <dl><dt>护甲部位</dt><dd>{identity.bucket_name ?? identity.item_type ?? "护甲"}</dd></dl>
-              <dl><dt>套装或固有能力</dt><dd>{identity.armor_set?.name ?? (model.abilities.map((ability) => ability.name).join(" / ") || "资料未返回")}</dd></dl>
+              <dl><dt>套装或固有能力</dt><dd>{identity.armor_set?.name ?? ([...model.abilities.map((ability) => ability.name), ...model.ability_groups.map((group) => `${group.name}（${group.options.map((option) => option.name).join(" / ")}）`)].join(" / ") || "资料未返回")}</dd></dl>
             <dl><dt>套装 Hash</dt><dd>{identity.armor_set?.hash ?? "资料未返回"}</dd></dl>
             <dl className="is-wide"><dt>定义说明</dt><dd>{identity.description || "当前游戏资料未返回额外说明"}</dd></dl>
           </div>
@@ -383,7 +391,7 @@ function ArmorObjectSummary({ model }: { model: ArmorDetailViewModel }) {
 function armorOverviewSummaryItems(model: ArmorDetailViewModel): Array<{ label: string; value: string }> {
   const baseTotal = confirmedBaseTotal(model.stats);
   const currentTotal = model.stats.length ? model.stat_total ?? sumCurrentStats(model.stats) : undefined;
-  const feature = model.identity.armor_set?.name ?? model.abilities[0]?.name;
+  const feature = model.identity.armor_set?.name ?? model.abilities[0]?.name ?? model.ability_groups[0]?.name;
   if (model.context.kind === "account_item") {
     return [
       { label: "当前查看", value: "当前装备" },
@@ -499,13 +507,25 @@ function armorSocketCountLabel(kind: ArmorObjectKind, count: number, loading: bo
   return `${count} 个定义支持项`;
 }
 
+function armorConfigurationCountLabel(
+  kind: ArmorObjectKind,
+  socketCount: number,
+  abilityGroupCount: number,
+  loading: boolean
+): string {
+  if (!abilityGroupCount) return armorSocketCountLabel(kind, socketCount, loading);
+  const socketLabel = socketCount > 0 ? ` · ${armorSocketCountLabel(kind, socketCount, false)}` : "";
+  return `${abilityGroupCount} 个异域能力组${socketLabel}`;
+}
+
 function armorSocketFallback(kind: ArmorObjectKind): string {
   if (kind === "account_item") return "这件护甲当前已安装的内容";
   if (kind === "vendor_offer") return "本次售卖可确认的配置";
   return "资料库定义支持内容";
 }
 
-function armorSocketEmptyText(kind: ArmorObjectKind): string {
+function armorSocketEmptyText(kind: ArmorObjectKind, hasAbilityGroups = false): string {
+  if (hasAbilityGroups) return "没有返回额外的护甲模组配置；异域能力支持项已在上方列出。";
   if (kind === "account_item") return "读取完成，但游戏没有返回这件护甲的可显示配置。";
   if (kind === "vendor_offer") return "读取完成，但当前售卖没有返回可显示的护甲配置。";
   return "资料库没有返回这个版本可确认的玩家配置插槽。";
@@ -653,10 +673,11 @@ function OverviewSection({ model }: { model: ArmorDetailViewModel }) {
 function ConfigurationSection({ model }: { model: ArmorDetailViewModel }) {
   const isExotic = /异域|exotic/i.test(model.identity.tier ?? "");
   const armorSet = model.identity.armor_set;
-  const configurationSockets = model.sockets.filter((socket) => socket.kind !== "upgrade");
+  const abilityOptionHashes = new Set(model.ability_groups.flatMap((group) => group.options.map((option) => option.hash)));
+  const configurationSockets = model.sockets.filter((socket) => socket.kind !== "upgrade" && !abilityOptionHashes.has(socket.hash));
   const configurationLoading = model.loading_state.definition
     || (model.context.kind === "account_item" && model.loading_state.instance);
-  const featureLoading = model.loading_state.definition && !armorSet && !model.abilities.length;
+  const featureLoading = model.loading_state.definition && !armorSet && !model.abilities.length && !model.ability_groups.length;
   const socketLoading = configurationLoading && !configurationSockets.length;
   return (
     <>
@@ -676,9 +697,15 @@ function ConfigurationSection({ model }: { model: ArmorDetailViewModel }) {
                 <GameAssetImage className="game-definition-icon" src={ability.icon} alt="" loading="eager" fallback={<span className="armor-detail-core-feature-icon" aria-hidden="true" />} />
                 <div><span>{isExotic ? "异域固有能力" : "护甲能力"}</span><h4>{ability.name}</h4><p>{ability.description}</p><small>固定能力与单件随机属性、已安装配置分别展示。</small></div>
               </article>
-            )) : !armorSet && featureLoading
-              ? <ArmorFeatureSkeleton />
-              : !armorSet ? <EmptyState text="游戏资料没有返回可确认的固定护甲能力。" /> : null}
+            )) : null}
+            {model.ability_groups.map((group) => (
+              <ArmorAbilityGroupCard key={group.key} model={model} group={group} />
+            ))}
+            {!armorSet && !model.abilities.length && !model.ability_groups.length
+              ? featureLoading
+                ? <ArmorFeatureSkeleton />
+                : <EmptyState text="游戏资料没有返回可确认的固定护甲能力。" />
+              : null}
           </div>
           <div className="armor-detail-capability-table">
             <CapabilityRow label="适用职业" value={model.identity.class_name ?? "所有职业"} status="装备要求" />
@@ -691,7 +718,7 @@ function ConfigurationSection({ model }: { model: ArmorDetailViewModel }) {
 
         <div className="armor-detail-socket-block">
           <div className="armor-detail-socket-heading">
-            <strong>{armorSocketCountLabel(model.context.kind, configurationSockets.length, socketLoading)}</strong>
+            <strong>{armorConfigurationCountLabel(model.context.kind, configurationSockets.length, model.ability_groups.length, socketLoading)}</strong>
             <span>{armorObjectLabel(model.context.kind)}</span>
           </div>
           {configurationSockets.length ? configurationSockets.map((socket) => (
@@ -702,10 +729,49 @@ function ConfigurationSection({ model }: { model: ArmorDetailViewModel }) {
             </article>
           )) : socketLoading
             ? <ArmorSocketSkeleton />
-            : <EmptyState text={armorSocketEmptyText(model.context.kind)} />}
+            : <EmptyState text={armorSocketEmptyText(model.context.kind, model.ability_groups.length > 0)} />}
         </div>
       </div>
     </>
+  );
+}
+
+function ArmorAbilityGroupCard(props: {
+  model: ArmorDetailViewModel;
+  group: ArmorDetailViewModel["ability_groups"][number];
+}) {
+  const selectedOption = props.group.options.find((option) => option.hash === props.group.selected_option_hash);
+  const contextLabel = props.model.context.kind === "account_item"
+    ? "本件当前选择"
+    : props.model.context.kind === "vendor_offer"
+      ? "当前售卖选择"
+      : "资料库支持能力";
+  const selectionStatus = selectedOption
+    ? `${contextLabel}：${selectedOption.name}`
+    : props.model.context.kind === "vendor_offer"
+      ? "本次售卖未固定学派，购买后可在游戏中选择"
+      : props.model.context.kind === "account_item"
+        ? "本件当前选择尚未返回"
+        : "该护甲支持以下异域能力选择";
+  return (
+    <section className="armor-detail-ability-group" data-ui-kind="object-card" aria-label={props.group.name}>
+      <header>
+        <div><span>异域能力选择</span><h4>{props.group.name}</h4></div>
+        <small>{selectionStatus}</small>
+      </header>
+      <ol>
+        {props.group.options.map((option) => {
+          const selected = option.hash === props.group.selected_option_hash;
+          return (
+            <li key={option.hash} data-selected={selected ? "true" : undefined}>
+              <GameAssetImage className="game-definition-icon" src={option.icon} alt="" loading="eager" fallback={<span className="armor-detail-ability-option-icon" aria-hidden="true" />} />
+              <div><strong>{option.name}</strong><p>{option.description}</p></div>
+              <em>{selected ? contextLabel : "可选能力"}</em>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 

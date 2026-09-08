@@ -40,6 +40,7 @@ export function SettingsPage(props: {
   onAiSettingsSaved: () => void;
   onBungieConfigSaved: () => void;
   onOpenBungiePortal: () => void;
+  onOpenLegalDocument: (document: "project-license" | "third-party-notices") => void;
   onOpenDataDir: () => void;
   onCheckAppUpdate: () => void;
   onDownloadAppUpdate: () => void;
@@ -131,6 +132,7 @@ export function SettingsPage(props: {
       aiSettingsAdapter={aiSettingsAdapter}
       onLoadBungieConfig={() => api.getConfig()}
       onOpenBungiePortal={props.onOpenBungiePortal}
+      onOpenLegalDocument={props.onOpenLegalDocument}
       onInitializeManifest={props.onInitializeManifest}
       onSaveBungieConfig={async (bungie) => {
         await saveBungieConfig(bungie);

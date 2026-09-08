@@ -1,7 +1,14 @@
 import type { InterfaceLocale } from "../i18n/types.js";
 import { settingsSourceCategoryLabels, settingsSourceEntries, type SettingsSourceEntry } from "./settingsSources.js";
+import { SettingsButton } from "./SettingsButton.js";
 
-export function SettingsSourcesSection({ interfaceLocale = "zh-CN" }: { interfaceLocale?: InterfaceLocale }) {
+export function SettingsSourcesSection({
+  interfaceLocale = "zh-CN",
+  onOpenLegalDocument
+}: {
+  interfaceLocale?: InterfaceLocale;
+  onOpenLegalDocument?: (document: "project-license" | "third-party-notices") => void;
+}) {
   const english = interfaceLocale === "en-US";
   return (
     <section className="settings-section" data-reference-id="settings.section.sources" data-surface="section" id="settings-sources" aria-labelledby="settings-menu-sources">
@@ -35,6 +42,12 @@ export function SettingsSourcesSection({ interfaceLocale = "zh-CN" }: { interfac
         </header>
         <p data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{english ? "Thanks to Bungie, DIM, DIM Wish List Sources, D2ArmorPicker, d2-armor-solver, Roll Report, d2-additional-info, Starside, and the Destiny 2 community maintainers whose public work informed this app." : "感谢 Bungie、DIM、DIM Wish List Sources、D2ArmorPicker、d2-armor-solver、Roll Report、d2-additional-info、Starside 以及所有提供公开资料和项目维护的 Destiny 2 社区贡献者。"}</p>
         <p data-ui-part="detail" data-info-priority="support" data-text-tone="meta">{english ? "A reference does not imply endorsement or a runtime dependency. Redistribution follows each source's license and permission; user-imported local content is not listed here." : "参考项目不代表背书，也不等于运行时依赖；再分发遵循各来源的许可证和授权范围。本地用户导入内容暂不列入这里。"}</p>
+        {onOpenLegalDocument ? (
+          <div className="settings-actions" data-ui-part="action">
+            <SettingsButton data-control-variant="secondary" onClick={() => onOpenLegalDocument("project-license")}>{english ? "Project license" : "查看项目许可证"}</SettingsButton>
+            <SettingsButton data-control-variant="secondary" onClick={() => onOpenLegalDocument("third-party-notices")}>{english ? "Third-party notices" : "查看第三方许可证"}</SettingsButton>
+          </div>
+        ) : null}
       </section>
       <p className="settings-sources-legal" data-ui-part="detail" data-info-priority="support" data-text-tone="meta">
         {english ? "Destiny 2 and related names are trademarks of Bungie, Inc. d2-tools is an unofficial community tool and is not affiliated with Bungie." : "Destiny 2 及相关名称、标识为 Bungie, Inc. 的商标。d2-tools 是非官方社区工具，与 Bungie 无从属关系。"}

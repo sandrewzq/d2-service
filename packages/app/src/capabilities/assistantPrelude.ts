@@ -210,23 +210,55 @@ function formatCapabilityPromptContext(
       status: result.status,
       checked_at: result.checked_at,
       expires_at: result.expires_at,
-      query: result.query,
-      data: result.data,
+      query: sanitizeCapabilityPromptValue(result.query),
+      data: sanitizeCapabilityPromptValue(result.data),
       warnings: result.warnings,
       evidence: result.evidence.map((evidence) => ({
-        evidence_id: evidence.evidence_id,
         kind: evidence.kind,
         label: evidence.label,
         observed_at: evidence.observed_at,
         expires_at: evidence.expires_at,
-        entity: evidence.entity,
+        entity: evidence.entity ? { type: evidence.entity.type } : undefined,
         manifest_version: evidence.manifest_version,
-        result_id: evidence.result_id,
-        open_target: evidence.open_target
+        result_id: evidence.result_id
       }))
     })),
     capability_errors: errors
   }, null, 2);
+}
+
+const omittedAiPromptKeys = new Set([
+  "account_name",
+  "candidate_id",
+  "character_id",
+  "destiny_membership_id",
+  "evidence_id",
+  "instance_id",
+  "item_hash",
+  "membership_id",
+  "membership_type",
+  "offer_id",
+  "open_target",
+  "piece_id",
+  "plug_hashes",
+  "vendor_hash"
+]);
+
+function sanitizeCapabilityPromptValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeCapabilityPromptValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([key]) => !shouldOmitAiPromptKey(key))
+    .map(([key, nested]) => [key, sanitizeCapabilityPromptValue(nested)]));
+}
+
+function shouldOmitAiPromptKey(key: string): boolean {
+  const normalized = key.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+  return omittedAiPromptKeys.has(normalized)
+    || normalized === "id"
+    || normalized === "hash"
+    || normalized === "hashes"
+    || /_(?:id|ids|hash|hashes)$/.test(normalized);
 }
 
 function formatCapabilityTraceSummary(

@@ -19,6 +19,7 @@ export {
 } from "./workspaces/itemDetail.js";
 export type {
   ArmorAbility,
+  ArmorAbilityGroup,
   ArmorDetailEntryKind,
   ArmorDetailIdentity,
   ArmorDetailInstance,

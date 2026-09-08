@@ -2,6 +2,24 @@
 
 这个项目使用面向玩家的更新日志。这里优先记录”玩家能感知到什么变化”，而不是逐条展开内部实现细节。
 
+## Unreleased
+
+### 中文
+
+#### 改进
+
+- DIM 配装导入改为只接受包含配装数据的完整链接并在本地解析，不再访问 DIM 分享接口；`dim.gg` 短链接会提示改用完整链接。
+- Windows 安装包新增项目许可证和桌面运行时第三方许可证清单，安装向导与应用设置页均可查看。
+- AI 首次启用、旧配置升级、备份恢复或更换服务地址后需要明确确认数据发送范围；提示内容已移除账号、角色和装备实例等非必要标识。
+
+### English
+
+#### Improved
+
+- DIM loadout import now accepts only self-contained links and parses them locally without calling the DIM share API; `dim.gg` short links now prompt users to provide a full link.
+- Windows packages now include the project license and a desktop runtime third-party notice bundle, available from both the installer and the in-app Settings page.
+- AI data sharing now requires explicit confirmation on first use, legacy migration, backup restore, or service endpoint changes, while prompts omit unnecessary account, character, and item identifiers.
+
 ## 0.0.23 - 2026-09-08
 
 ### 中文

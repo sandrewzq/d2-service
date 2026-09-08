@@ -8,6 +8,7 @@ export type NormalizedAiSettings = {
   api_key: string;
   model: string;
   base_url: string;
+  data_sharing_consent: boolean;
 };
 
 export const aiProtocolBaseUrls: Record<AiProtocol, string> = {
@@ -23,7 +24,8 @@ export function normalizeAiSettings(settings: AiSettings): NormalizedAiSettings 
       protocol: "",
       api_key: "",
       model: "",
-      base_url: ""
+      base_url: "",
+      data_sharing_consent: false
     };
   }
 
@@ -31,13 +33,14 @@ export function normalizeAiSettings(settings: AiSettings): NormalizedAiSettings 
     protocol,
     api_key: settings.api_key.trim(),
     model: settings.model.trim(),
-    base_url: normalizeBaseUrl(settings.base_url, protocol)
+    base_url: normalizeBaseUrl(settings.base_url, protocol),
+    data_sharing_consent: settings.data_sharing_consent === true
   };
 }
 
 export function isAiSettingsConfigured(settings: AiSettings): boolean {
   const normalized = normalizeAiSettings(settings);
-  return Boolean(normalized.protocol && normalized.api_key && normalized.model);
+  return Boolean(normalized.protocol && normalized.api_key && normalized.model && normalized.data_sharing_consent);
 }
 
 export function protocolLabel(protocol: string): string {

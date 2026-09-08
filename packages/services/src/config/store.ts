@@ -10,7 +10,7 @@ export type ConfigStoreOptions = {
   env?: ConfigEnv;
 };
 
-const CURRENT_CONFIG_VERSION = 2;
+const CURRENT_CONFIG_VERSION = 3;
 
 export function configPath(dataDir: string): string {
   return join(dataDir, "config.json");
@@ -47,9 +47,16 @@ function selectDataDir(options: ConfigStoreOptions): string {
 export function saveConfig(config: D2Config, options: { dataDir?: string } = {}): void {
   const selectedDataDir = options.dataDir ?? config.data.data_dir ?? defaultDataDir();
   mkdirSync(selectedDataDir, { recursive: true });
+  const persistedConfig: D2Config = {
+    ...config,
+    ai: {
+      ...config.ai,
+      data_sharing_consent: config.ai.data_sharing_consent === true
+    }
+  };
   writeFileSync(
     configPath(selectedDataDir),
-    `${JSON.stringify({ ...config, config_version: CURRENT_CONFIG_VERSION }, null, 2)}\n`,
+    `${JSON.stringify({ ...persistedConfig, config_version: CURRENT_CONFIG_VERSION }, null, 2)}\n`,
     "utf8"
   );
 }
@@ -80,7 +87,7 @@ function parseConfigForMigration(text: string, dataDir: string): ParsedConfig {
   const features = optionalRecord(value.features, "features");
   rejectUnknownFields(bungie, ["api_key", "client_id", "client_secret", "redirect_uri"], "bungie");
   rejectUnknownFields(data, ["data_dir", "manifest_language"], "data");
-  rejectUnknownFields(ai, ["protocol", "provider", "api_key", "model", "base_url", "enable_lightgg", "force_lightgg"], "ai");
+  rejectUnknownFields(ai, ["protocol", "provider", "api_key", "model", "base_url", "data_sharing_consent", "enable_lightgg", "force_lightgg"], "ai");
   if (ai.enable_lightgg !== undefined) requireBoolean(ai.enable_lightgg, "ai.enable_lightgg");
   if (ai.force_lightgg !== undefined) requireBoolean(ai.force_lightgg, "ai.force_lightgg");
   // 兼容旧配置中的本地写操作开关；写操作现在只受 Bungie 权限和操作确认约束。
@@ -113,7 +120,11 @@ function parseConfigForMigration(text: string, dataDir: string): ParsedConfig {
       ),
       api_key: requireStringOrDefault(ai.api_key, defaults.ai.api_key, "ai.api_key"),
       model: requireStringOrDefault(ai.model, defaults.ai.model, "ai.model"),
-      base_url: requireStringOrDefault(ai.base_url, defaults.ai.base_url, "ai.base_url")
+      base_url: requireStringOrDefault(ai.base_url, defaults.ai.base_url, "ai.base_url"),
+      data_sharing_consent: requireBoolean(
+        ai.data_sharing_consent === undefined ? false : ai.data_sharing_consent,
+        "ai.data_sharing_consent"
+      )
     },
     features: {
       color_mode: requireEnumOrDefault(features.color_mode, defaults.features.color_mode, "features.color_mode", ["light", "dark"]),
@@ -148,7 +159,7 @@ function hasMissingCurrentFields(
 ): boolean {
   return sectionMissing(bungie, ["api_key", "client_id", "client_secret", "redirect_uri"])
     || sectionMissing(data, ["data_dir", "manifest_language"])
-    || sectionMissing(ai, ["protocol", "api_key", "model", "base_url"])
+    || sectionMissing(ai, ["protocol", "api_key", "model", "base_url", "data_sharing_consent"])
     || sectionMissing(features, ["color_mode", "density", "interface_locale", "manifest_language_follows_interface"]);
 }
 

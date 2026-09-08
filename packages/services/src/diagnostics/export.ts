@@ -25,6 +25,7 @@ export function buildDiagnosticsExport(input: DiagnosticsExportInput): string {
     `Bungie Redirect URI：${input.config.bungie.redirect_uri}`,
     `AI Protocol：${input.config.ai.protocol || "-"}`,
     `AI Model：${input.config.ai.model || "-"}`,
+    `AI 数据发送确认：${input.config.ai.data_sharing_consent ? "已确认" : "未确认"}`,
     `AI API Key：${redactedValue(input.config.ai.api_key)}`,
     "",
     "最近写操作：",

@@ -28,6 +28,17 @@ export type ItemSearchResult = {
     description: string;
     icon?: string;
   }>;
+  armor_ability_groups?: Array<{
+    key: string;
+    name: string;
+    category_identifier: string;
+    options: Array<{
+      hash: number;
+      name: string;
+      description: string;
+      icon?: string;
+    }>;
+  }>;
   group_key?: EquipmentGroupKey;
   bucket_name?: string;
   ammo_type?: AmmoTypeKey;

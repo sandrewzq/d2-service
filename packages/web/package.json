@@ -1,6 +1,7 @@
 {
   "name": "@d2-tools/web",
   "version": "0.0.23",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {

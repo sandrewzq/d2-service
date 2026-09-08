@@ -37,6 +37,7 @@ describe("AI item analysis", () => {
         api_key: "key",
         model: "deepseek-chat",
         base_url: "https://api.deepseek.com",
+        data_sharing_consent: true
       }),
       item: item(),
       tags,
