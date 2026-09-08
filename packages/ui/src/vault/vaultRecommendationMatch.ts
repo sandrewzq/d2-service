@@ -136,7 +136,8 @@ export function buildVaultRecommendationSummaryIndex(
     return [instanceKey, recommendationItemSignature(item)] as const;
   }));
   if (
-    cachedSummaryIndexInput?.instanceMatchMap === instanceMatchMap
+    cachedSummaryIndexInput !== null
+    && cachedSummaryIndexInput.instanceMatchMap === instanceMatchMap
     && cachedSummaryIndexInput.cardSummaryMap === cardSummaryMap
     && cachedSummaryIndexInput.wishlist === wishlist
     && sameRecommendationItemSignatures(cachedSummaryIndexInput.itemSignatures, itemSignatures)

@@ -7,7 +7,7 @@
 
 | 检查项 | 状态 | 备注 |
 |---|---|---|
-| 本地 CI | ✅ 2026-09-07 通过 | 已通过文档、编码、全部 workspace 构建、492 项行为测试、质量门禁、62 项架构测试、UI 合同、共享 Shell 视觉合同和全量类型检查 |
+| 本地 CI | ✅ 2026-09-08 通过 | 已通过文档、编码、全部 workspace 构建、492 项行为测试、质量门禁、62 项架构测试、UI 合同、共享 Shell 视觉合同和全量类型检查 |
 | GitHub CI | ⏳ push 后异步执行 | 执行 frozen install、`pnpm test`、共享 Shell 视觉契约、UI 合同静态门禁和构建后的 `pnpm typecheck:ci`；普通 push 不等待结果 |
 | Release 门禁 | ✅ 0.0.22 已发布 | 已通过 macOS 发布入口完成本地门禁、GitHub Actions、Windows NSIS 安装包和 GitHub Release |
 | Agent 自动验证 | ⛔ 默认禁用 | 只有用户明确要求本地测试、构建或打包时才执行 |
@@ -16,7 +16,7 @@
 
 | 编号 | 优先级 | 状态 | 任务 | Backlog | 下一步 |
 |---|---|---|---|---|---|
-| T22 | P0 | 🟡 S1–S5 代码完成，待真实账号整体验收 | 下一版本交付与 Renderer 事件驱动性能收敛 | [唯一执行 backlog](work/backlog/T22-renderer-event-driven-performance.md) | 按 backlog 第 7 节一次性验收：后台推荐同步、筛选与滚动、取出/加锁/解锁、详情按需加载与一次关闭、资料库或应用更新期间页面响应。 |
+| T22 | P0 | 🟢 S1–S5 及 Bug #79 整体验收通过，本地 CI 通过，待发布 | 下一版本交付与 Renderer 事件驱动性能收敛 | [唯一执行 backlog](work/backlog/T22-renderer-event-driven-performance.md) | 暂不发版；等用户明确要求“发布”后，使用 macOS Release 入口执行完整门禁、tag 和 GitHub Release。 |
 
 ## 已完成基线
 

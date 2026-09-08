@@ -41,10 +41,8 @@ describe("account write refresh strategy", () => {
   it("Vault 写操作成功但缺 patch 时不伪造局部更新", async () => {
     apiMock.setItemLockState.mockResolvedValue(lockResult(false));
     const applyAcceptedAccountActionPatches = vi.fn();
-    const loadActionLog = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useVaultWriteActions(vaultInput({
-      applyAcceptedAccountActionPatches,
-      loadActionLog
+      applyAcceptedAccountActionPatches
     })));
 
     await act(async () => {
@@ -52,7 +50,6 @@ describe("account write refresh strategy", () => {
     });
 
     expect(applyAcceptedAccountActionPatches).not.toHaveBeenCalled();
-    expect(loadActionLog).toHaveBeenCalledTimes(1);
   });
 
   it("Loadouts 单件装备立即接受局部更新", async () => {
@@ -126,13 +123,9 @@ describe("account write refresh strategy", () => {
 
 function vaultInput(input: {
   applyAcceptedAccountActionPatches: ReturnType<typeof vi.fn>;
-  loadActionLog?: ReturnType<typeof vi.fn>;
 }) {
   return {
     accountSummary: accountSummary(),
-    diagnostics: {
-      loadActionLog: input.loadActionLog ?? vi.fn().mockResolvedValue(undefined)
-    },
     setVaultTags: vi.fn(),
     setAccountError: vi.fn(),
     setIsRunningItemAction: vi.fn(),
