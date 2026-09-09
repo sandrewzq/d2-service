@@ -1,6 +1,7 @@
 export type { AccountWorkspace, AccountWorkspaceWarning } from "./workspaces/account.js";
 export { loadAccountWorkspace } from "./workspaces/account.js";
 export type {
+  CharacterPowerAvailability,
   CharacterPowerRowView,
   CharacterPowerSourceKind,
   CharacterPowerValueView,

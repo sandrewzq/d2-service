@@ -145,6 +145,27 @@ export function selectHighestSlotPowerCandidates<Source>(input: {
   return selected;
 }
 
+/**
+ * Selects the account-wide item used as the reward drop baseline for each
+ * Power slot. This is intentionally different from an equippable plan:
+ * class restrictions and the one-exotic-at-a-time rule do not apply here.
+ */
+export function selectAccountDropBaselinePowerCandidates<Source>(input: {
+  candidates: Array<AccountPowerCandidate<Source>>;
+}): Map<AccountPowerSlotKey, AccountPowerCandidate<Source>> {
+  const candidatesBySlot = groupCandidatesBySlot(input.candidates.filter((candidate) => (
+    Boolean(candidate.item.instance_id)
+    && typeof candidate.item.power === "number"
+    && Number.isFinite(candidate.item.power)
+  )));
+  const selected = new Map<AccountPowerSlotKey, AccountPowerCandidate<Source>>();
+  for (const slot of accountPowerSlotOrder) {
+    const candidate = [...(candidatesBySlot.get(slot) ?? [])].sort(compareCandidates)[0];
+    if (candidate) selected.set(slot, candidate);
+  }
+  return selected;
+}
+
 export function calculateAccountPowerFraction<Source>(
   selection: ReadonlyMap<AccountPowerSlotKey, AccountPowerCandidate<Source>>
 ): AccountPowerFraction {

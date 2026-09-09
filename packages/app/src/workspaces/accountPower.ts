@@ -2,6 +2,7 @@ import {
   accountPowerSlotLabels,
   accountPowerSlotOrder,
   calculateAccountPowerFraction,
+  selectAccountDropBaselinePowerCandidates,
   selectMaxEquippablePowerCandidates,
   type AccountPowerCandidate,
   type AccountPowerFraction,
@@ -15,6 +16,8 @@ export type CharacterPowerSourceKind =
   | "vault"
   | "other-character-equipped"
   | "other-character-inventory";
+
+export type CharacterPowerAvailability = "current" | "transferable" | "different-class";
 
 type CharacterPowerSource = {
   kind: CharacterPowerSourceKind;
@@ -30,6 +33,7 @@ export type CharacterPowerRowView = {
   delta?: number;
   sourceKind?: CharacterPowerSourceKind;
   sourceCharacterName?: string;
+  availability?: CharacterPowerAvailability;
   isExotic: boolean;
 };
 
@@ -46,6 +50,7 @@ export type CharacterPowerView = {
   currentLabel: string;
   maxEquippable: CharacterPowerValueView;
   executablePower: CharacterPowerValueView;
+  dropBaseline: CharacterPowerValueView;
   hasExternalSources: boolean;
   executableMatchesAccountMaximum: boolean;
 };
@@ -74,9 +79,11 @@ export function buildCharacterPowerView(
     candidates: executableCandidates,
     characterClassName: character.class_name
   });
-  const maxEquippable = toPowerValueView(maxEquippableSelection);
-  const executablePower = toPowerValueView(executableSelection);
-  const equippedPower = toPowerValueView(equippedSelection);
+  const dropBaselineSelection = selectAccountDropBaselinePowerCandidates({ candidates: accountCandidates });
+  const maxEquippable = toPowerValueView(maxEquippableSelection, character.class_name);
+  const executablePower = toPowerValueView(executableSelection, character.class_name);
+  const dropBaseline = toPowerValueView(dropBaselineSelection, character.class_name);
+  const equippedPower = toPowerValueView(equippedSelection, character.class_name);
 
   return {
     currentLabel: equippedPower.complete
@@ -86,6 +93,7 @@ export function buildCharacterPowerView(
         : "-",
     maxEquippable,
     executablePower,
+    dropBaseline,
     hasExternalSources: [...maxEquippableSelection.values()].some((candidate) => (
       candidate.source.kind === "other-character-equipped"
       || candidate.source.kind === "other-character-inventory"
@@ -130,7 +138,8 @@ function collectAccountPowerCandidates(
 }
 
 function toPowerValueView(
-  selection: ReadonlyMap<AccountPowerSlotKey, Candidate>
+  selection: ReadonlyMap<AccountPowerSlotKey, Candidate>,
+  characterClassName: string
 ): CharacterPowerValueView {
   const fraction = calculateAccountPowerFraction(selection);
   return {
@@ -160,10 +169,21 @@ function toPowerValueView(
           : undefined,
         sourceKind: candidate.source.kind,
         sourceCharacterName: candidate.source.character_name,
+        availability: getAvailability(candidate, characterClassName),
         isExotic: /^(?:异域|exotic)$/i.test(candidate.item.tier?.trim() ?? "")
       };
     })
   };
+}
+
+function getAvailability(candidate: Candidate, characterClassName: string): CharacterPowerAvailability {
+  const compatible = selectMaxEquippablePowerCandidates({
+    candidates: [candidate],
+    characterClassName
+  }).size > 0;
+  if (!compatible) return "different-class";
+  if (candidate.source.kind === "equipped" || candidate.source.kind === "inventory") return "current";
+  return "transferable";
 }
 
 function formatPowerFraction(fraction: AccountPowerFraction): string {

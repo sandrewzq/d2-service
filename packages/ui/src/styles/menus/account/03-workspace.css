@@ -623,6 +623,90 @@
   background: var(--surface-recessed);
 }
 
+:where(.app-shell) .account-power-summary-triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+:where(.app-shell) .account-power-summary-triple > span {
+  min-width: 0;
+}
+
+:where(.app-shell) .account-power-summary-triple > span + span {
+  border-left: 1px solid var(--border-subtle);
+  padding-left: 12px;
+}
+
+:where(.app-shell) .account-power-explanation {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--priority-support);
+  line-height: 1.5;
+}
+
+:where(.app-shell) .account-power-explanation-positive {
+  color: var(--status-ready);
+}
+
+:where(.app-shell) .account-power-baseline-gaps {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-recessed);
+}
+
+:where(.app-shell) .account-power-baseline-gaps > strong {
+  color: var(--text-title);
+  font-size: var(--priority-support);
+}
+
+:where(.app-shell) .account-power-baseline-gaps > div {
+  display: grid;
+  gap: 4px;
+}
+
+:where(.app-shell) .account-power-baseline-gap {
+  display: grid;
+  grid-template-columns: 70px auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+:where(.app-shell) .account-power-baseline-gap > span,
+:where(.app-shell) .account-power-baseline-gap > strong,
+:where(.app-shell) .account-power-baseline-gap > small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.app-shell) .account-power-baseline-gap > span,
+:where(.app-shell) .account-power-baseline-gap > small {
+  color: var(--text-muted);
+  font-size: var(--priority-trace);
+}
+
+:where(.app-shell) .account-power-baseline-gap > strong {
+  color: var(--status-warning);
+  font-size: var(--priority-support);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.app-shell) .account-power-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+:where(.app-shell) .account-power-modes > button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: var(--priority-trace);
+}
+
 :where(.app-shell) .account-power-summary > span:not([aria-hidden="true"]) {
   display: grid;
   gap: 2px;
@@ -1973,6 +2057,26 @@
 
   :where(.app-shell) .account-power-row {
     grid-template-columns: 74px minmax(0, 1fr) 42px 30px;
+  }
+
+  :where(.app-shell) .account-power-summary-triple {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  :where(.app-shell) .account-power-summary-triple > span + span {
+    border-top: 1px solid var(--border-subtle);
+    border-left: 0;
+    padding-top: 8px;
+    padding-left: 0;
+  }
+
+  :where(.app-shell) .account-power-baseline-gap {
+    grid-template-columns: 64px auto;
+  }
+
+  :where(.app-shell) .account-power-baseline-gap > small {
+    grid-column: 1 / -1;
   }
 
 }

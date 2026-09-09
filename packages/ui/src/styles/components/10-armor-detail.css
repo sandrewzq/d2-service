@@ -154,7 +154,7 @@
 .armor-detail-ability-option-icon { background: var(--surface-recessed); }
 .armor-detail-ability-group li strong { color: var(--text-title); font-size: 12px; }
 .armor-detail-ability-group li p { margin: 3px 0 0; color: var(--body); font-size: 12px; line-height: 1.45; }
-.armor-detail-ability-group li em { color: var(--text-muted); font-size: 11px; font-style: normal; white-space: nowrap; }
+.armor-detail-ability-group li em { color: var(--text-muted); font-size: 12px; font-style: normal; white-space: nowrap; }
 .armor-detail-ability-group li[data-selected="true"] em { color: var(--blue); font-weight: 700; }
 .armor-detail-set-bonus { overflow: hidden; border: 1px solid var(--object-border); border-radius: var(--radius-object); background: var(--card-bg); }
 .armor-detail-set-bonus > header { display: flex; align-items: start; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--section-divider); background: var(--surface-interactive); }

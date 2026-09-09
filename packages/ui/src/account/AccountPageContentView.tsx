@@ -358,7 +358,7 @@ function AccountPageWorkspace(props: {
                 <span>
                   <strong data-ui-part="value" data-info-priority="context" data-text-tone="primary">{tab.className}</strong>
                   <small data-ui-part="detail" data-info-priority="support" data-text-tone="body">
-                    {accountText(props.copy, "当前")} {tab.power.currentLabel} · {accountText(props.copy, "账号最高光等")} {tab.power.maxEquippable.label}
+                    {accountText(props.copy, "当前")} {tab.power.currentLabel} · {accountText(props.copy, "可装备最高光等")} {tab.power.maxEquippable.label}
                   </small>
                   {characterCapacity ? (
                     <small className="account-character-capacity" data-risk={characterCapacity.overallRisk}>
@@ -381,8 +381,8 @@ function AccountPageWorkspace(props: {
               aria-controls="account-power-panel"
               onClick={() => setIsPowerPanelOpen((current) => !current)}
             >
-              <span>{accountText(props.copy, "最高光等方案")}</span>
-              <PowerFractionValue value={props.selectedCharacter.power.executablePower} />
+              <span>{accountText(props.copy, "光等详情")}</span>
+              <PowerFractionValue value={props.selectedCharacter.power.dropBaseline} />
             </button>
             {props.actions.equipHighestPower ? <button
               type="button"
@@ -412,6 +412,9 @@ function AccountPageWorkspace(props: {
               id="account-power-panel"
               panelRef={powerPanelRef}
               power={props.selectedCharacter.power}
+              isSyncing={props.viewModel.connection.isLoadingAccount}
+              dataState={props.viewModel.connection.dataState}
+              snapshotAt={profile.snapshotAt}
             />
           ) : null}
           <div className="account-operation-status-slot">
@@ -858,29 +861,88 @@ function AccountPowerPanel(props: {
   id: string;
   panelRef: RefObject<HTMLElement | null>;
   power: CharacterPowerView;
+  isSyncing: boolean;
+  dataState: AccountPageViewModel["connection"]["dataState"];
+  snapshotAt?: string | number | Date | null;
 }) {
-  const value = props.power.executablePower;
+  const [mode, setMode] = useState<"baseline" | "executable">("baseline");
+  const value = mode === "baseline" ? props.power.dropBaseline : props.power.executablePower;
+  const baselineGaps = props.power.dropBaseline.rows
+    .map((row, index) => {
+      const executableRow = props.power.maxEquippable.rows[index];
+      if (typeof row.power !== "number") return null;
+      const executablePower = executableRow?.power;
+      if (typeof executablePower !== "number" || row.power <= executablePower) return null;
+      return { row, gap: row.power - executablePower };
+    })
+    .filter((entry): entry is { row: CharacterPowerValueView["rows"][number]; gap: number } => Boolean(entry))
+    .sort((left, right) => right.gap - left.gap || (right.row.power ?? 0) - (left.row.power ?? 0))
+    .slice(0, 3);
+  const isComplete = props.power.dropBaseline.complete && props.power.maxEquippable.complete;
+  const statusLabel = props.isSyncing
+    ? accountText(props.copy, "同步中")
+    : props.dataState === "cached"
+      ? accountText(props.copy, "显示缓存数据")
+      : isComplete
+        ? accountText(props.copy, "数据已确认")
+        : accountText(props.copy, "数据不完整");
   return (
     <section ref={props.panelRef} className="account-power-panel" id={props.id} data-surface="frame" data-ui-kind="summary-frame" aria-label={accountText(props.copy, "光等详情")}>
       <div className="account-power-panel-head">
         <span>
-          <strong>{accountText(props.copy, "最高光等装备方案")}</strong>
-          <small>{accountText(props.copy, "使用本角色与仓库中的装备")}</small>
+          <strong>{accountText(props.copy, "光等详情")}</strong>
+          <small>{props.snapshotAt ? `${accountText(props.copy, "更新时间")} ${formatCompactDateTime(props.snapshotAt)}` : accountText(props.copy, "基于当前账号快照")}</small>
         </span>
-        <span className={`ui-badge status-${value.complete ? "ready" : "warning"}`} data-status={value.complete ? "success" : "warning"}>
-          {value.complete ? accountText(props.copy, "方案完整") : accountText(props.copy, "数据不完整")}
+        <span className={`ui-badge status-${props.isSyncing || !isComplete ? "warning" : "ready"}`} data-status={props.isSyncing || !isComplete ? "warning" : "success"}>
+          {statusLabel}
         </span>
       </div>
-      <div className="account-power-summary" aria-label={accountText(props.copy, "光等方案摘要")}>
+      <div className="account-power-summary account-power-summary-triple" aria-label={accountText(props.copy, "光等方案摘要")}>
         <span>
           <small>{accountText(props.copy, "当前装备光等")}</small>
           <strong>{props.power.currentLabel}</strong>
         </span>
-        <span aria-hidden="true">→</span>
-        <span className="target">
-          <small>{accountText(props.copy, "装备后光等")}</small>
-          <PowerFractionValue value={value} />
+        <span>
+          <small>{accountText(props.copy, "可装备最高光等")}</small>
+          <PowerFractionValue value={props.power.maxEquippable} />
         </span>
+        <span>
+          <small>{accountText(props.copy, "奖励掉落基准")}</small>
+          <PowerFractionValue value={props.power.dropBaseline} />
+        </span>
+      </div>
+      <p className="account-power-explanation">
+        {!props.power.dropBaseline.complete
+          ? accountText(props.copy, "奖励掉落基准正在等待完整账号装备数据。")
+          : props.power.dropBaseline.label === props.power.maxEquippable.label
+            ? accountText(props.copy, "奖励掉落基准与当前角色可装备最高一致。")
+            : accountText(props.copy, "奖励掉落基准按整个账号每个位置的最高装备计算，不代表当前角色可以直接穿上这些装备。")}
+      </p>
+      {baselineGaps.length ? (
+        <section className="account-power-baseline-gaps" aria-label={accountText(props.copy, "奖励基准差异来源")}>
+          <strong>{accountText(props.copy, "影响奖励基准的装备")}</strong>
+          <div>
+            {baselineGaps.map(({ row, gap }) => (
+              <div className="account-power-baseline-gap" key={row.key}>
+                <span>{accountText(props.copy, row.label)}</span>
+                <strong>{row.power}（+{gap}）</strong>
+                <small>{formatPowerSource(row, props.copy)} · {formatPowerAvailability(row, props.copy)}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : isComplete ? (
+        <p className="account-power-explanation account-power-explanation-positive">{accountText(props.copy, "当前角色可装备最高已达到账号奖励掉落基准。")}</p>
+      ) : (
+        <p className="account-power-explanation">{accountText(props.copy, "光等差异正在等待完整账号数据。")}</p>
+      )}
+      <div className="account-power-modes" role="group" aria-label={accountText(props.copy, "光等查看方式")}>
+        <button type="button" data-ui-kind="button" data-control-variant={mode === "baseline" ? "primary" : "secondary"} aria-pressed={mode === "baseline"} onClick={() => setMode("baseline")}>
+          {accountText(props.copy, "奖励基准构成")}
+        </button>
+        <button type="button" data-ui-kind="button" data-control-variant={mode === "executable" ? "primary" : "secondary"} aria-pressed={mode === "executable"} onClick={() => setMode("executable")}>
+          {accountText(props.copy, "可执行最高方案")}
+        </button>
       </div>
       <div className="account-power-rows">
         <div className="account-power-row account-power-column-head" aria-hidden="true">
@@ -907,10 +969,13 @@ function AccountPowerPanel(props: {
         ))}
       </div>
       <div className="account-power-footer">
-        <span>{accountText(props.copy, "账号最高光等")} <PowerFractionValue value={props.power.maxEquippable} /></span>
+        <span>{mode === "baseline" ? accountText(props.copy, "奖励掉落基准") : accountText(props.copy, "可执行最高方案")} <PowerFractionValue value={value} /></span>
+        <span>{accountText(props.copy, "数据来源")} {props.snapshotAt ? formatCompactDateTime(props.snapshotAt) : accountText(props.copy, "当前账号快照")}</span>
       </div>
       <p className={props.power.executableMatchesAccountMaximum ? "account-power-note" : "account-power-note warning"}>
-        {!props.power.maxEquippable.complete || !props.power.executablePower.complete
+        {mode === "baseline"
+          ? accountText(props.copy, "奖励掉落基准是奖励计算参考，不保证下一件奖励补最低槽位。")
+          : !props.power.maxEquippable.complete || !props.power.executablePower.complete
           ? accountText(props.copy, "缺少至少一个光等槽位，当前无法生成完整的最高光等装备方案。")
           : props.power.executableMatchesAccountMaximum
             ? accountText(props.copy, "当前角色与仓库中的方案已达到账号最高光等。")
@@ -920,6 +985,16 @@ function AccountPowerPanel(props: {
       </p>
     </section>
   );
+}
+
+function formatPowerAvailability(
+  row: CharacterPowerValueView["rows"][number],
+  copy: AccountCopy
+): string {
+  if (row.availability === "current") return accountText(copy, "当前角色可用");
+  if (row.availability === "transferable") return accountText(copy, "转移后可用");
+  if (row.availability === "different-class") return accountText(copy, "当前角色不可装备");
+  return accountText(copy, "状态待确认");
 }
 
 function PowerFractionValue(props: { value: CharacterPowerValueView }) {
