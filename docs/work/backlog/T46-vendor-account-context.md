@@ -372,7 +372,7 @@ type VendorOfferAccountContext = {
 - 验收当前角色切换后不残留旧上下文。
 - 验收列表和详情键盘 / 手柄焦点、窄屏换行和 live region 噪声。
 - 将稳定的卡片状态和详情层级同步到 `docs/work/references/ui-specs/application-workspaces.md`。
-- 完成后再更新 T46 状态，不顺手启动 T47～T49。
+- 完成后再更新 T46 状态，不顺手启动 T49。
 
 ## 8. 预计改动边界
 

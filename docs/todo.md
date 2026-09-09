@@ -16,13 +16,13 @@
 
 | 编号 | 优先级 | 状态 | 任务 | Backlog | 下一步 |
 |---|---|---|---|---|---|
+| T1 | P1 | 📝 候选方案，待排期 | 全应用英文国际化补齐 | [任务说明](work/backlog/T1-english-internationalization.md) | 先补齐页面标题、顶部状态和共享弹窗，再按仓库、装备详情、配装、AI 助手顺序迁移；完成核心工作流前不宣称完整英文支持。 |
 | T23 | P2 | ⏸️ 等待官方书面授权 | D2Checkpoint 进度机器人集成 | [执行 backlog](work/backlog/T23-d2checkpoint-integration.md) | 用户已于 2026-09-08 向 `support@d2checkpoint.com` 发送授权申请；收到回复前不进入开发。 |
-| T43 | P1 | 📝 候选方案，待排期 | 任务待处理中心 | [任务说明](work/backlog/T43-pursuit-attention-center.md) | 用 Objective、到期、追踪和完成字段提供真实任务状态，不负责光等推荐。 |
+| T43 | P1 | 📝 需求已细化，待排期 | 任务待处理中心 | [任务说明](work/backlog/T43-pursuit-attention-center.md) | 先实现独立任务资源：角色任务物品 + 角色进度/里程碑 + 受控记录；替换现有名称关键词分类，不阻塞装备首屏。 |
 | T44 | P1 | 📝 需求已重新梳理，待排期 | 光等提升路线 | [任务说明](work/backlog/T44-character-progression-center.md) | 结合 T42 光等缺口、T43 任务状态和真实奖励数据，告诉玩家现在刷什么最有提升机会。 |
 | T46 | P1 | 🟡 自动验收通过，待真实账号验收 | 商人账号上下文 | [任务说明](work/backlog/T46-vendor-account-context.md) | 固定 Core / App / UI / Desktop 共 28 项测试已通过；继续验收真实账号卡片拥有数量、装备缺失筛选、详情位置与账号数据时间、未知/部分状态和角色切换；Collectibles 与完整比较后置。 |
-| T47 | P1 | 📝 候选方案，待细化与排期 | 商人刷新差异与事件 | [任务说明](work/backlog/T47-vendor-refresh-diff-events.md) | 冻结刷新事件、Offer 配置指纹和变化保留规则，不增加固定间隔轮询并保留 Xur 边界定时器。 |
 | T48 | P2 | 📝 候选方案，等待 T46 | 商人护甲规划接入 | [任务说明](work/backlog/T48-vendor-armor-planner-integration.md) | 等待 Offer 身份与过期语义稳定后，把商人护甲作为待购买候选接入 Armor Planner。 |
-| T49 | P2 | 📝 候选方案，等待 T46～T47 | 商人关注与提醒 | [任务说明](work/backlog/T49-vendor-watch-alerts.md) | 复用明确刷新事件和账号派生摘要，设计本地关注规则、去重和应用内提醒。 |
+| T49 | P2 | 📝 候选方案，等待 T46 | 商人关注与提醒 | [任务说明](work/backlog/T49-vendor-watch-alerts.md) | 复用 T46 账号派生摘要和现有明确刷新事件，设计本地关注规则、去重和应用内提醒。 |
 
 ## 已完成基线
 
