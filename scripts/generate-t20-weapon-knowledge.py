@@ -73,7 +73,7 @@ SOURCE_LABELS = {
 }
 SOURCE_URLS = {
     "aegis": "https://docs.google.com/spreadsheets/d/1JM-0SlxVDAi-C6rGVlLxa-J1WGewEeL8Qvq4htWZHhY/edit?gid=346832350#gid=346832350",
-    "lgpig": "https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/pve-farming/index.html",
+    "lgpig": "https://starside.work/pve-farming/index.html",
     "yxcrallxy": "https://docs.qq.com/sheet/DYkR5enNIdUt1VFhK?tab=000001&_t=1788087335795&nlc=1",
     "sayalarry": "https://sa7vp10ytxr.feishu.cn/wiki/W3ySwdahTiNRUJklJNBc0CMPnkb",
     "dim_voltron": "https://github.com/48klocs/dim-wish-list-sources",

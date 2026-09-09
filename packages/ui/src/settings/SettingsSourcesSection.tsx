@@ -1,13 +1,16 @@
+import type { MouseEvent } from "react";
 import type { InterfaceLocale } from "../i18n/types.js";
 import { settingsSourceCategoryLabels, settingsSourceEntries, type SettingsSourceEntry } from "./settingsSources.js";
 import { SettingsButton } from "./SettingsButton.js";
 
 export function SettingsSourcesSection({
   interfaceLocale = "zh-CN",
-  onOpenLegalDocument
+  onOpenLegalDocument,
+  onOpenExternal
 }: {
   interfaceLocale?: InterfaceLocale;
   onOpenLegalDocument?: (document: "project-license" | "third-party-notices") => void;
+  onOpenExternal?: (url: string) => void;
 }) {
   const english = interfaceLocale === "en-US";
   return (
@@ -31,7 +34,7 @@ export function SettingsSourcesSection({
               <span data-ui-part="label" data-info-priority="support" data-text-tone="meta">{entries.length}{english ? " entries" : " 项"}</span>
             </header>
             <div className="settings-sources-list" data-surface="list">
-              {entries.map((entry) => <SourceRow english={english} entry={entry} key={entry.name} />)}
+              {entries.map((entry) => <SourceRow english={english} entry={entry} key={entry.name} onOpenExternal={onOpenExternal} />)}
             </div>
           </section>
         );
@@ -56,7 +59,12 @@ export function SettingsSourcesSection({
   );
 }
 
-function SourceRow({ entry, english }: { entry: SettingsSourceEntry; english: boolean }) {
+function SourceRow({ entry, english, onOpenExternal }: { entry: SettingsSourceEntry; english: boolean; onOpenExternal?: (url: string) => void }) {
+  const handleExternalClick = (event: MouseEvent<HTMLAnchorElement>, url: string) => {
+    if (!onOpenExternal) return;
+    event.preventDefault();
+    onOpenExternal(url);
+  };
   return (
     <article className="settings-source-row" data-surface="row">
       <div className="settings-source-main">
@@ -73,8 +81,8 @@ function SourceRow({ entry, english }: { entry: SettingsSourceEntry; english: bo
         <p data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{entry.usedIn}</p>
       </div>
       <div className="settings-source-links" data-ui-part="action">
-        {entry.githubUrl ? <a href={entry.githubUrl} target="_blank" rel="noreferrer">GitHub</a> : null}
-        {entry.onlineUrl ? <a href={entry.onlineUrl} target="_blank" rel="noreferrer">{english ? "Open online" : "在线访问"}</a> : null}
+        {entry.githubUrl ? <a href={entry.githubUrl} target="_blank" rel="noreferrer" onClick={(event) => handleExternalClick(event, entry.githubUrl!)}>GitHub</a> : null}
+        {entry.onlineUrl ? <a href={entry.onlineUrl} target="_blank" rel="noreferrer" onClick={(event) => handleExternalClick(event, entry.onlineUrl!)}>{english ? "Open online" : "在线访问"}</a> : null}
         <small>{english ? `License: ${entry.license}` : `许可：${entry.license}`}</small>
         <small>{english ? entry.note : entry.note}</small>
       </div>

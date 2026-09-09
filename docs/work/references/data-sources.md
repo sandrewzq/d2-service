@@ -70,8 +70,8 @@
 
 ### Starside · Destiny 2 中文资料台
 
-- 在线访问：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/>
-- 数据源与鸣谢：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/sources/index.html>
+- 在线访问：<https://starside.work/>
+- 数据源与鸣谢：<https://starside.work/sources/index.html>
 - 参考内容：中文资料、武器与护甲信息、机制说明、伤害资料和攻略的组织方式。
 - 当前关系：内容与信息组织参考，不是运行时数据来源。
 - 限制：静态资料页面不能证明实时轮换；当前轮换仍以登录 Bungie 后读取的实时数据为准。

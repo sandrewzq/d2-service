@@ -55,7 +55,7 @@ export const settingsSourceEntries: SettingsSourceEntry[] = [
     content: "武器、护甲、机制、伤害和攻略资料的组织方式",
     usedIn: "中文文案和资料导航参考",
     relationship: "内容与信息组织参考",
-    onlineUrl: "https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/",
+    onlineUrl: "https://starside.work/",
     license: "以原站声明为准；不复制未授权内容",
     note: "静态资料页不能证明实时轮换，当前轮换仍以 Bungie 登录数据为准。"
   },

@@ -434,7 +434,7 @@ packages/desktop/release/
 - `latest.yml`
 - `d2-tools-setup-<version>.exe.blockmap`
 
-安装包必须携带项目许可证和桌面运行时第三方许可证清单。`pnpm licenses:generate` 根据当前依赖生成 `packages/desktop/build/LICENSE.txt` 与 `THIRD_PARTY_NOTICES.txt`；质量门禁通过 `pnpm licenses:check` 拦截依赖变化后未更新的清单。NSIS 安装向导展示项目许可证，两份文件同时进入安装资源并可从设置页打开。
+安装包必须携带项目许可证和桌面运行时第三方许可证清单。`pnpm licenses:generate` 根据当前依赖生成 `packages/desktop/build/LICENSE.txt` 与 `THIRD_PARTY_NOTICES.txt`；质量门禁通过 `pnpm licenses:check` 拦截依赖变化后未更新的清单。NSIS 安装向导展示项目许可证，两份文件同时进入安装资源并可从设置页打开。设置页来源列表中的 GitHub / 在线资料链接交给平台默认浏览器打开，不在应用窗口内导航；本地许可证按钮使用系统默认程序打开安装包内文件。
 
 ## 6. 发布
 

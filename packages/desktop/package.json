@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "description": "Windows desktop app for d2-tools, a Chinese Destiny 2 companion.",
-  "author": "zhangqi",
+  "author": "sandrew",
   "homepage": "https://github.com/sandrewzq/d2-tools",
   "repository": {
     "type": "git",

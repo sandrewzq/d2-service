@@ -38,8 +38,15 @@ export type VendorInventoryItemView = {
   costIconLabel?: string;
   costIconUrl?: string;
   tone: "exotic" | "weapon" | "armor" | "material";
-  status: "owned" | "recommended" | "unknown";
-  decisionLabel?: string;
+  status: "owned" | "not_owned" | "partial" | "unknown";
+  equipmentKind?: "weapon" | "armor";
+  ownership?: {
+    state: "owned" | "not_owned" | "partial" | "unknown";
+    count: number | null;
+    label: string;
+    locationLabels: string[];
+    asOf?: string;
+  };
   canPurchase?: boolean;
   failureMessages?: string[];
   stats?: Record<string, number>;
@@ -167,7 +174,6 @@ export type VendorsPageModelView = {
   sourceLabel: string;
   nextResetLabel: string;
   nextResetAt?: string;
-  recommendationCount: number;
   verifiedItemCount: number;
   scopeOptions?: VendorScopeOptionView[];
   selectedScope?: VendorScopeOptionView;
@@ -187,6 +193,9 @@ export type VendorOfferContextView = {
   purchaseRequirements?: string[];
   rollLabels?: string[];
   stats?: Record<string, number>;
+  ownershipLabel?: string;
+  ownershipLocationLabel?: string;
+  ownershipAsOfLabel?: string;
 };
 
 export type VendorsPageActions = {
@@ -221,7 +230,14 @@ export function VendorsPageContentView(props: VendorsPageContentViewProps) {
     ?? null;
   const refreshStatus = props.model.statusBanner;
   const [vendorSearchQuery, setVendorSearchQuery] = useState("");
-  const [vendorFilters, setVendorFilters] = useState({ affordableOnly: false, recommendedOnly: false });
+  const [vendorFilters, setVendorFilters] = useState({ affordableOnly: false, unownedOnly: false });
+  const accountOwnershipFilterAvailable = selectedVendor
+    ? getVendorContentSections(selectedVendor).some((section) => section.groups.some((group) => group.items.some((item) => (
+        Boolean(getVendorEquipmentKind(item))
+        && item.ownership?.state !== undefined
+        && item.ownership.state !== "unknown"
+      ))))
+    : false;
 
   if (props.availability && (!props.availability.isBungieConfigured || !props.availability.isAccountLoggedIn)) {
     const isConfigured = props.availability.isBungieConfigured;
@@ -263,10 +279,14 @@ export function VendorsPageContentView(props: VendorsPageContentViewProps) {
   const normalizedContentSearchQuery = vendorHasItemMatch(selectedVendor, normalizedVendorSearchQuery)
     ? normalizedVendorSearchQuery
     : "";
-  const contentSections = filterVendorSections(allContentSections, vendorFilters, normalizedContentSearchQuery);
+  const activeVendorFilters = {
+    ...vendorFilters,
+    unownedOnly: vendorFilters.unownedOnly && accountOwnershipFilterAvailable
+  };
+  const contentSections = filterVendorSections(allContentSections, activeVendorFilters, normalizedContentSearchQuery);
   const allItemCount = countSectionItemsFromSections(allContentSections);
   const visibleItemCount = countSectionItemsFromSections(contentSections);
-  const hasContentFilter = Boolean(normalizedContentSearchQuery || vendorFilters.affordableOnly || vendorFilters.recommendedOnly);
+  const hasContentFilter = Boolean(normalizedContentSearchQuery || activeVendorFilters.affordableOnly || activeVendorFilters.unownedOnly);
   const vendorStatus = getVendorStatus(selectedVendor);
   const selectedVendorResetLabel = formatVendorReset(selectedVendor, locale);
   const updatedLabel = formatFullDateTime(props.model.updatedAt, props.model.updatedLabel);
@@ -408,9 +428,11 @@ export function VendorsPageContentView(props: VendorsPageContentViewProps) {
               data-ui-kind="button"
               data-control-variant="quiet"
               data-control-size="compact"
-              aria-pressed={vendorFilters.recommendedOnly}
-              onClick={() => setVendorFilters((current) => ({ ...current, recommendedOnly: !current.recommendedOnly }))}
-            >只看推荐</button>
+              aria-pressed={activeVendorFilters.unownedOnly}
+              disabled={!accountOwnershipFilterAvailable}
+              title={accountOwnershipFilterAvailable ? undefined : "账号拥有状态读取完成后可用"}
+              onClick={() => setVendorFilters((current) => ({ ...current, unownedOnly: !current.unownedOnly }))}
+            >账号无同身份实例</button>
           </span>
         </div>
 
@@ -423,7 +445,7 @@ export function VendorsPageContentView(props: VendorsPageContentViewProps) {
               <span>{selectedVendor.detailFailureMessage}。当前仍显示基础销售数据，属性与插槽可能不完整。</span>
             </div>
           ) : null}
-          <VendorContentSections sections={contentSections} vendor={selectedVendor} actions={props.actions} locale={locale} hasActiveFilters={hasContentFilter} hasSearchQuery={Boolean(normalizedContentSearchQuery)} onClearFilters={() => { setVendorFilters({ affordableOnly: false, recommendedOnly: false }); setVendorSearchQuery(""); }} />
+          <VendorContentSections sections={contentSections} vendor={selectedVendor} actions={props.actions} locale={locale} hasActiveFilters={hasContentFilter} hasSearchQuery={Boolean(normalizedContentSearchQuery)} onClearFilters={() => { setVendorFilters({ affordableOnly: false, unownedOnly: false }); setVendorSearchQuery(""); }} />
         </div>
       </section>
 
@@ -452,8 +474,8 @@ function VendorContentSections(props: {
         <strong>{props.hasActiveFilters ? "没有符合筛选条件的库存" : "当前没有可显示的库存"}</strong>
         <span>{props.hasActiveFilters
           ? props.hasSearchQuery
-            ? "尝试修改搜索词，或关闭“只看可负担 / 只看推荐”。"
-            : "尝试关闭“只看可负担”或“只看推荐”。"
+            ? "尝试修改搜索词，或关闭“只看可负担 / 账号无同身份实例”。"
+            : "尝试关闭“只看可负担”或“账号无同身份实例”。"
           : getVendorDisplayStatusLabel(props.vendor)}</span>
         {props.hasActiveFilters && props.onClearFilters ? <button type="button" data-ui-kind="button" data-control-variant="secondary" onClick={props.onClearFilters}>清除筛选</button> : null}
       </ProductWorkspaceEmptyState>
@@ -696,6 +718,11 @@ function VendorServiceRow(props: {
       </span>
       <span className="vendor-service-facts">
         {hasCost ? <VendorCosts item={props.item} fallback={getVendorCostLabel(props.item)} /> : <small>{props.section.kind === "tasks" ? "任务条目" : "服务入口"}</small>}
+        {props.item.ownership ? (
+          <span className="vendor-offer-account" data-status={props.item.ownership.state}>
+            {props.item.ownership.label}
+          </span>
+        ) : null}
         <strong data-status={status.status}>{status.label}</strong>
       </span>
     </article>
@@ -719,7 +746,11 @@ function VendorOfferButton(props: {
         <span className="vendor-offer-copy">
           <span className="vendor-offer-title"><strong>{props.item.name}</strong>{props.item.quantity && props.item.quantity > 1 ? <em>× {props.item.quantity.toLocaleString("zh-CN")}</em> : null}</span>
           <span className="vendor-offer-summary">{props.item.itemType || "类型待确认"}{props.item.summary ? ` · ${props.item.summary}` : ""}</span>
-          {props.item.decisionLabel ? <span className="vendor-offer-decision" data-status="success">{props.item.decisionLabel}</span> : null}
+          {props.item.ownership ? (
+            <span className="vendor-offer-account" data-status={props.item.ownership.state}>
+              {props.item.ownership.label}
+            </span>
+          ) : null}
           {rollLabel ? <span className="vendor-offer-roll">{rollLabel}</span> : null}
         </span>
     </span>
@@ -752,7 +783,12 @@ function VendorOfferButton(props: {
         refreshLabel: formatVendorReset(props.vendor, props.locale),
         purchaseRequirements: props.item.failureMessages ?? [],
         rollLabels: props.item.socketPlugs?.map((plug) => plug.name).filter(Boolean),
-        stats: props.item.stats
+        stats: props.item.stats,
+        ownershipLabel: props.item.ownership?.label,
+        ownershipLocationLabel: props.item.ownership?.locationLabels.join(" · ") || undefined,
+        ownershipAsOfLabel: props.item.ownership?.asOf
+          ? formatFullDateTime(props.item.ownership.asOf, "账号数据时间未读取")
+          : undefined
       })}
     >
       {content}
@@ -854,15 +890,15 @@ function countSectionItemsFromSections(sections: VendorContentSectionView[]): nu
 
 function filterVendorSections(
   sections: VendorContentSectionView[],
-  filters: { affordableOnly: boolean; recommendedOnly: boolean },
+  filters: { affordableOnly: boolean; unownedOnly: boolean },
   query = ""
 ): VendorContentSectionView[] {
-  if (!filters.affordableOnly && !filters.recommendedOnly && !query) return sections;
+  if (!filters.affordableOnly && !filters.unownedOnly && !query) return sections;
   return sections.flatMap((section) => {
     const groups = section.groups.flatMap((group) => {
       const items = group.items.filter((item) => {
         if (query && !vendorItemMatchesQuery(item, query)) return false;
-        if (filters.recommendedOnly && !item.decisionLabel) return false;
+        if (filters.unownedOnly && (!getVendorEquipmentKind(item) || item.ownership?.state !== "not_owned")) return false;
         if (filters.affordableOnly && !isVendorItemAffordable(item)) return false;
         return true;
       });
@@ -886,7 +922,7 @@ function vendorHasItemMatch(vendor: VendorInventoryGroupView, query: string): bo
 }
 
 function vendorItemMatchesQuery(item: VendorInventoryItemView, query: string): boolean {
-  return [item.name, item.itemType, item.categoryName, item.summary, item.decisionLabel]
+  return [item.name, item.itemType, item.categoryName, item.summary, item.ownership?.label]
     .filter((value): value is string => Boolean(value))
     .join(" ")
     .toLocaleLowerCase()
@@ -918,7 +954,13 @@ function vendorMatchesSearch(vendor: VendorInventoryGroupView, query: string): b
       ...section.groups.flatMap((group) => [
         group.name,
         group.description,
-        ...group.items.flatMap((item) => [item.name, item.itemType, item.categoryName])
+        ...group.items.flatMap((item) => [
+          item.name,
+          item.itemType,
+          item.categoryName,
+          item.summary,
+          item.ownership?.label
+        ])
       ])
     ])
   ].filter((value): value is string => Boolean(value)).join(" ").toLocaleLowerCase();

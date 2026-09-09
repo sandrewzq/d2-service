@@ -41,6 +41,7 @@ export function SettingsPage(props: {
   onBungieConfigSaved: () => void;
   onOpenBungiePortal: () => void;
   onOpenLegalDocument: (document: "project-license" | "third-party-notices") => void;
+  onOpenExternal: (url: string) => void;
   onOpenDataDir: () => void;
   onCheckAppUpdate: () => void;
   onDownloadAppUpdate: () => void;
@@ -133,6 +134,7 @@ export function SettingsPage(props: {
       onLoadBungieConfig={() => api.getConfig()}
       onOpenBungiePortal={props.onOpenBungiePortal}
       onOpenLegalDocument={props.onOpenLegalDocument}
+      onOpenExternal={props.onOpenExternal}
       onInitializeManifest={props.onInitializeManifest}
       onSaveBungieConfig={async (bungie) => {
         await saveBungieConfig(bungie);

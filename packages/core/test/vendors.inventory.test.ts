@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildVendorInventorySnapshot } from "../src/vendors/inventory.js";
+import type { AccountSummary } from "../src/account/summary.js";
+import {
+  buildVendorAccountIdentityIndex,
+  buildVendorInventorySnapshot
+} from "../src/vendors/inventory.js";
 
 describe("vendor inventory domain", () => {
   it("separates direct offers from redirect-backed services", () => {
@@ -34,7 +38,68 @@ describe("vendor inventory domain", () => {
     expect(new Set(offers.map((offer) => offer.rollFingerprint)).size).toBe(2);
     expect(offers.find((offer) => offer.characterIds.includes("titan"))?.stats).toEqual({ "2996146975": 19 });
   });
+
+  it("indexes owned vendor identities across account locations without double-counting instances", () => {
+    const account = createAccountFixture();
+    const index = buildVendorAccountIdentityIndex(account);
+
+    expect(index?.byItemHash.get(1001)).toEqual({
+      itemHash: 1001,
+      count: 2,
+      instanceIds: ["hawkmoon-equipped", "hawkmoon-vault"],
+      locations: [
+        { kind: "equipped", characterId: "hunter", characterLabel: "猎人", count: 1 },
+        { kind: "vault", count: 1 }
+      ],
+      dataState: "ready"
+    });
+    expect(index?.byItemHash.get(1002)).toEqual(expect.objectContaining({ count: 0, dataState: "partial" }));
+    expect(index?.materialBalances.get(9001)).toBe(97);
+    expect(index?.sourceProfileMintedAt).toBe("2026-07-12T11:30:00.000Z");
+  });
 });
+
+function createAccountFixture(): AccountSummary {
+  const hawkmoon = {
+    hash: 1001,
+    instance_id: "hawkmoon-equipped",
+    name: "鹰月",
+    item_type: "手炮",
+    group_key: "weapons" as const,
+    socket_plugs: []
+  };
+  return {
+    account_name: "tester",
+    destiny_membership_id: "membership-1",
+    membership_type: 1,
+    profile_minted_at: "2026-07-12T11:30:00.000Z",
+    characters: [{
+      character_id: "hunter",
+      class_name: "猎人",
+      equipped_items: [hawkmoon],
+      equipment_groups: [],
+      inventory_items: [{ ...hawkmoon }],
+      inventory_groups: [],
+      postmaster_items: [{
+        hash: 1002,
+        name: "炎阳护腕",
+        item_type: "臂铠",
+        group_key: "armor",
+        socket_plugs: []
+      }],
+      loadout_slots: []
+    }],
+    vault: {
+      item_count: 1,
+      items: [{ ...hawkmoon, instance_id: "hawkmoon-vault" }],
+      sample_items: []
+    },
+    materials: {
+      item_count: 1,
+      items: [{ hash: 9001, name: "奇异硬币", quantity: 97 }]
+    }
+  };
+}
 
 function createFixture(options: { includeTitanVariant?: boolean } = {}) {
   const characters = [

@@ -17,17 +17,12 @@
 | 编号 | 优先级 | 状态 | 任务 | Backlog | 下一步 |
 |---|---|---|---|---|---|
 | T23 | P2 | ⏸️ 等待官方书面授权 | D2Checkpoint 进度机器人集成 | [执行 backlog](work/backlog/T23-d2checkpoint-integration.md) | 用户已于 2026-09-08 向 `support@d2checkpoint.com` 发送授权申请；收到回复前不进入开发。 |
-| T35 | P1 | 🟡 代码完成，待验收 | 移除 light.gg 专用实时分析 | [任务说明](work/backlog/T35-remove-lightgg-runtime.md) | 验收设置页、单件装备 AI 分析和旧配置升级；确认无 light.gg 专用入口后关闭任务。 |
-| T42 | P0 | 🟡 代码完成，待真实账号验收 | 光等状态与缺口 | [任务说明](work/backlog/T42-power-growth-analysis.md) | 验收三项光等、奖励基准来源、跨角色计算、刷新状态和现有一键装备回归。 |
 | T43 | P1 | 📝 候选方案，待排期 | 任务待处理中心 | [任务说明](work/backlog/T43-pursuit-attention-center.md) | 用 Objective、到期、追踪和完成字段提供真实任务状态，不负责光等推荐。 |
 | T44 | P1 | 📝 需求已重新梳理，待排期 | 光等提升路线 | [任务说明](work/backlog/T44-character-progression-center.md) | 结合 T42 光等缺口、T43 任务状态和真实奖励数据，告诉玩家现在刷什么最有提升机会。 |
-| T45 | P0 | ⛔ 已取消 | 商人真实推荐 | [取消说明](work/backlog/T45-vendor-real-recommendations.md) | 游戏内已经展示本次售卖的 Perk / Roll；不重复建设商人专用推荐算法，编号冻结不复用。 |
-| T46 | P1 | 📝 需求已细化，待排期 | 商人账号上下文 | [任务说明](work/backlog/T46-vendor-account-context.md) | 先冻结 itemHash / canonical identity 规则和账号上下文状态矩阵，再按“拥有摘要 → Collectibles → 同名比较 → 材料收敛”分阶段实施。 |
+| T46 | P1 | 🟡 自动验收通过，待真实账号验收 | 商人账号上下文 | [任务说明](work/backlog/T46-vendor-account-context.md) | 固定 Core / App / UI / Desktop 共 28 项测试已通过；继续验收真实账号卡片拥有数量、装备缺失筛选、详情位置与账号数据时间、未知/部分状态和角色切换；Collectibles 与完整比较后置。 |
 | T47 | P1 | 📝 候选方案，待细化与排期 | 商人刷新差异与事件 | [任务说明](work/backlog/T47-vendor-refresh-diff-events.md) | 冻结刷新事件、Offer 配置指纹和变化保留规则，不增加固定间隔轮询并保留 Xur 边界定时器。 |
 | T48 | P2 | 📝 候选方案，等待 T46 | 商人护甲规划接入 | [任务说明](work/backlog/T48-vendor-armor-planner-integration.md) | 等待 Offer 身份与过期语义稳定后，把商人护甲作为待购买候选接入 Armor Planner。 |
 | T49 | P2 | 📝 候选方案，等待 T46～T47 | 商人关注与提醒 | [任务说明](work/backlog/T49-vendor-watch-alerts.md) | 复用明确刷新事件和账号派生摘要，设计本地关注规则、去重和应用内提醒。 |
-| T50 | P1 | 🟡 代码完成，待验收 | 移除 DIM 分享接口依赖 | [任务说明](work/backlog/T50-remove-dim-share-api.md) | 使用完整 DIM 配装链接验收本地导入，并确认 dim.gg 短链接只显示说明、不发起请求。 |
-| T51 | P0 | 🟡 代码完成，待验收 | 发布许可证与 AI 隐私边界 | [任务说明](work/backlog/T51-release-licenses-ai-privacy.md) | 验收安装包许可证、设置页许可证入口、旧 AI 配置待确认、确认后调用与服务地址变化后的重新确认。 |
 
 ## 已完成基线
 
@@ -37,6 +32,7 @@
 | T20 | v0.0.22 | ✅ 武器推荐与仓库整理已完成并验收 | [完成摘要](work/backlog/T20-weapon-recommendation-vault-cleanup.md) |
 | T22 | 待下一版本 | ✅ Renderer 事件驱动性能收敛、T21 发布身份成果与 Bug #79 已完成，真实账号验收和本地 CI 通过 | [正式架构结论](development.md) |
 | T40 | 待发布 | ✅ 账号容量与风险摘要已完成并通过真实账号验收 | [完成摘要](work/backlog/T40-account-capacity-risk.md) |
+| T42 | 待发布 | ✅ 光等状态与缺口已完成并通过真实账号验收 | [完成摘要](work/backlog/T42-power-growth-analysis.md) |
 
 ## 说明
 

@@ -1,10 +1,14 @@
 import { isXurActiveAt, xurVendorHash } from "@d2-tools/core/daily/xurSchedule";
 import type { AccountSummary } from "@d2-tools/core/account/summary";
 import type {
+  VendorAccountIdentityIndex,
   VendorCharacterScope,
   VendorInventorySnapshot,
-  VendorOffer
+  VendorOffer,
+  VendorOwnedIdentitySummary,
+  VendorOwnedLocation
 } from "@d2-tools/core/vendors/inventory";
+import { buildVendorAccountIdentityIndex } from "@d2-tools/core/vendors/inventory";
 import {
   composeVendorStructures,
   createDefaultVendorContentSections,
@@ -20,9 +24,18 @@ import {
 } from "./vendorIdentity.js";
 
 export type VendorInventoryTone = "exotic" | "weapon" | "armor" | "material";
-export type VendorInventoryStatus = "owned" | "recommended" | "unknown";
+export type VendorEquipmentKindWorkspace = "weapon" | "armor";
+export type VendorInventoryStatus = "owned" | "not_owned" | "partial" | "unknown";
 export type VendorInventoryState = "loaded" | "empty" | "unavailable";
 export type VendorDetailState = "pending" | "ready" | "partial" | "failed";
+
+export type VendorOfferOwnershipWorkspace = {
+  state: VendorInventoryStatus;
+  count: number | null;
+  label: string;
+  locationLabels: string[];
+  asOf?: string;
+};
 
 export type VendorInventoryItemWorkspace = {
   id: string;
@@ -36,6 +49,8 @@ export type VendorInventoryItemWorkspace = {
   costIconUrl?: string;
   tone: VendorInventoryTone;
   status: VendorInventoryStatus;
+  equipmentKind?: VendorEquipmentKindWorkspace;
+  ownership: VendorOfferOwnershipWorkspace;
   itemHash?: number;
   quantity?: number;
   vendorItemIndex?: number;
@@ -45,7 +60,6 @@ export type VendorInventoryItemWorkspace = {
   categoryIdentifier?: string;
   previewVendorHash?: number;
   characterIds?: string[];
-  decisionLabel?: string;
   canPurchase?: boolean;
   failureMessages?: string[];
   costs?: VendorCostWorkspace[];
@@ -166,7 +180,6 @@ export type VendorsPageModel = {
   sourceLabel: string;
   nextResetLabel: string;
   nextResetAt?: string;
-  recommendationCount: number;
   verifiedItemCount: number;
   selectedVendor?: VendorInventoryGroupWorkspace;
   scopeOptions?: VendorScopeOptionWorkspace[];
@@ -197,7 +210,7 @@ export type VendorCharacterContextWorkspace = {
 
 export type VendorFiltersWorkspace = {
   affordableOnly: boolean;
-  recommendedOnly: boolean;
+  unownedOnly: boolean;
 };
 
 export type VendorStatusBannerWorkspace = {
@@ -292,7 +305,7 @@ function addVendorItemPaths(
 
 function selectSnapshotVendorsPageModel(input: VendorsPageInput): VendorsPageModel {
   const snapshot = input.snapshot;
-  const filters: VendorFiltersWorkspace = { affordableOnly: false, recommendedOnly: false };
+  const filters: VendorFiltersWorkspace = { affordableOnly: false, unownedOnly: false };
   if (!snapshot) {
     return {
       vendors: [],
@@ -301,7 +314,6 @@ function selectSnapshotVendorsPageModel(input: VendorsPageInput): VendorsPageMod
       updatedLabel: "等待商人数据",
       sourceLabel: "Bungie 角色商人",
       nextResetLabel: "等待商人刷新时间",
-      recommendationCount: 0,
       verifiedItemCount: 0,
       scopeOptions: [],
       selectedScope: undefined,
@@ -317,6 +329,7 @@ function selectSnapshotVendorsPageModel(input: VendorsPageInput): VendorsPageMod
   const visibleSnapshotVendors = isXurActiveAt(input.now)
     ? snapshot.vendors
     : snapshot.vendors.filter((vendor) => vendor.vendorHash !== xurVendorHash);
+  const accountIdentityIndex = buildVendorAccountIdentityIndex(input.account);
   const mappedVendors = visibleSnapshotVendors.map((vendor) => {
     const availableVendorHashes = new Set(visibleSnapshotVendors.map((candidate) => candidate.vendorHash));
     const detailFailures = getVendorDetailFailures(snapshot, vendor.vendorHash, input.scope);
@@ -329,7 +342,7 @@ function selectSnapshotVendorsPageModel(input: VendorsPageInput): VendorsPageMod
     );
     const mappedOffers = vendor.offers
       .filter((offer) => offerMatchesScope(offer, input.scope))
-      .map((offer) => mapSnapshotOffer(offer, snapshot, vendor.name));
+      .map((offer) => mapSnapshotOffer(offer, snapshot, vendor.name, accountIdentityIndex, input.scope));
     const partitionedItems = partitionVendorItems(
       vendor.vendorHash,
       mappedOffers,
@@ -339,7 +352,13 @@ function selectSnapshotVendorsPageModel(input: VendorsPageInput): VendorsPageMod
     const services = vendor.services.map((service) => {
       const mappedServiceOffers = service.offers
         .filter((offer) => offerMatchesScope(offer, input.scope))
-        .map((offer) => mapSnapshotOffer(offer, snapshot, `${vendor.name} → ${service.name}`));
+        .map((offer) => mapSnapshotOffer(
+          offer,
+          snapshot,
+          `${vendor.name} → ${service.name}`,
+          accountIdentityIndex,
+          input.scope
+        ));
       const childEntries = mappedServiceOffers.filter((offer) =>
         offer.previewVendorHash !== undefined
         && offer.previewVendorHash !== vendor.vendorHash
@@ -420,10 +439,6 @@ function selectSnapshotVendorsPageModel(input: VendorsPageInput): VendorsPageMod
     sourceLabel: "Bungie 角色商人",
     nextResetLabel: selectedVendor?.resetLabel ?? "等待商人刷新时间",
     nextResetAt: selectedVendor?.resetAt,
-    recommendationCount: vendors.reduce(
-      (count, vendor) => count + vendor.items.filter((item) => Boolean(item.decisionLabel)).length,
-      0
-    ),
     verifiedItemCount: vendors.reduce(
       (count, vendor) => count + vendor.items.length + (vendor.rankRewards?.length ?? 0) + (vendor.services ?? []).reduce(
         (serviceCount, service) => serviceCount + service.items.length,
@@ -445,7 +460,9 @@ function selectSnapshotVendorsPageModel(input: VendorsPageInput): VendorsPageMod
 function mapSnapshotOffer(
   offer: VendorOffer,
   snapshot: VendorInventorySnapshot,
-  sourcePath: string
+  sourcePath: string,
+  accountIdentityIndex: VendorAccountIdentityIndex | null,
+  scope: VendorCharacterScope
 ): VendorInventoryItemWorkspace {
   const costs = offer.costs.map((cost) => {
     const owned = snapshot.currencyBalances[String(cost.itemHash)];
@@ -458,6 +475,13 @@ function mapSnapshotOffer(
     };
   });
   const tone = getInventoryTone(`${offer.name} ${offer.itemType} ${offer.tierType}`);
+  const equipmentKind = getVendorEquipmentKind(offer.itemType);
+  const ownership = createVendorOfferOwnership(
+    accountIdentityIndex,
+    offer.itemHash,
+    equipmentKind,
+    scope.kind === "character" ? scope.characterId : undefined
+  );
   return {
     id: offer.id,
     itemHash: offer.itemHash,
@@ -477,8 +501,9 @@ function mapSnapshotOffer(
     iconLabel: getIconLabel(offer.name),
     iconUrl: normalizeBungieIconUrl(offer.iconUrl),
     tone,
-    status: "unknown",
-    decisionLabel: tone === "exotic" ? "高质量售卖实例" : undefined,
+    status: ownership.state,
+    equipmentKind,
+    ownership,
     canPurchase: offer.canPurchase,
     failureMessages: [...offer.failureMessages],
     stats: { ...offer.stats },
@@ -642,11 +667,107 @@ function matchesVendorSearch(
   query: string,
   filters: VendorFiltersWorkspace
 ): boolean {
-  const text = `${item.name} ${item.itemType} ${item.summary}`.toLocaleLowerCase();
+  const text = `${item.name} ${item.itemType} ${item.summary} ${item.ownership.label}`.toLocaleLowerCase();
   if (!text.includes(query)) return false;
   if (filters.affordableOnly && !item.costs?.every((cost) => cost.affordable === true)) return false;
-  if (filters.recommendedOnly && !item.decisionLabel) return false;
+  if (filters.unownedOnly && (!item.equipmentKind || item.ownership.state !== "not_owned")) return false;
   return true;
+}
+
+function createVendorOfferOwnership(
+  index: VendorAccountIdentityIndex | null,
+  itemHash: number,
+  equipmentKind: VendorEquipmentKindWorkspace | undefined,
+  selectedCharacterId?: string
+): VendorOfferOwnershipWorkspace {
+  if (!index) {
+    return {
+      state: "unknown",
+      count: null,
+      label: "账号状态未读取",
+      locationLabels: []
+    };
+  }
+
+  const owned = index.byItemHash.get(itemHash);
+  if (!owned) {
+    return {
+      state: "not_owned",
+      count: 0,
+      label: equipmentKind ? "账号无同身份实例" : "账号未拥有",
+      locationLabels: [],
+      asOf: index.sourceProfileMintedAt
+    };
+  }
+
+  const locationLabels = formatVendorOwnedLocations(owned, selectedCharacterId);
+  if (owned.dataState === "partial") {
+    return {
+      state: "partial",
+      count: owned.count,
+      label: owned.count > 0
+        ? equipmentKind
+          ? `账号至少有 ${owned.count} 件同身份装备`
+          : `账号至少已有 ${owned.count} 件`
+        : "账号实例未完整读取",
+      locationLabels,
+      asOf: index.sourceProfileMintedAt
+    };
+  }
+
+  return {
+    state: "owned",
+    count: owned.count,
+    label: equipmentKind
+      ? `账号有 ${owned.count} 件同身份装备`
+      : `账号已有 ${owned.count} 件`,
+    locationLabels,
+    asOf: index.sourceProfileMintedAt
+  };
+}
+
+function formatVendorOwnedLocations(
+  owned: VendorOwnedIdentitySummary,
+  selectedCharacterId?: string
+): string[] {
+  return [...owned.locations]
+    .sort((left, right) => (
+      vendorOwnedLocationPriority(left, selectedCharacterId)
+      - vendorOwnedLocationPriority(right, selectedCharacterId)
+    ))
+    .map((location) => {
+      if (location.kind === "vault") return `仓库 ${location.count} 件`;
+      const characterLabel = location.characterLabel ?? "角色";
+      if (location.kind === "equipped") return `${characterLabel} · 已装备 ${location.count} 件`;
+      if (location.kind === "inventory") return `${characterLabel} · 背包 ${location.count} 件`;
+      return `${characterLabel} · 邮政官 ${location.count} 件`;
+    });
+}
+
+function vendorOwnedLocationPriority(
+  location: VendorOwnedLocation,
+  selectedCharacterId?: string
+): number {
+  const isSelectedCharacter = Boolean(
+    selectedCharacterId
+    && location.characterId === selectedCharacterId
+  );
+  if (isSelectedCharacter && location.kind === "equipped") return 0;
+  if (isSelectedCharacter && location.kind === "inventory") return 1;
+  if (location.kind === "vault") return 2;
+  if (location.kind === "equipped" || location.kind === "inventory") return 3;
+  if (isSelectedCharacter && location.kind === "postmaster") return 4;
+  return 5;
+}
+
+function getVendorEquipmentKind(itemType: string): VendorEquipmentKindWorkspace | undefined {
+  if (/头盔|面罩|臂铠|手套|胸甲|胸部护甲|法袍|腿甲|腿部护甲|战靴|职业物品|披风|印记|臂环|helmet|gauntlet|chest armor|leg armor|class item/i.test(itemType)) {
+    return "armor";
+  }
+  if (/自动步枪|战斗弓|弓箭|弓|脉冲步枪|斥候步枪|手炮|冲锋枪|手枪|融合步枪|线性融合步枪|霰弹枪|狙击步枪|狙击枪|榴弹发射器|火箭发射器|火箭筒|机枪|刀剑|剑|长柄武器|偃月|追踪步枪|auto rifle|combat bow|pulse rifle|scout rifle|hand cannon|submachine gun|sidearm|fusion rifle|shotgun|sniper rifle|grenade launcher|rocket launcher|machine gun|sword|glaive|trace rifle/i.test(itemType)) {
+    return "weapon";
+  }
+  return undefined;
 }
 
 const vendorLocationOrder = [

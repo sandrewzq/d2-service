@@ -3,6 +3,7 @@ import type { VendorInventoryItemView } from "./VendorsPageContentView.js";
 export type VendorEquipmentKind = "weapon" | "armor";
 
 export function getVendorEquipmentKind(item: VendorInventoryItemView): VendorEquipmentKind | null {
+  if (item.equipmentKind) return item.equipmentKind;
   if (/头盔|面罩|臂铠|手套|胸甲|胸部护甲|法袍|腿甲|腿部护甲|战靴|职业物品|披风|印记|臂环|helmet|gauntlet|chest armor|leg armor|class item/i.test(item.itemType)) {
     return "armor";
   }

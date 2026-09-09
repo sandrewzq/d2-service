@@ -1,3 +1,5 @@
+import type { AccountItemSummary, AccountSummary } from "../account/summary.js";
+
 export type VendorCharacterScope =
   | { kind: "character"; characterId: string }
   | { kind: "account" };
@@ -106,6 +108,29 @@ export type VendorInventorySnapshot = {
   vendors: VendorInventory[];
 };
 
+export type VendorOwnedLocationKind = "vault" | "equipped" | "inventory" | "postmaster";
+
+export type VendorOwnedLocation = {
+  kind: VendorOwnedLocationKind;
+  characterId?: string;
+  characterLabel?: string;
+  count: number;
+};
+
+export type VendorOwnedIdentitySummary = {
+  itemHash: number;
+  count: number;
+  instanceIds: string[];
+  locations: VendorOwnedLocation[];
+  dataState: "ready" | "partial";
+};
+
+export type VendorAccountIdentityIndex = {
+  byItemHash: ReadonlyMap<number, VendorOwnedIdentitySummary>;
+  materialBalances: ReadonlyMap<number, number>;
+  sourceProfileMintedAt?: string;
+};
+
 export type VendorInventoryDefinitions = {
   vendors: Readonly<Record<string, VendorDefinitionInput>>;
   items: Readonly<Record<string, VendorItemDefinitionInput>>;
@@ -208,6 +233,94 @@ export function createVendorOfferFingerprint(input: {
       .map(([statHash, value]) => [statHash, value] as const)
       .sort(([left], [right]) => left - right)
   });
+}
+
+export function buildVendorAccountIdentityIndex(account: AccountSummary | null): VendorAccountIdentityIndex | null {
+  if (!account) return null;
+
+  const byItemHash = new Map<number, VendorOwnedIdentitySummary>();
+  const seenInstanceIds = new Set<string>();
+  const characterLabels = buildVendorCharacterLabels(account);
+
+  for (const character of account.characters) {
+    const characterLabel = characterLabels.get(character.character_id) ?? character.class_name;
+    addVendorOwnedItems(byItemHash, seenInstanceIds, character.equipped_items ?? [], {
+      kind: "equipped",
+      characterId: character.character_id,
+      characterLabel
+    });
+    addVendorOwnedItems(byItemHash, seenInstanceIds, character.inventory_items ?? [], {
+      kind: "inventory",
+      characterId: character.character_id,
+      characterLabel
+    });
+    addVendorOwnedItems(byItemHash, seenInstanceIds, character.postmaster_items ?? [], {
+      kind: "postmaster",
+      characterId: character.character_id,
+      characterLabel
+    });
+  }
+
+  addVendorOwnedItems(byItemHash, seenInstanceIds, account.vault?.items ?? [], { kind: "vault" });
+
+  return {
+    byItemHash,
+    materialBalances: new Map((account.materials?.items ?? []).map((item) => [item.hash, item.quantity])),
+    sourceProfileMintedAt: account.profile_minted_at
+  };
+}
+
+function addVendorOwnedItems(
+  index: Map<number, VendorOwnedIdentitySummary>,
+  seenInstanceIds: Set<string>,
+  items: readonly AccountItemSummary[],
+  location: Omit<VendorOwnedLocation, "count">
+): void {
+  for (const item of items) {
+    const entry = index.get(item.hash) ?? {
+      itemHash: item.hash,
+      count: 0,
+      instanceIds: [],
+      locations: [],
+      dataState: "ready" as const
+    };
+    if (!index.has(item.hash)) index.set(item.hash, entry);
+
+    if (!item.instance_id) {
+      entry.dataState = "partial";
+      continue;
+    }
+    if (seenInstanceIds.has(item.instance_id)) continue;
+    seenInstanceIds.add(item.instance_id);
+    entry.count += 1;
+    entry.instanceIds.push(item.instance_id);
+
+    const existingLocation = entry.locations.find((candidate) => (
+      candidate.kind === location.kind
+      && candidate.characterId === location.characterId
+    ));
+    if (existingLocation) {
+      existingLocation.count += 1;
+    } else {
+      entry.locations.push({ ...location, count: 1 });
+    }
+  }
+}
+
+function buildVendorCharacterLabels(account: AccountSummary): Map<string, string> {
+  const classCounts = new Map<string, number>();
+  const classIndexes = new Map<string, number>();
+  for (const character of account.characters) {
+    classCounts.set(character.class_name, (classCounts.get(character.class_name) ?? 0) + 1);
+  }
+  return new Map(account.characters.map((character) => {
+    const duplicateIndex = (classIndexes.get(character.class_name) ?? 0) + 1;
+    classIndexes.set(character.class_name, duplicateIndex);
+    const label = (classCounts.get(character.class_name) ?? 0) > 1
+      ? `${character.class_name} ${duplicateIndex}`
+      : character.class_name;
+    return [character.character_id, label];
+  }));
 }
 
 export function createVendorCacheContextKey(context: VendorCharacterContext): string {

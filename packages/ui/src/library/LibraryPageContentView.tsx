@@ -883,6 +883,15 @@ export function LibraryDefinitionDialog(props: {
               <span>{props.vendorContext.affordabilityLabel}</span>
               <span>{props.vendorContext.characterLabel}</span>
               <span>{props.vendorContext.refreshLabel}</span>
+              {props.vendorContext.ownershipLabel ? (
+                <span>账号状态：{props.vendorContext.ownershipLabel}</span>
+              ) : null}
+              {props.vendorContext.ownershipLocationLabel ? (
+                <span>实例位置：{props.vendorContext.ownershipLocationLabel}</span>
+              ) : null}
+              {props.vendorContext.ownershipAsOfLabel ? (
+                <span>账号数据：{props.vendorContext.ownershipAsOfLabel}</span>
+              ) : null}
               {item.group_key === "weapons" && props.vendorContext.rollLabels?.length ? (
                 <span>当前售卖 Perk：{props.vendorContext.rollLabels.join(" / ")}</span>
               ) : null}

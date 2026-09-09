@@ -30,8 +30,22 @@ describe("shared vendors page", () => {
     await user.click(screen.getByRole("button", { name: "打开装备详情：鹰月" }));
     expect(onOpenItem).toHaveBeenCalledWith(
       expect.objectContaining({ itemHash: 1001 }),
-      expect.objectContaining({ vendorName: "仄" })
+      expect.objectContaining({
+        vendorName: "仄",
+        ownershipLabel: "账号有 2 件同身份装备",
+        ownershipLocationLabel: "猎人 · 已装备 1 件 · 仓库 1 件"
+      })
     );
+  });
+
+  it("filters equipment by missing account identity without treating it as a recommendation", async () => {
+    const user = userEvent.setup();
+    render(<VendorsPageContentView model={createModel()} actions={{ onOpenItem: vi.fn() }} />);
+
+    await user.click(screen.getByRole("button", { name: "账号无同身份实例" }));
+
+    expect(screen.queryByRole("button", { name: "打开装备详情：鹰月" })).toBeNull();
+    expect(screen.getByRole("button", { name: "打开装备详情：蒙特卡洛" })).toBeTruthy();
   });
 
   it("keeps inventory visible while showing a partial vendor-detail failure", async () => {
@@ -84,8 +98,15 @@ function createModel(options: { detailFailure?: boolean } = {}) {
     costs: [{ label: "奇异硬币", required: 41, owned: 97, affordable: true }],
     iconLabel: "鹰月",
     tone: "exotic" as const,
-    status: "unknown" as const,
-    decisionLabel: "高质量售卖实例",
+    status: "owned" as const,
+    equipmentKind: "weapon" as const,
+    ownership: {
+      state: "owned" as const,
+      count: 2,
+      label: "账号有 2 件同身份装备",
+      locationLabels: ["猎人 · 已装备 1 件", "仓库 1 件"],
+      asOf: "2026-07-12T11:30:00.000Z"
+    },
     stats: { "2996146975": 18 },
     sourcePath: "仄"
   };
@@ -117,7 +138,21 @@ function createModel(options: { detailFailure?: boolean } = {}) {
       id: "service",
       name: "奇异装备优惠",
       description: "每周优惠",
-      items: [{ ...eagle, id: "monte", itemHash: 1004, name: "蒙特卡洛", sourcePath: "仄 → 奇异装备优惠" }]
+      items: [{
+        ...eagle,
+        id: "monte",
+        itemHash: 1004,
+        name: "蒙特卡洛",
+        status: "not_owned" as const,
+        ownership: {
+          state: "not_owned" as const,
+          count: 0,
+          label: "账号无同身份实例",
+          locationLabels: [],
+          asOf: "2026-07-12T11:30:00.000Z"
+        },
+        sourcePath: "仄 → 奇异装备优惠"
+      }]
     }]
   };
   return {
@@ -128,7 +163,6 @@ function createModel(options: { detailFailure?: boolean } = {}) {
     updatedLabel: "更新：现在",
     sourceLabel: "Bungie 角色商人",
     nextResetLabel: "距离刷新 10 小时",
-    recommendationCount: 1,
     verifiedItemCount: 2,
     selectedCharacterContext: {
       characterId: "hunter",
@@ -138,7 +172,7 @@ function createModel(options: { detailFailure?: boolean } = {}) {
     },
     scopeOptions: [],
     search: { query: "", resultCount: 0 },
-    filters: { affordableOnly: false, recommendedOnly: false },
+    filters: { affordableOnly: false, unownedOnly: false },
     statusBanner: options.detailFailure ? {
       tone: "error" as const,
       message: "1 个商人详情读取失败",

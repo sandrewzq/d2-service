@@ -65,12 +65,19 @@ export function resolveLegalDocumentPath(document: LegalDocument): string | null
       : "";
   if (!fileName) return null;
 
+  const appPath = app.getAppPath();
   const candidates = app.isPackaged
-    ? [join(process.resourcesPath, fileName)]
+    ? [
+        join(process.resourcesPath, fileName),
+        join(process.resourcesPath, "app.asar.unpacked", fileName)
+      ]
     : [
-        join(app.getAppPath(), "build", fileName),
-        resolve(app.getAppPath(), "..", "..", document === "project-license" ? "LICENSE" : join("packages", "desktop", "build", fileName)),
-        resolve(process.cwd(), document === "project-license" ? "LICENSE" : join("packages", "desktop", "build", fileName))
+        join(appPath, "build", fileName),
+        join(appPath, "packages", "desktop", "build", fileName),
+        resolve(appPath, "..", "..", "packages", "desktop", "build", fileName),
+        resolve(process.cwd(), "packages", "desktop", "build", fileName),
+        resolve(process.cwd(), "build", fileName),
+        resolve(process.cwd(), fileName)
       ];
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }

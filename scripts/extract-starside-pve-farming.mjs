@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 
-const SITE_ROOT = "https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com";
+const SITE_ROOT = "https://starside.work";
 const ENTRY_URL = `${SITE_ROOT}/pve-farming/index.html`;
 
 const pageDefinitions = [

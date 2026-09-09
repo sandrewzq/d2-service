@@ -97,7 +97,7 @@ DIM 的官方组织仓库总览：<https://github.com/orgs/DestinyItemManager/re
 | 来源 | 原始链接 | 已确认能力 | 使用边界 |
 |---|---|---|---|
 | `Aegis推荐` | <https://docs.google.com/spreadsheets/d/1JM-0SlxVDAi-C6rGVlLxa-J1WGewEeL8Qvq4htWZHhY/edit?gid=346832350#gid=346832350> | Tier、推荐栏位、获取来源和终局说明；本地使用 Starside 校对 CSV | 不是 Bungie 官方文本，不能直接决定玩家实例分解 |
-| `LGpig推荐` | <https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/pve-farming/index.html> | 传奇与异域武器评级、Perk、DPS/总伤和中文评语 | 两张 CSV 合并为一个一级来源；页面未声明再分发许可 |
+| `LGpig推荐` | <https://starside.work/pve-farming/index.html> | 传奇与异域武器评级、Perk、DPS/总伤和中文评语 | 两张 CSV 合并为一个一级来源；页面未声明再分发许可 |
 | `YXCRALLXY推荐表` | <https://docs.qq.com/sheet/DYkR5enNIdUt1VFhK?tab=000001&_t=1788087335795&nlc=1> | 广覆盖的 PVE/PVP 第三、第四栏推荐和中文评价 | 自由文本不能自动转换成统一强度分数 |
 | `Sayalarry推荐表` | <https://sa7vp10ytxr.feishu.cn/wiki/W3ySwdahTiNRUJklJNBc0CMPnkb> | 枪管、弹匣、第三四栏、起源特性、大师属性和获取优先级 | 获取优先级不等同于 aegis Tier |
 | `DIM社区愿望单` | <https://github.com/48klocs/dim-wish-list-sources> | 精确武器/Perk Hash、作者来源块、用途标签和 DIM 交换格式 | 非 Bungie 官方，也不是展开行投票数 |
@@ -220,13 +220,13 @@ DIM 的官方组织仓库总览：<https://github.com/orgs/DestinyItemManager/re
 
 - 用途：中文 Destiny 2 资料台，集中整理武器 Perk、武器框架、护甲模组、护甲套装、异域装备、职业分支、技能冷却、首领生命值、DPS、伤害机制和 Raid 攻略。
 - GitHub：未提供
-- 在线访问：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/>
+- 在线访问：<https://starside.work/>
 - 重要页面：
-  - 轮换速查表：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/rotation/index.html>
-  - 武器 Perk：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/weapon-perks/index.html>
-  - 护甲模组：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/armor-mods/index.html>
-  - Raid 攻略：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/raid-guides/index.html>
-  - 数据源与鸣谢：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/sources/index.html>
+  - 轮换速查表：<https://starside.work/rotation/index.html>
+  - 武器 Perk：<https://starside.work/weapon-perks/index.html>
+  - 护甲模组：<https://starside.work/armor-mods/index.html>
+  - Raid 攻略：<https://starside.work/raid-guides/index.html>
+  - 数据源与鸣谢：<https://starside.work/sources/index.html>
 - 参考价值：资料页的数值、机制解释和攻略组织方式很有参考价值；轮换速查表把突袭与地牢按固定顺序并列展示，适合参考导航结构和周期表表达。
 - 数据边界：轮换页是静态周期表（页面标注基准时间和更新日期），不是 Bungie 实时接口，也不要求登录账号；d2-tools 不能据此直接判定“当前轮换”，当前轮换仍只使用 Bungie 登录后的角色活动数据。
 - 维护状态：首页和多个页面标注 2026.8.30 更新；站点声明为非官方资料站，具体数据来源和更新责任以其“数据源与鸣谢”页面为准。

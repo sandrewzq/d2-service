@@ -35,7 +35,8 @@ export const accountCopy: Record<InterfaceLocale, LocaleCopy["account"]> = {
         "状态待确认": "状态待确认",
         "光等差异正在等待完整账号数据。": "光等差异正在等待完整账号数据。",
         "数据已确认": "数据已确认",
-        "显示缓存数据": "显示缓存数据"
+        "显示缓存数据": "显示缓存数据",
+        "关闭光等详情": "关闭光等详情"
       },
       title: "角色与账号数据",
       subtitle: "角色装备与背包保持按槽位对照，其他配置、任务和物品分别查看。",
@@ -90,6 +91,7 @@ export const accountCopy: Record<InterfaceLocale, LocaleCopy["account"]> = {
         "光等差异正在等待完整账号数据。": "Power differences are waiting for complete account data.",
         "数据已确认": "Data confirmed",
         "显示缓存数据": "Showing cached data",
+        "关闭光等详情": "Close Power details",
         "账号已读取": "Account read",
         "账号工作台": "Account workbench",
         "角色、装备、背包和后续账号切换能力收口在同一个页面。": "Keep characters, gear, inventory, and future account switching in one page.",

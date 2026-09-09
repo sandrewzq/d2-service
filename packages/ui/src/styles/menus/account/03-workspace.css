@@ -370,22 +370,13 @@
   background: var(--status-error-bg);
 }
 
-:where(.app-shell) .account-capacity-primary-grid,
-:where(.app-shell) .account-capacity-bucket-grid {
+:where(.app-shell) .account-capacity-primary-grid {
   display: grid;
   gap: 6px;
-}
-
-:where(.app-shell) .account-capacity-primary-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-:where(.app-shell) .account-capacity-bucket-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-:where(.app-shell) .account-capacity-primary-card,
-:where(.app-shell) .account-capacity-bucket {
+:where(.app-shell) .account-capacity-primary-card {
   display: grid;
   align-content: start;
   min-width: 0;
@@ -400,14 +391,7 @@
   padding: 8px 9px;
 }
 
-:where(.app-shell) .account-capacity-bucket {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 8px;
-  padding: 7px 8px;
-}
-
-:where(.app-shell) .account-capacity-primary-card > span,
-:where(.app-shell) .account-capacity-bucket > span {
+:where(.app-shell) .account-capacity-primary-card > span {
   overflow: hidden;
   color: var(--text-muted);
   font-size: var(--priority-support);
@@ -416,8 +400,7 @@
   white-space: nowrap;
 }
 
-:where(.app-shell) .account-capacity-primary-card > strong,
-:where(.app-shell) .account-capacity-bucket > strong {
+:where(.app-shell) .account-capacity-primary-card > strong {
   color: var(--text-title);
   font-size: var(--priority-context);
   font-variant-numeric: tabular-nums;
@@ -425,25 +408,17 @@
   line-height: 1.35;
 }
 
-:where(.app-shell) .account-capacity-primary-card > small,
-:where(.app-shell) .account-capacity-bucket > small {
+:where(.app-shell) .account-capacity-primary-card > small {
   color: var(--text-muted);
   font-size: var(--priority-trace);
   line-height: 1.4;
 }
 
-:where(.app-shell) .account-capacity-bucket > small,
-:where(.app-shell) .account-capacity-bucket > .account-capacity-progress {
-  grid-column: 1 / -1;
-}
-
-:where(.app-shell) .account-capacity-primary-card[data-risk="warning"] > strong,
-:where(.app-shell) .account-capacity-bucket[data-risk="warning"] > strong {
+:where(.app-shell) .account-capacity-primary-card[data-risk="warning"] > strong {
   color: var(--status-warning-text);
 }
 
-:where(.app-shell) .account-capacity-primary-card[data-risk="danger"] > strong,
-:where(.app-shell) .account-capacity-bucket[data-risk="danger"] > strong {
+:where(.app-shell) .account-capacity-primary-card[data-risk="danger"] > strong {
   color: var(--status-error);
 }
 
@@ -532,24 +507,40 @@
 }
 
 :where(.app-shell) .account-power-panel {
-  position: absolute;
-  z-index: var(--layer-popover);
-  top: calc(100% - 4px);
-  left: 10px;
   display: grid;
   gap: 10px;
-  width: min(560px, calc(100% - 20px));
-  max-height: min(560px, max(220px, calc(100dvh - 340px)));
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(88dvh, 860px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px;
+  padding: 16px;
   border: 1px solid var(--border-control);
   border-radius: 4px;
   background: var(--surface-elevated);
   box-shadow: var(--shadow-overlay);
 }
 
-:where(.app-shell) .account-power-panel-head,
+:where(.app-shell) .account-power-dialog-backdrop {
+  padding: 16px;
+}
+
+:where(.app-shell) .account-power-panel-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+:where(.app-shell) .account-power-close {
+  display: grid;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  font-size: var(--priority-context);
+}
+
 :where(.app-shell) .account-power-footer {
   display: flex;
   align-items: center;
@@ -739,16 +730,18 @@
 
 :where(.app-shell) .account-power-rows {
   display: grid;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
 }
 
 :where(.app-shell) .account-power-row {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr) 48px 34px;
-  gap: 8px;
+  grid-template-columns: 84px minmax(0, 1fr) 58px 58px;
+  gap: 10px;
   align-items: center;
   min-height: 42px;
+  padding-inline: 10px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -762,15 +755,12 @@
 
 :where(.app-shell) .account-power-column-head > span:nth-child(3),
 :where(.app-shell) .account-power-column-head > span:nth-child(4) {
+  white-space: nowrap;
   text-align: right;
 }
 
 :where(.app-shell) .account-power-row:last-child {
   border-bottom: 0;
-}
-
-:where(.app-shell) .account-power-row.armor-start {
-  border-top: 2px solid var(--border-control);
 }
 
 :where(.app-shell) .account-power-slot {
@@ -1935,10 +1925,6 @@
     grid-template-columns: 1fr;
   }
 
-  :where(.app-shell) .account-capacity-bucket-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .app-shell .account-band-heading,
   .app-shell .account-toolbar,
   .app-shell .account-section-heading {
@@ -2050,13 +2036,12 @@
   }
 
   :where(.app-shell) .account-power-panel {
-    position: static;
     width: 100%;
-    box-shadow: none;
   }
 
   :where(.app-shell) .account-power-row {
-    grid-template-columns: 74px minmax(0, 1fr) 42px 30px;
+    grid-template-columns: 74px minmax(0, 1fr) 52px 52px;
+    gap: 8px;
   }
 
   :where(.app-shell) .account-power-summary-triple {
@@ -2081,13 +2066,41 @@
 
 }
 
+@media (max-width: 700px) {
+  :where(.app-shell) .account-power-dialog-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  :where(.app-shell) .account-power-panel {
+    width: 100%;
+    max-height: 92dvh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 4px 4px 0 0;
+    padding: 14px;
+  }
+
+  :where(.app-shell) .account-power-panel-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  :where(.app-shell) .account-power-panel-head > .ui-badge {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  :where(.app-shell) .account-power-close {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
 @container product-workspace (max-width: 420px) {
   :where(.app-shell) .account-character-switcher button {
     flex-basis: min(210px, 78vw);
-  }
-
-  :where(.app-shell) .account-capacity-bucket-grid {
-    grid-template-columns: 1fr;
   }
 
   :where(.app-shell) .account-slot-category-head,
@@ -2102,7 +2115,7 @@
   }
 
   :where(.app-shell) .account-power-row {
-    grid-template-columns: 68px minmax(0, 1fr) 38px 28px;
+    grid-template-columns: 68px minmax(0, 1fr) 48px 48px;
     gap: 6px;
   }
 

@@ -781,6 +781,7 @@ function WebApp() {
               onLanguagePreferencesChange={() => undefined}
               onLoadBungieConfig={async () => fixture.bungieConfig}
               onOpenBungiePortal={() => adapter.openExternal("https://www.bungie.net/en/Application")}
+              onOpenExternal={adapter.openExternal}
               onSaveBungieConfig={async () => undefined}
             />
           ) : null}

@@ -232,7 +232,7 @@ export type VendorsCopy = {
   updatedLabel: string;
   resetLabel: string;
   sourceLabel: string;
-  recommendationsLabel: string;
+  accountContextLabel: string;
   verifiedInventory: string;
   loadingTitle: string;
   emptyTitle: string;
@@ -242,7 +242,7 @@ export type VendorsCopy = {
     cost: string;
     evidence: string;
     owned: string;
-    recommended: string;
+    unowned: string;
     unknown: string;
   };
 };

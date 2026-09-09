@@ -646,18 +646,36 @@
   color: var(--text-body);
 }
 
-:where(.app-shell) .vendor-offer-decision {
+:where(.app-shell) .vendor-offer-account {
   display: inline-flex;
   align-items: center;
   width: fit-content;
   max-width: 100%;
   padding: 1px 5px;
-  border: 1px solid var(--status-ready-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-indicator);
-  color: var(--status-ready-text);
-  background: var(--status-ready-bg);
+  color: var(--text-muted);
+  background: var(--surface-subtle);
   font-size: var(--font-caption);
   line-height: 1.3;
+}
+
+:where(.app-shell) .vendor-offer-account[data-status="owned"] {
+  border-color: var(--status-ready-border);
+  color: var(--status-ready-text);
+  background: var(--status-ready-bg);
+}
+
+:where(.app-shell) .vendor-offer-account[data-status="not_owned"] {
+  border-color: var(--state-selected-border);
+  color: var(--accent-primary);
+  background: var(--state-selected-bg);
+}
+
+:where(.app-shell) .vendor-offer-account[data-status="partial"] {
+  border-color: var(--status-warning-border);
+  color: var(--status-warning-text);
+  background: var(--status-warning-bg);
 }
 
 :where(.app-shell) .vendor-offer-footer {

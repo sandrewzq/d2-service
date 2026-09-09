@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type {
   AccountItemView,
   AccountOpenItemPayload,
@@ -138,6 +139,9 @@ function AccountPageWorkspace(props: {
   const powerPanelRef = useRef<HTMLElement | null>(null);
   const [isPowerPanelOpen, setIsPowerPanelOpen] = useState(false);
   const [isHighestPowerConfirmationOpen, setIsHighestPowerConfirmationOpen] = useState(false);
+  const powerOverlayHost = typeof document === "undefined"
+    ? null
+    : document.querySelector<HTMLElement>(".app-shell") ?? document.body;
   const [directoryScrollState, setDirectoryScrollState] = useState({ overflow: false, canScrollRight: false });
   const displayedSlotRows = visibleAccountSlotRows(props.viewModel.loadout.slotComparisonRows);
   const displayedInventoryCount = displayedSlotRows.reduce((count, row) => count + row.inventoryItems.length, 0);
@@ -189,17 +193,38 @@ function AccountPageWorkspace(props: {
   useEffect(() => {
     if (!isPowerPanelOpen) return;
 
+    const focusTimer = window.requestAnimationFrame(() => {
+      powerPanelRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+    });
+
     function handlePointerDown(event: PointerEvent): void {
       if (!(event.target instanceof Node)) return;
       if (powerTriggerRef.current?.contains(event.target) || powerPanelRef.current?.contains(event.target)) return;
       setIsPowerPanelOpen(false);
+      window.requestAnimationFrame(() => powerTriggerRef.current?.focus());
     }
 
     function handleKeyDown(event: globalThis.KeyboardEvent): void {
       if (event.defaultPrevented) return;
-      if (event.key !== "Escape") return;
-      setIsPowerPanelOpen(false);
-      powerTriggerRef.current?.focus();
+      if (event.key === "Escape") {
+        setIsPowerPanelOpen(false);
+        window.requestAnimationFrame(() => powerTriggerRef.current?.focus());
+        return;
+      }
+      if (event.key !== "Tab" || !powerPanelRef.current) return;
+      const focusable = [...powerPanelRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      )];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     function handleFocusIn(event: FocusEvent): void {
@@ -212,6 +237,7 @@ function AccountPageWorkspace(props: {
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("focusin", handleFocusIn);
     return () => {
+      window.cancelAnimationFrame(focusTimer);
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("focusin", handleFocusIn);
@@ -407,15 +433,27 @@ function AccountPageWorkspace(props: {
             </button> : null}
           </div>
           {isPowerPanelOpen ? (
-            <AccountPowerPanel
-              copy={props.copy}
-              id="account-power-panel"
-              panelRef={powerPanelRef}
-              power={props.selectedCharacter.power}
-              isSyncing={props.viewModel.connection.isLoadingAccount}
-              dataState={props.viewModel.connection.dataState}
-              snapshotAt={profile.snapshotAt}
-            />
+            powerOverlayHost ? createPortal(
+              <div className="modal-backdrop account-power-dialog-backdrop" role="presentation" onClick={() => {
+                setIsPowerPanelOpen(false);
+                window.requestAnimationFrame(() => powerTriggerRef.current?.focus());
+              }}>
+                <AccountPowerPanel
+                  copy={props.copy}
+                  id="account-power-panel"
+                  panelRef={powerPanelRef}
+                  power={props.selectedCharacter.power}
+                  isSyncing={props.viewModel.connection.isLoadingAccount}
+                  dataState={props.viewModel.connection.dataState}
+                  snapshotAt={profile.snapshotAt}
+                  onClose={() => {
+                    setIsPowerPanelOpen(false);
+                    window.requestAnimationFrame(() => powerTriggerRef.current?.focus());
+                  }}
+                />
+              </div>,
+              powerOverlayHost
+            ) : null
           ) : null}
           <div className="account-operation-status-slot">
             {operationFeedback ? (
@@ -623,17 +661,11 @@ function AccountCapacityOverview(props: { copy: AccountCopy; viewModel: AccountP
           <small>{accountText(props.copy, "三武器与五护甲，容量包含当前已装备物品")}</small>
         </div>
       </div>
-      <div className="account-capacity-bucket-grid" aria-label={accountText(props.copy, "当前角色携带槽位容量")}>
-        {selected.inventoryBuckets.map((metric) => (
-          <AccountCapacityMetric compact copy={props.copy} key={metric.key} metric={metric} />
-        ))}
-      </div>
     </div>
   );
 }
 
 function AccountCapacityMetric(props: {
-  compact?: boolean;
   copy: AccountCopy;
   metric: AccountPageViewModel["capacity"]["vault"];
 }) {
@@ -642,7 +674,7 @@ function AccountCapacityMetric(props: {
     : `${props.metric.itemCount} ${accountText(props.copy, "件")}`;
 
   return (
-    <div className={props.compact ? "account-capacity-bucket" : "account-capacity-primary-card"} data-risk={props.metric.risk}>
+    <div className="account-capacity-primary-card" data-risk={props.metric.risk}>
       <span>{accountText(props.copy, props.metric.label)}</span>
       <strong>{value}</strong>
       <small>{formatCapacityMetricStatus(props.metric, props.copy)}</small>
@@ -864,6 +896,7 @@ function AccountPowerPanel(props: {
   isSyncing: boolean;
   dataState: AccountPageViewModel["connection"]["dataState"];
   snapshotAt?: string | number | Date | null;
+  onClose: () => void;
 }) {
   const [mode, setMode] = useState<"baseline" | "executable">("baseline");
   const value = mode === "baseline" ? props.power.dropBaseline : props.power.executablePower;
@@ -887,7 +920,7 @@ function AccountPowerPanel(props: {
         ? accountText(props.copy, "数据已确认")
         : accountText(props.copy, "数据不完整");
   return (
-    <section ref={props.panelRef} className="account-power-panel" id={props.id} data-surface="frame" data-ui-kind="summary-frame" aria-label={accountText(props.copy, "光等详情")}>
+    <section ref={props.panelRef} className="account-power-panel" id={props.id} data-surface="dialog" data-ui-kind="dialog" role="dialog" aria-modal="true" aria-label={accountText(props.copy, "光等详情")} onClick={(event) => event.stopPropagation()}>
       <div className="account-power-panel-head">
         <span>
           <strong>{accountText(props.copy, "光等详情")}</strong>
@@ -896,6 +929,7 @@ function AccountPowerPanel(props: {
         <span className={`ui-badge status-${props.isSyncing || !isComplete ? "warning" : "ready"}`} data-status={props.isSyncing || !isComplete ? "warning" : "success"}>
           {statusLabel}
         </span>
+        <button type="button" className="account-power-close" data-ui-kind="button" data-control-variant="quiet" aria-label={accountText(props.copy, "关闭光等详情")} title={accountText(props.copy, "关闭光等详情")} onClick={props.onClose}>×</button>
       </div>
       <div className="account-power-summary account-power-summary-triple" aria-label={accountText(props.copy, "光等方案摘要")}>
         <span>
@@ -951,8 +985,8 @@ function AccountPowerPanel(props: {
           <span>{accountText(props.copy, "光等")}</span>
           <span>{accountText(props.copy, "均值差")}</span>
         </div>
-        {value.rows.map((row, index) => (
-          <div className={`account-power-row ${index === 3 ? "armor-start" : ""}`} key={row.key}>
+        {value.rows.map((row) => (
+          <div className="account-power-row" key={row.key}>
             <span className="account-power-slot">{accountText(props.copy, row.label)}</span>
             <span className="account-power-item">
               <GameAssetImage src={row.itemIcon} alt="" loading="eager" fallback={<span aria-hidden="true">◇</span>} />

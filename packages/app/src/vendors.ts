@@ -10,6 +10,8 @@ export type {
   VendorInventoryState,
   VendorInventoryStatus,
   VendorInventoryTone,
+  VendorEquipmentKindWorkspace,
+  VendorOfferOwnershipWorkspace,
   VendorCharacterContextWorkspace,
   VendorFiltersWorkspace,
   VendorScopeOptionWorkspace,

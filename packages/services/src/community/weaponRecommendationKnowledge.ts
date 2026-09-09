@@ -53,7 +53,7 @@ const stableSourceKeys: Record<string, string> = {
 };
 const stableSourceUrls: Record<string, string> = {
   Aegis推荐: "https://docs.google.com/spreadsheets/d/1JM-0SlxVDAi-C6rGVlLxa-J1WGewEeL8Qvq4htWZHhY/edit?gid=346832350#gid=346832350",
-  LGpig推荐: "https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/pve-farming/index.html",
+  LGpig推荐: "https://starside.work/pve-farming/index.html",
   YXCRALLXY推荐表: "https://docs.qq.com/sheet/DYkR5enNIdUt1VFhK?tab=000001&_t=1788087335795&nlc=1",
   Sayalarry推荐表: "https://sa7vp10ytxr.feishu.cn/wiki/W3ySwdahTiNRUJklJNBc0CMPnkb",
   DIM社区愿望单: "https://github.com/48klocs/dim-wish-list-sources"

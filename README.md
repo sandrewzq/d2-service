@@ -92,8 +92,8 @@ d2-tools-setup-<version>.exe
 - d2-additional-info：Manifest 补充数据流程参考
   - GitHub：<https://github.com/DestinyItemManager/d2-additional-info>
 - Starside · Destiny 2 中文资料台：中文资料和信息组织参考
-  - 在线访问：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/>
-  - 数据源与鸣谢：<https://destiny2-starside-dea-mods-d1g0j2rile2323f73.webapps.tcloudbase.com/sources/index.html>
+  - 在线访问：<https://starside.work/>
+  - 数据源与鸣谢：<https://starside.work/sources/index.html>
 
 这些项目中的“数据来源”“功能参考”“算法参考”和“运行时依赖”是不同概念。除明确注明外，d2-tools 不复制其代码、账号数据或私有接口。本地用户导入内容暂不列入公开来源清单。
 

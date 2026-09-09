@@ -3,7 +3,7 @@ import type { InterfaceLocale, LocaleCopy } from "../types.js";
 export const vendorsCopy: Record<InterfaceLocale, LocaleCopy["vendors"]> = {
     "zh-CN": {
       inline: {
-        "Bungie / Manifest / 用户导入推荐": "Bungie / Manifest / 用户导入推荐",
+        "Bungie / Manifest / 账号状态": "Bungie / Manifest / 账号状态",
         "每日或周末重置": "每日或周末重置",
         "商人列表": "商人列表",
         "商人": "商人",
@@ -19,13 +19,13 @@ export const vendorsCopy: Record<InterfaceLocale, LocaleCopy["vendors"]> = {
         "去设置 Bungie": "去设置 Bungie"
       },
       title: "商人库存",
-      subtitle: "按商人分组查看可确认库存、费用和推荐关注项。",
+      subtitle: "按商人分组查看可确认库存、费用和账号拥有状态。",
       inventoryTitle: "可确认库存",
       inventorySubtitle: "只展示已有来源证据的商人库存，待接入数据单独标记。",
       updatedLabel: "刷新状态",
       resetLabel: "重置窗口",
       sourceLabel: "数据来源",
-      recommendationsLabel: "推荐关注",
+      accountContextLabel: "账号状态",
       verifiedInventory: "已确认库存",
       loadingTitle: "正在读取实时商人库存",
       emptyTitle: "暂未读取到商人库存",
@@ -35,13 +35,13 @@ export const vendorsCopy: Record<InterfaceLocale, LocaleCopy["vendors"]> = {
         cost: "费用",
         evidence: "证据",
         owned: "已拥有",
-        recommended: "推荐关注",
+        unowned: "未拥有",
         unknown: "未确认"
       }
     },
     "en-US": {
       inline: {
-        "Bungie / Manifest / 用户导入推荐": "Bungie / Manifest / imported recommendations",
+        "Bungie / Manifest / 账号状态": "Bungie / Manifest / account status",
         "每日或周末重置": "Daily or weekend reset",
         "商人列表": "Vendor list",
         "商人": "Vendors",
@@ -60,13 +60,13 @@ export const vendorsCopy: Record<InterfaceLocale, LocaleCopy["vendors"]> = {
         "去设置 Bungie": "Configure Bungie"
       },
       title: "Vendors",
-      subtitle: "Review verified vendor inventory, costs, ownership, and recommended watch items.",
+      subtitle: "Review verified vendor inventory, costs, and account ownership context.",
       inventoryTitle: "Verified inventory",
       inventorySubtitle: "Grouped by vendor with unverified data kept clearly marked.",
       updatedLabel: "Refresh status",
       resetLabel: "Reset window",
       sourceLabel: "Data source",
-      recommendationsLabel: "Recommendations",
+      accountContextLabel: "Account status",
       verifiedInventory: "Verified inventory",
       loadingTitle: "Reading live vendor inventory",
       emptyTitle: "No vendor inventory loaded",
@@ -76,7 +76,7 @@ export const vendorsCopy: Record<InterfaceLocale, LocaleCopy["vendors"]> = {
         cost: "Cost",
         evidence: "Evidence",
         owned: "Owned",
-        recommended: "Recommended",
+        unowned: "Not owned",
         unknown: "Unknown"
       }
     }
