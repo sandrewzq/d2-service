@@ -1,6 +1,16 @@
 import type { BungieJsonFetcher } from "../bungie/transport.js";
 import { collectAccountDefinitionRequest as collectAccountDefinitionRequestImpl } from "./definitionRequest.js";
-import { ammoTypeKey, classifyBucket, type AmmoTypeKey, type EquipmentGroupKey } from "../items/classification.js";
+import {
+  accountEquipmentBucketHashes,
+  ammoTypeKey,
+  bucketLabels,
+  classifyBucket,
+  isPostmasterBucketHash,
+  postmasterBucketHash,
+  vaultBucketHash,
+  type AmmoTypeKey,
+  type EquipmentGroupKey
+} from "../items/classification.js";
 import {
   summarizeSelectedWeaponFrame,
   summarizeWeaponFrame,
@@ -222,6 +232,18 @@ export type CharacterEquipmentGroup = {
   items: AccountItemSummary[];
 };
 
+export type CharacterInventoryCapacityLimit = {
+  bucket_hash: number;
+  bucket_name: string;
+  group_key: "weapons" | "armor";
+  capacity?: number;
+};
+
+export type CharacterCapacityLimits = {
+  inventory_buckets: CharacterInventoryCapacityLimit[];
+  postmaster_capacity?: number;
+};
+
 export type CharacterSummary = {
   character_id: string;
   class_name: string;
@@ -233,6 +255,7 @@ export type CharacterSummary = {
   inventory_groups: CharacterEquipmentGroup[];
   postmaster_items: AccountItemSummary[];
   loadout_slots: CharacterLoadoutSlotSummary[];
+  capacity_limits?: CharacterCapacityLimits;
   craftable_items?: AccountCraftableItemSummary[];
 };
 
@@ -326,6 +349,74 @@ export type AccountSnapshot = Omit<AccountSummary, "characters" | "vault"> & {
     sample_items: [];
   };
 };
+
+/**
+ * Removes Bungie-owned empty socket placeholders from player-facing account data.
+ *
+ * The generic weapon masterwork plug is a real Manifest definition, but it has no
+ * name, icon or effect. Older snapshots persisted the fallback `Plug <hash>` label,
+ * so this normalization deliberately works on summaries as well as freshly built
+ * definitions without hiding genuinely missing plug definitions.
+ */
+export function sanitizeAccountItemSummary<T extends AccountItemSummary>(item: T): T {
+  const socketPlugs = item.socket_plugs.filter((plug) => !isEmptyWeaponMasterworkPlugSummary(plug));
+  const sockets = item.sockets?.map((socket) => {
+    const selectedPlug = socket.selected_plug && !isEmptyWeaponMasterworkPlugSummary(socket.selected_plug)
+      ? socket.selected_plug
+      : undefined;
+    const reusablePlugs = socket.reusable_plugs.filter(
+      (plug) => !isEmptyWeaponMasterworkPlugSummary(plug)
+    );
+    if (selectedPlug === socket.selected_plug && reusablePlugs.length === socket.reusable_plugs.length) {
+      return socket;
+    }
+    return {
+      ...socket,
+      selected_plug: selectedPlug,
+      reusable_plugs: reusablePlugs
+    };
+  });
+  const weaponRoll = item.weapon_roll
+    ? sanitizeWeaponRollSummary(item.weapon_roll)
+    : undefined;
+  const changed = socketPlugs.length !== item.socket_plugs.length
+    || sockets?.some((socket, index) => socket !== item.sockets?.[index]) === true
+    || weaponRoll !== item.weapon_roll;
+  if (!changed) return item;
+  return {
+    ...item,
+    socket_plugs: socketPlugs,
+    ...(item.sockets !== undefined ? { sockets } : {}),
+    ...(item.weapon_roll !== undefined ? { weapon_roll: weaponRoll } : {})
+  } as T;
+}
+
+/** Normalizes durable account snapshots created by older application versions. */
+export function sanitizeAccountSnapshot(snapshot: AccountSnapshot): AccountSnapshot {
+  return {
+    ...snapshot,
+    characters: snapshot.characters.map((character) => ({
+      ...character,
+      equipped_items: character.equipped_items.map(sanitizeAccountItemSummary),
+      inventory_items: character.inventory_items.map(sanitizeAccountItemSummary),
+      postmaster_items: character.postmaster_items.map(sanitizeAccountItemSummary),
+      loadout_slots: character.loadout_slots.map((slot) => ({
+        ...slot,
+        items: slot.items.map((item) => ({
+          ...item,
+          ...(item.plugs
+            ? { plugs: item.plugs.filter((plug) => !isEmptyWeaponMasterworkPlugSummary(plug)) }
+            : {})
+        }))
+      }))
+    })),
+    vault: {
+      ...snapshot.vault,
+      items: snapshot.vault.items.map(sanitizeAccountItemSummary),
+      sample_items: []
+    }
+  };
+}
 
 export type AccountItemDetail = AccountItemSummary & {
   instance_id: string;
@@ -995,6 +1086,7 @@ function summarizeCharacters(
         definitions,
         knownItems
       ),
+      capacity_limits: summarizeCharacterCapacityLimits(bucketDefinitions),
       ...(mode === "full"
         ? {
             craftable_items: summarizeCraftables(
@@ -1057,6 +1149,11 @@ function resolveVaultCapacity(
   profileItems: DestinyProfileItem[],
   bucketDefinitions: DefinitionComponentData
 ): number | undefined {
+  const vaultDefinition = bucketDefinitions[String(vaultBucketHash)] as DefinitionRecord | undefined;
+  if (typeof vaultDefinition?.itemCount === "number" && vaultDefinition.itemCount > 0) {
+    return vaultDefinition.itemCount;
+  }
+
   for (const item of profileItems) {
     if (!item.itemInstanceId || typeof item.bucketHash !== "number") continue;
     const bucketDefinition = bucketDefinitions[String(item.bucketHash)] as DefinitionRecord | undefined;
@@ -1065,6 +1162,36 @@ function resolveVaultCapacity(
     }
   }
   return undefined;
+}
+
+function summarizeCharacterCapacityLimits(
+  bucketDefinitions: DefinitionComponentData
+): CharacterCapacityLimits {
+  const inventoryBuckets = accountEquipmentBucketHashes.map((bucketHash) => {
+    const classification = bucketLabels[bucketHash];
+    const definition = bucketDefinitions[String(bucketHash)] as DefinitionRecord | undefined;
+    const capacity = positiveCapacity(definition);
+    return {
+      bucket_hash: bucketHash,
+      bucket_name: definition?.displayProperties?.name?.trim() || classification.name,
+      group_key: classification.group as "weapons" | "armor",
+      ...(capacity ? { capacity } : {})
+    };
+  });
+  const postmasterCapacity = positiveCapacity(
+    bucketDefinitions[String(postmasterBucketHash)] as DefinitionRecord | undefined
+  );
+
+  return {
+    inventory_buckets: inventoryBuckets,
+    ...(postmasterCapacity ? { postmaster_capacity: postmasterCapacity } : {})
+  };
+}
+
+function positiveCapacity(definition: DefinitionRecord | undefined): number | undefined {
+  return typeof definition?.itemCount === "number" && definition.itemCount > 0
+    ? definition.itemCount
+    : undefined;
 }
 
 function summarizeMaterial(
@@ -1117,7 +1244,8 @@ function summarizeItem(
   const explicitBucketDefinition = explicitBucketHash
     ? bucketDefinitions[String(explicitBucketHash)] as DefinitionRecord | undefined
     : undefined;
-  const isPostmaster = isPostmasterBucketDefinition(explicitBucketDefinition);
+  const isPostmaster = isPostmasterBucketHash(explicitBucketHash)
+    || isPostmasterBucketDefinition(explicitBucketDefinition);
   const equipmentBucketHash = canonicalDefinitionBucketHash ?? explicitBucketHash;
   const bucketHash = isPostmaster ? explicitBucketHash : equipmentBucketHash;
   const bucket = classifyBucket(equipmentBucketHash);
@@ -1221,7 +1349,7 @@ function summarizeItem(
     if (catalyst) summary.catalyst = catalyst;
   }
 
-  return summary;
+  return sanitizeAccountItemSummary(summary);
 }
 
 function summarizeArmorEnergy(instance: DestinyItemInstanceComponent | undefined): ArmorEnergySummary | undefined {
@@ -1478,6 +1606,7 @@ function summarizeCharacterLoadouts(
           plugs: (item.plugItemHashes ?? []).flatMap((hash, socketIndex) => {
             if (!isValidLoadoutPlugHash(hash)) return [];
             const definition = itemDefinitions[String(hash)] as DefinitionRecord | undefined;
+            if (isEmptyWeaponMasterworkPlugDefinition(definition)) return [];
             return [{
               hash,
               socket_index: socketIndex,
@@ -1520,6 +1649,10 @@ function isPostmasterItem(item: AccountItemSummary, bucketDefinitions: Definitio
     return false;
   }
 
+  if (isPostmasterBucketHash(item.bucket_hash)) {
+    return true;
+  }
+
   const bucketDefinition = bucketDefinitions[String(item.bucket_hash)] as DefinitionRecord | undefined;
   const bucketName = bucketDefinition?.displayProperties?.name?.trim().toLowerCase() ?? "";
   return bucketName.includes("postmaster")
@@ -1529,6 +1662,10 @@ function isPostmasterItem(item: AccountItemSummary, bucketDefinitions: Definitio
 }
 
 function isPostmasterBucketDefinition(bucketDefinition: DefinitionRecord | undefined): boolean {
+  if (isPostmasterBucketHash(bucketDefinition?.hash)) {
+    return true;
+  }
+
   const bucketName = bucketDefinition?.displayProperties?.name?.trim().toLowerCase() ?? "";
   return bucketName.includes("postmaster")
     || bucketName.includes("lost items")
@@ -1814,6 +1951,55 @@ function isIgnoredWeaponRollPlug(plug: AccountWeaponRollPlugSummary): boolean {
     "着色器", "shader", "武器模组", "weapon mod", "催化剂", "catalyst", "记录器", "tracker",
     "装饰", "ornament", "皮肤", "skin", "固有", "intrinsic", "能量核心", "战斗特效"
   ]);
+}
+
+function sanitizeWeaponRollSummary(summary: AccountWeaponRollSummary): AccountWeaponRollSummary {
+  const sockets = summary.sockets.map((socket) => {
+    const currentPlug = socket.current_plug && !isEmptyWeaponMasterworkPlugSummary(socket.current_plug)
+      ? socket.current_plug
+      : undefined;
+    const ownedPlugs = socket.owned_plugs.filter((plug) => !isEmptyWeaponMasterworkPlugSummary(plug));
+    if (currentPlug === socket.current_plug && ownedPlugs.length === socket.owned_plugs.length) {
+      return socket;
+    }
+    return {
+      ...socket,
+      current_plug: currentPlug,
+      owned_plugs: ownedPlugs
+    };
+  });
+  if (sockets.every((socket, index) => socket === summary.sockets[index])) return summary;
+  return {
+    ...summary,
+    fingerprint: weaponRollFingerprint(sockets),
+    sockets
+  };
+}
+
+function isEmptyWeaponMasterworkPlugDefinition(definition: DefinitionRecord | undefined): boolean {
+  if (definition?.plug?.plugCategoryIdentifier?.toLocaleLowerCase() !== "v400.plugs.weapons.masterworks") {
+    return false;
+  }
+  return !definition.displayProperties?.name?.trim()
+    && !definition.displayProperties?.description?.trim()
+    && !definition.displayProperties?.icon?.trim()
+    && !definition.originalDisplayProperties?.name?.trim()
+    && !definition.originalDisplayProperties?.description?.trim()
+    && !definition.originalDisplayProperties?.icon?.trim()
+    && !definition.itemTypeDisplayName?.trim()
+    && !(definition.investmentStats?.length)
+    && !(definition.perks?.length)
+    && !(definition.traitIds?.length);
+}
+
+function isEmptyWeaponMasterworkPlugSummary(
+  plug: Pick<AccountItemPlugSummary, "hash" | "name" | "icon" | "description" | "category_identifier" | "item_type">
+): boolean {
+  return plug.category_identifier?.toLocaleLowerCase() === "v400.plugs.weapons.masterworks"
+    && plug.name.trim() === `Plug ${plug.hash}`
+    && !plug.icon?.trim()
+    && !plug.description?.trim()
+    && !plug.item_type?.trim();
 }
 
 function includesAnyText(value: string, candidates: readonly string[]): boolean {

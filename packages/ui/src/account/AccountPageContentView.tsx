@@ -333,8 +333,9 @@ function AccountPageWorkspace(props: {
             </span>
           </div>
           <div className="account-character-switcher" data-ui-kind="context-switcher" role="group" aria-label={accountText(props.copy, "当前角色")}>
-            {props.viewModel.characterTabs.map((tab, index) => (
-              <button
+            {props.viewModel.characterTabs.map((tab, index) => {
+              const characterCapacity = props.viewModel.capacity.characters.find((character) => character.characterId === tab.key);
+              return <button
                 type="button"
                 aria-pressed={tab.isSelected}
                 tabIndex={tab.isSelected ? 0 : -1}
@@ -359,10 +360,16 @@ function AccountPageWorkspace(props: {
                   <small data-ui-part="detail" data-info-priority="support" data-text-tone="body">
                     {accountText(props.copy, "当前")} {tab.power.currentLabel} · {accountText(props.copy, "账号最高光等")} {tab.power.maxEquippable.label}
                   </small>
+                  {characterCapacity ? (
+                    <small className="account-character-capacity" data-risk={characterCapacity.overallRisk}>
+                      {formatCharacterCapacitySummary(characterCapacity, props.copy)}
+                    </small>
+                  ) : null}
                 </span>
-              </button>
-            ))}
+              </button>;
+            })}
           </div>
+          <AccountCapacityOverview copy={props.copy} viewModel={props.viewModel} />
           <div className="account-actions">
             <button
               type="button"
@@ -566,6 +573,125 @@ function AccountPageWorkspace(props: {
       ) : null}
     </>
   );
+}
+
+function AccountCapacityOverview(props: { copy: AccountCopy; viewModel: AccountPageViewModel }) {
+  const selected = props.viewModel.capacity.selectedCharacter;
+  if (!selected) return null;
+
+  const operationPhase = props.viewModel.feedback.operation?.phase;
+  const isWaitingForConfirmation = operationPhase === "syncing"
+    || operationPhase === "delayed"
+    || operationPhase === "partial";
+  const stateText = isWaitingForConfirmation
+    ? "等待游戏状态确认，容量已按当前预计位置更新"
+    : props.viewModel.connection.dataState === "refreshing"
+      ? "正在同步，暂时保留上一次容量结果"
+      : props.viewModel.connection.dataState === "cached"
+        ? "当前显示缓存快照"
+        : "基于最近一次已确认账号快照";
+  const riskLabel = capacityRiskLabel(props.viewModel.capacity.overallRisk);
+  const unknownBucketCount = selected.inventoryBuckets.filter((bucket) => bucket.risk === "unknown").length;
+  const carriedSummary = selected.fullBucketCount > 0
+    ? `${selected.fullBucketCount} ${accountText(props.copy, "个槽位已满")}`
+    : selected.warningBucketCount > 0
+      ? `${selected.warningBucketCount} ${accountText(props.copy, "个槽位接近上限")}`
+      : unknownBucketCount > 0
+        ? `${unknownBucketCount} ${accountText(props.copy, "个上限待确认")}`
+        : accountText(props.copy, "8 个槽位正常");
+
+  return (
+    <div className="account-capacity-overview" data-ui-kind="summary-frame" data-risk={props.viewModel.capacity.overallRisk}>
+      <div className="account-capacity-heading">
+        <div>
+          <h3>{accountText(props.copy, "容量与风险")}</h3>
+          <p>{accountText(props.copy, stateText)}</p>
+        </div>
+        <span className="account-capacity-risk-label" data-risk={props.viewModel.capacity.overallRisk}>
+          {accountText(props.copy, riskLabel)}
+        </span>
+      </div>
+      <div className="account-capacity-primary-grid">
+        <AccountCapacityMetric copy={props.copy} metric={selected.postmaster} />
+        <AccountCapacityMetric copy={props.copy} metric={props.viewModel.capacity.vault} />
+        <div className="account-capacity-primary-card" data-risk={selected.inventoryRisk}>
+          <span>{accountText(props.copy, "当前角色携带")}</span>
+          <strong>{carriedSummary}</strong>
+          <small>{accountText(props.copy, "三武器与五护甲，容量包含当前已装备物品")}</small>
+        </div>
+      </div>
+      <div className="account-capacity-bucket-grid" aria-label={accountText(props.copy, "当前角色携带槽位容量")}>
+        {selected.inventoryBuckets.map((metric) => (
+          <AccountCapacityMetric compact copy={props.copy} key={metric.key} metric={metric} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AccountCapacityMetric(props: {
+  compact?: boolean;
+  copy: AccountCopy;
+  metric: AccountPageViewModel["capacity"]["vault"];
+}) {
+  const value = props.metric.capacity
+    ? `${props.metric.itemCount} / ${props.metric.capacity}`
+    : `${props.metric.itemCount} ${accountText(props.copy, "件")}`;
+
+  return (
+    <div className={props.compact ? "account-capacity-bucket" : "account-capacity-primary-card"} data-risk={props.metric.risk}>
+      <span>{accountText(props.copy, props.metric.label)}</span>
+      <strong>{value}</strong>
+      <small>{formatCapacityMetricStatus(props.metric, props.copy)}</small>
+      {props.metric.capacity !== undefined && props.metric.usagePercent !== undefined ? (
+        <div
+          className="account-capacity-progress"
+          role="progressbar"
+          aria-label={`${accountText(props.copy, props.metric.label)} ${value}`}
+          aria-valuemin={0}
+          aria-valuemax={props.metric.capacity}
+          aria-valuenow={Math.min(props.metric.itemCount, props.metric.capacity)}
+        >
+          <span style={{ width: `${props.metric.usagePercent}%` }} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function capacityRiskLabel(risk: AccountPageViewModel["capacity"]["overallRisk"]): string {
+  if (risk === "danger") return "存在已满位置，需要处理";
+  if (risk === "warning") return "部分位置接近上限";
+  if (risk === "unknown") return "部分容量待确认";
+  return "容量正常";
+}
+
+function formatCharacterCapacitySummary(
+  character: AccountPageViewModel["capacity"]["characters"][number],
+  copy: AccountCopy
+): string {
+  if (character.postmaster.risk === "danger") return accountText(copy, "邮政官已满，有覆盖风险");
+  if (character.fullBucketCount > 0) return `${character.fullBucketCount} ${accountText(copy, "个携带槽位已满")}`;
+  if (character.postmaster.risk === "warning") return formatCapacityMetricStatus(character.postmaster, copy);
+  if (character.warningBucketCount > 0) return `${character.warningBucketCount} ${accountText(copy, "个携带槽位接近上限")}`;
+  if (character.overallRisk === "unknown") return accountText(copy, "部分容量上限待确认");
+  return accountText(copy, "容量正常");
+}
+
+function formatCapacityMetricStatus(
+  metric: AccountPageViewModel["capacity"]["vault"],
+  copy: AccountCopy
+): string {
+  if (metric.risk === "unknown") return accountText(copy, "容量上限待确认");
+  if (metric.risk === "danger") {
+    return metric.key.startsWith("postmaster-")
+      ? accountText(copy, "已满，掉落存在覆盖风险")
+      : accountText(copy, "已满");
+  }
+  if (metric.risk === "warning") {
+    return `${accountText(copy, "接近上限，剩余")} ${metric.remaining ?? 0} ${accountText(copy, "格")}`;
+  }
+  return `${accountText(copy, "剩余")} ${metric.remaining ?? 0} ${accountText(copy, "格")}`;
 }
 
 function AccountCharacterItemsPanel(props: { copy: AccountCopy; viewModel: AccountPageViewModel }) {

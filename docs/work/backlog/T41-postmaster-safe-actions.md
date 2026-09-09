@@ -3,7 +3,7 @@
 > 状态：📝 候选方案，待排期
 > 优先级：P0
 > 类型：高风险 Bungie 写操作
-> 前置条件：[T40 账号容量与风险摘要](T40-account-capacity-risk.md)
+> 前置条件：✅ [T40 账号容量与风险摘要](T40-account-capacity-risk.md) 已满足
 > 账号菜单合同：[应用工作区账号章节](../references/ui-specs/application-workspaces.md#账号)
 
 ## 1. 目标

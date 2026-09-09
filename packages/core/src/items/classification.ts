@@ -25,6 +25,31 @@ export const bucketLabels: Record<number, BucketClassification> = {
   1107761855: { name: "动作", group: "equipment" }
 };
 
+export const accountEquipmentBucketHashes = [
+  1498876634,
+  2465295065,
+  953998645,
+  3448274439,
+  3551918588,
+  14239492,
+  20886954,
+  1585787867
+] as const;
+
+export const vaultBucketHash = 138197802;
+
+export const postmasterBucketHash = 215593132;
+
+export const accountCapacityDefinitionBucketHashes = [
+  ...accountEquipmentBucketHashes,
+  vaultBucketHash,
+  postmasterBucketHash
+] as const;
+
+export function isPostmasterBucketHash(bucketHash: number | undefined): boolean {
+  return typeof bucketHash === "number" && (bucketHash >>> 0) === postmasterBucketHash;
+}
+
 export function classifyBucket(bucketHash: number | undefined): BucketClassification | undefined {
   return bucketHash ? bucketLabels[bucketHash] : undefined;
 }

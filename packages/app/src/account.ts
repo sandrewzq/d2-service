@@ -16,6 +16,10 @@ export type {
 export { loadAccountDerivedWorkspace, loadFullAccountWorkspace } from "./workspaces/accountDerived.js";
 export type {
   AccountCharacterTab,
+  AccountCapacityMetricView,
+  AccountCapacityRiskLevel,
+  AccountCapacitySectionView,
+  AccountCharacterCapacityView,
   AccountActivitySectionView,
   AccountConfigurationSectionView,
   AccountCharacterTabView,

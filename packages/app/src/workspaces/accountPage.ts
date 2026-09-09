@@ -1,5 +1,6 @@
 import type { AccountItemSummary, AccountMaterialSummary, AccountSummary } from "@d2-tools/core/account/summary";
 import type { ActivityHistorySummary } from "@d2-tools/core/activities/history";
+import { accountEquipmentBucketHashes, bucketLabels } from "@d2-tools/core/items/classification";
 import { buildCharacterPowerView, type CharacterPowerView } from "./accountPower.js";
 
 export type AccountOpenItemPayload = {
@@ -154,6 +155,38 @@ export type AccountPostmasterSectionView = {
   totalCount: number;
 };
 
+export type AccountCapacityRiskLevel = "safe" | "warning" | "danger" | "unknown";
+
+export type AccountCapacityMetricView = {
+  key: string;
+  label: string;
+  itemCount: number;
+  capacity?: number;
+  remaining?: number;
+  usagePercent?: number;
+  risk: AccountCapacityRiskLevel;
+  statusLabel: string;
+};
+
+export type AccountCharacterCapacityView = {
+  characterId: string;
+  className: string;
+  overallRisk: AccountCapacityRiskLevel;
+  inventoryRisk: AccountCapacityRiskLevel;
+  summaryLabel: string;
+  postmaster: AccountCapacityMetricView;
+  inventoryBuckets: AccountCapacityMetricView[];
+  fullBucketCount: number;
+  warningBucketCount: number;
+};
+
+export type AccountCapacitySectionView = {
+  vault: AccountCapacityMetricView;
+  selectedCharacter: AccountCharacterCapacityView | null;
+  characters: AccountCharacterCapacityView[];
+  overallRisk: AccountCapacityRiskLevel;
+};
+
 export type AccountPageViewModel = {
   connection: AccountConnectionView;
   feedback: AccountFeedbackView;
@@ -168,6 +201,7 @@ export type AccountPageViewModel = {
   activity: AccountActivitySectionView;
   materials: AccountMaterialsSectionView;
   postmaster: AccountPostmasterSectionView;
+  capacity: AccountCapacitySectionView;
 };
 
 export type SharedDomainCache = {
@@ -394,6 +428,7 @@ export function selectAccountPageModel(input: AccountPageModelInput): AccountPag
   const configuration = buildAccountConfigurationSection(selectedCharacter);
   const tasks = buildAccountTasksSection(selectedCharacter);
   const items = buildAccountItemsSection(selectedCharacter, workspace.materialRows.length);
+  const capacity = buildAccountCapacitySection(cache.accountSummary, selectedCharacterId);
 
   return {
     connection: {
@@ -498,8 +533,140 @@ export function selectAccountPageModel(input: AccountPageModelInput): AccountPag
         }))
         : [],
       totalCount: selectedCharacter?.postmaster_items.length ?? 0
-    }
+    },
+    capacity
   };
+}
+
+function buildAccountCapacitySection(
+  account: AccountSummary | null,
+  selectedCharacterId: string
+): AccountCapacitySectionView {
+  const vault = buildCapacityMetric({
+    key: "vault",
+    label: "仓库",
+    itemCount: account?.vault.items.length ?? 0,
+    capacity: account?.vault.capacity,
+    kind: "vault"
+  });
+  const characters = account?.characters.map(buildCharacterCapacityView) ?? [];
+
+  return {
+    vault,
+    selectedCharacter: characters.find((character) => character.characterId === selectedCharacterId) ?? characters[0] ?? null,
+    characters,
+    overallRisk: highestCapacityRisk([vault.risk, ...characters.map((character) => character.overallRisk)])
+  };
+}
+
+function buildCharacterCapacityView(
+  character: AccountSummary["characters"][number]
+): AccountCharacterCapacityView {
+  const limitsByBucket = new Map(
+    character.capacity_limits?.inventory_buckets.map((bucket) => [bucket.bucket_hash, bucket]) ?? []
+  );
+  const carriedItems = [...character.equipped_items, ...character.inventory_items];
+  const inventoryBuckets = accountEquipmentBucketHashes.map((bucketHash) => {
+    const limit = limitsByBucket.get(bucketHash);
+    return buildCapacityMetric({
+      key: `inventory-${bucketHash}`,
+      label: limit?.bucket_name || bucketLabels[bucketHash]?.name || `位置 ${bucketHash}`,
+      itemCount: carriedItems.filter((item) => item.equipment_bucket_hash === bucketHash).length,
+      capacity: limit?.capacity,
+      kind: "inventory"
+    });
+  });
+  const postmaster = buildCapacityMetric({
+    key: `postmaster-${character.character_id}`,
+    label: "邮政官",
+    itemCount: character.postmaster_items.length,
+    capacity: character.capacity_limits?.postmaster_capacity,
+    kind: "postmaster"
+  });
+  const fullBucketCount = inventoryBuckets.filter((bucket) => bucket.risk === "danger").length;
+  const warningBucketCount = inventoryBuckets.filter((bucket) => bucket.risk === "warning").length;
+  const inventoryRisk = highestCapacityRisk(inventoryBuckets.map((bucket) => bucket.risk));
+  const overallRisk = highestCapacityRisk([postmaster.risk, inventoryRisk]);
+
+  return {
+    characterId: character.character_id,
+    className: character.class_name,
+    overallRisk,
+    inventoryRisk,
+    summaryLabel: characterCapacitySummary({ postmaster, fullBucketCount, warningBucketCount, overallRisk }),
+    postmaster,
+    inventoryBuckets,
+    fullBucketCount,
+    warningBucketCount
+  };
+}
+
+function buildCapacityMetric(input: {
+  key: string;
+  label: string;
+  itemCount: number;
+  capacity?: number;
+  kind: "inventory" | "postmaster" | "vault";
+}): AccountCapacityMetricView {
+  const capacity = typeof input.capacity === "number" && input.capacity > 0 ? input.capacity : undefined;
+  if (!capacity) {
+    return {
+      key: input.key,
+      label: input.label,
+      itemCount: input.itemCount,
+      risk: "unknown",
+      statusLabel: "容量上限待确认"
+    };
+  }
+
+  const remaining = Math.max(0, capacity - input.itemCount);
+  const warningThreshold = input.kind === "postmaster"
+    ? 5
+    : input.kind === "vault"
+      ? Math.max(10, Math.ceil(capacity * 0.02))
+      : 1;
+  const risk: AccountCapacityRiskLevel = remaining === 0
+    ? "danger"
+    : remaining <= warningThreshold
+      ? "warning"
+      : "safe";
+  const statusLabel = risk === "danger"
+    ? input.kind === "postmaster" ? "已满，掉落存在覆盖风险" : "已满"
+    : risk === "warning"
+      ? `接近上限，剩余 ${remaining} 格`
+      : `剩余 ${remaining} 格`;
+
+  return {
+    key: input.key,
+    label: input.label,
+    itemCount: input.itemCount,
+    capacity,
+    remaining,
+    usagePercent: Math.min(100, Math.round((input.itemCount / capacity) * 100)),
+    risk,
+    statusLabel
+  };
+}
+
+function characterCapacitySummary(input: {
+  postmaster: AccountCapacityMetricView;
+  fullBucketCount: number;
+  warningBucketCount: number;
+  overallRisk: AccountCapacityRiskLevel;
+}): string {
+  if (input.postmaster.risk === "danger") return "邮政官已满，有覆盖风险";
+  if (input.fullBucketCount > 0) return `${input.fullBucketCount} 个携带槽位已满`;
+  if (input.postmaster.risk === "warning") return input.postmaster.statusLabel;
+  if (input.warningBucketCount > 0) return `${input.warningBucketCount} 个携带槽位接近上限`;
+  if (input.overallRisk === "unknown") return "部分容量上限待确认";
+  return "容量正常";
+}
+
+function highestCapacityRisk(risks: AccountCapacityRiskLevel[]): AccountCapacityRiskLevel {
+  if (risks.includes("danger")) return "danger";
+  if (risks.includes("warning")) return "warning";
+  if (risks.includes("unknown")) return "unknown";
+  return "safe";
 }
 
 function accountPageNavigation(): AccountPageNavItem[] {

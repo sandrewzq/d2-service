@@ -3,6 +3,7 @@ import type {
   DestinyProfileItem,
   DestinyProfileResponse
 } from "./summary.js";
+import { accountCapacityDefinitionBucketHashes } from "../items/classification.js";
 
 type PlugState = {
   plugItemHash: number;
@@ -14,7 +15,7 @@ export function collectAccountDefinitionRequest(
   additionalItems: DestinyProfileItem[] = []
 ): AccountDefinitionRequest {
   const itemHashes = new Set<number>();
-  const bucketHashes = new Set<number>();
+  const bucketHashes = new Set<number>(accountCapacityDefinitionBucketHashes);
   const plugSetHashes = new Set<number>();
   const damageTypeHashes = new Set<number>();
   const objectiveHashes = new Set<number>();

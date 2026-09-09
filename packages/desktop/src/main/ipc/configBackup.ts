@@ -227,8 +227,11 @@ function validateConfigShape(value: Record<string, unknown>): D2Config {
   }
   const features = value.features as Record<string, unknown>;
   const ai = value.ai as Record<string, unknown>;
-  const currentFeatures = { ...features };
-  const currentAi = { data_sharing_consent: false, ...ai };
+  const currentFeatures: Record<string, unknown> = { ...features };
+  const currentAi: Record<string, unknown> = {
+    data_sharing_consent: false,
+    ...ai
+  };
   delete currentFeatures.write_actions_enabled;
   delete currentAi.enable_lightgg;
   delete currentAi.force_lightgg;

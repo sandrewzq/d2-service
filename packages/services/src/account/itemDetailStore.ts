@@ -1,7 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { AccountItemDetail } from "@d2-tools/core/account/summary";
+import {
+  sanitizeAccountItemSummary,
+  type AccountItemDetail
+} from "@d2-tools/core/account/summary";
 
 /** Identifies one account-owned item detail cache entry. */
 export type AccountItemDetailCacheKey = {
@@ -95,7 +98,7 @@ export async function saveCachedAccountItemDetail(
   const cached: CachedAccountItemDetail = {
     ...key,
     fetched_at: now.toISOString(),
-    detail
+    detail: sanitizeAccountItemSummary(detail)
   };
   await enqueueMutation(dataDir, (database) => {
     database.prepare(`
@@ -111,7 +114,7 @@ export async function saveCachedAccountItemDetail(
       key.manifest_revision,
       key.instance_id,
       cached.fetched_at,
-      JSON.stringify(detail)
+      JSON.stringify(cached.detail)
     );
   });
   return cached;
@@ -318,7 +321,7 @@ function parseDetailRow(row: DetailRow): CachedAccountItemDetail | null {
       manifest_revision: row.manifest_revision,
       instance_id: row.instance_id,
       fetched_at: row.fetched_at,
-      detail
+      detail: sanitizeAccountItemSummary(detail)
     };
   } catch {
     return null;

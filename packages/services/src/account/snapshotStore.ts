@@ -1,6 +1,9 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AccountSnapshot } from "@d2-tools/core/account/summary";
+import {
+  sanitizeAccountSnapshot,
+  type AccountSnapshot
+} from "@d2-tools/core/account/summary";
 
 export type CachedAccountSnapshot = {
   version: 2;
@@ -51,7 +54,7 @@ export async function loadCachedAccountSnapshot(
       ...(normalizeManifestRevision(parsed.manifest_revision)
         ? { manifest_revision: normalizeManifestRevision(parsed.manifest_revision) }
         : {}),
-      snapshot: parsed.snapshot
+      snapshot: sanitizeAccountSnapshot(parsed.snapshot)
     };
   } catch {
     return null;
@@ -77,7 +80,7 @@ export async function saveCachedAccountSnapshot(
       ...(normalizeManifestRevision(options.manifestRevision)
         ? { manifest_revision: normalizeManifestRevision(options.manifestRevision) }
         : {}),
-      snapshot
+      snapshot: sanitizeAccountSnapshot(snapshot)
     };
     const temporary = `${target}.tmp-${process.pid}-${Date.now()}-${temporarySequence++}`;
     try {
