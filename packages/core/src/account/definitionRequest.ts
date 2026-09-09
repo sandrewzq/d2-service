@@ -74,6 +74,21 @@ export function collectAccountDefinitionRequest(
       }
     }
   }
+  for (const progression of Object.values(profile.characterProgressions?.data ?? {})) {
+    for (const milestone of Object.values(progression.milestones ?? {})) {
+      for (const quest of milestone.availableQuests ?? []) {
+        addHash(itemHashes, quest.questItemHash);
+        for (const objective of quest.status?.stepObjectives ?? []) {
+          addHash(objectiveHashes, objective.objectiveHash);
+        }
+      }
+      for (const activity of milestone.activities ?? []) {
+        for (const challenge of activity.challenges ?? []) {
+          addHash(objectiveHashes, challenge.objective?.objectiveHash);
+        }
+      }
+    }
+  }
   for (const craftableComponent of Object.values(profile.characterCraftables?.data ?? {})) {
     for (const [itemHash, craftable] of Object.entries(craftableComponent.craftables ?? {})) {
       addHash(itemHashes, Number(itemHash));

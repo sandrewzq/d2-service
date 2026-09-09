@@ -1,4 +1,9 @@
 import type { AccountItemSummary, AccountMaterialSummary, AccountSummary } from "@d2-tools/core/account/summary";
+import {
+  buildAccountPursuitSummary,
+  type AccountPursuit,
+  type AccountPursuitSummary
+} from "@d2-tools/core/account/pursuits";
 import type { ActivityHistorySummary } from "@d2-tools/core/activities/history";
 import { accountEquipmentBucketHashes, bucketLabels } from "@d2-tools/core/items/classification";
 import { buildCharacterPowerView, type CharacterPowerView } from "./accountPower.js";
@@ -29,9 +34,12 @@ export type AccountReadonlyItemView = {
   icon?: string;
   typeLabel: string;
   sourceLabel: string;
+  characterLabel?: string;
   progressLabel?: string;
   progressPercent?: number;
   isComplete?: boolean;
+  statusLabel?: string;
+  statusTone?: "neutral" | "pending" | "warning" | "success";
 };
 
 export type AccountReadonlyGroupView = {
@@ -40,6 +48,7 @@ export type AccountReadonlyGroupView = {
   description: string;
   items: AccountReadonlyItemView[];
   status: "neutral" | "warning";
+  defaultOpen?: boolean;
 };
 
 export type AccountCharacterTabView = {
@@ -134,6 +143,14 @@ export type AccountTasksSectionView = {
   questCount: number;
   orderCount: number;
   seasonalCount: number;
+  pendingCount: number;
+  expiringCount: number;
+  trackedCount: number;
+  dataState: "confirmed" | "partial";
+  isSyncing: boolean;
+  statusLabel: string;
+  errorMessage?: string;
+  observedAt?: string;
   groups: AccountReadonlyGroupView[];
 };
 
@@ -207,6 +224,7 @@ export type AccountPageViewModel = {
 export type SharedDomainCache = {
   accountSummary: AccountSummary | null;
   activitySummary: ActivityHistorySummary | null;
+  pursuitSummary?: AccountPursuitSummary | null;
 };
 
 export type AccountPageState = {
@@ -217,6 +235,8 @@ export type AccountPageState = {
   isBungieConfigured: boolean;
   isAccountLoggedIn: boolean;
   isLoadingAccount: boolean;
+  pursuitStatus?: "unavailable" | "cached" | "stale" | "loading" | "refreshing" | "ready" | "error";
+  pursuitError?: string;
   isShowingCachedAccount?: boolean;
   accountStatusLabel?: string;
   accountError: string;
@@ -426,7 +446,11 @@ export function selectAccountPageModel(input: AccountPageModelInput): AccountPag
       : []
   );
   const configuration = buildAccountConfigurationSection(selectedCharacter);
-  const tasks = buildAccountTasksSection(selectedCharacter);
+  const tasks = buildAccountTasksSection(
+    cache.pursuitSummary ?? buildAccountPursuitSummary(cache.accountSummary),
+    pageState.pursuitStatus ?? (pageState.isLoadingAccount ? "refreshing" : "ready"),
+    pageState.pursuitError
+  );
   const items = buildAccountItemsSection(selectedCharacter, workspace.materialRows.length);
   const capacity = buildAccountCapacitySection(cache.accountSummary, selectedCharacterId);
 
@@ -697,30 +721,85 @@ function buildAccountConfigurationSection(
 }
 
 function buildAccountTasksSection(
-  character: AccountSummary["characters"][number] | null
+  pursuitSummary: AccountPursuitSummary,
+  status: NonNullable<AccountPageState["pursuitStatus"]>,
+  errorMessage?: string
 ): AccountTasksSectionView {
-  const groups: Record<AccountTaskKind, AccountItemSummary[]> = {
-    quests: [],
-    orders: [],
-    seasonal: []
+  type AttentionGroup = "pending" | "expiring" | "tracked" | "active" | "history";
+  const groups: Record<AttentionGroup, AccountPursuit[]> = {
+    pending: [],
+    expiring: [],
+    tracked: [],
+    active: [],
+    history: []
   };
+  const now = Date.now();
 
-  for (const item of character ? getCharacterCombinedItems(character) : []) {
-    const kind = getAccountTaskKind(item);
-    if (kind) groups[kind].push(item);
+  for (const pursuit of pursuitSummary.items) {
+    if (pursuit.completion_state === "completed_pending_action") {
+      groups.pending.push(pursuit);
+    } else if (isPursuitExpiring(pursuit, now)) {
+      groups.expiring.push(pursuit);
+    } else if (pursuit.completion_state === "expired" || pursuit.completion_state === "completed_confirmed") {
+      groups.history.push(pursuit);
+    } else if (pursuit.tracked) {
+      groups.tracked.push(pursuit);
+    } else {
+      groups.active.push(pursuit);
+    }
   }
 
+  const mapGroupItems = (entries: AccountPursuit[]) => entries.map(toReadonlyPursuit);
+  const questCount = pursuitSummary.items.filter((pursuit) => pursuit.kind === "quest" || pursuit.kind === "milestone" || pursuit.kind === "unknown").length;
+  const orderCount = pursuitSummary.items.filter((pursuit) => pursuit.kind === "bounty").length;
+  const seasonalCount = pursuitSummary.items.filter((pursuit) => pursuit.kind === "seasonal").length;
+  const attentionGroups = [
+    toReadonlyGroupViews("pending", "已完成待处理", "已完成但仍需领取、确认或继续处理", mapGroupItems(groups.pending)),
+    toReadonlyGroupViews("expiring", "24 小时内过期", "优先检查即将失效的任务与赏金", mapGroupItems(groups.expiring), groups.expiring.length ? "warning" : "neutral"),
+    toReadonlyGroupViews("tracked", "正在追踪", "游戏中已明确追踪的任务", mapGroupItems(groups.tracked)),
+    toReadonlyGroupViews("active", "其他进行中", "尚未进入优先处理队列的任务与目标", mapGroupItems(groups.active)),
+    toReadonlyGroupViews("history", "已过期或已处理", "保留服务器已确认的结束状态供核对", mapGroupItems(groups.history))
+  ].filter((group) => group.items.length > 0);
+  const firstActionableGroupIndex = attentionGroups.findIndex((group) => group.key !== "history");
+
   return {
-    itemCount: groups.quests.length + groups.orders.length + groups.seasonal.length,
-    questCount: groups.quests.length,
-    orderCount: groups.orders.length,
-    seasonalCount: groups.seasonal.length,
-    groups: [
-      toReadonlyGroup("quests", "任务与步骤", "主线、任务步骤和追踪记录", groups.quests, "角色任务"),
-      toReadonlyGroup("orders", "命令与赏金", "枪匠命令、铸造厂命令与赏金", groups.orders, "角色任务"),
-      toReadonlyGroup("seasonal", "神器与赛季进度", "神器和赛季加成记录", groups.seasonal, "角色进度")
-    ]
+    itemCount: pursuitSummary.items.length,
+    questCount,
+    orderCount,
+    seasonalCount,
+    pendingCount: pursuitSummary.pending_count,
+    expiringCount: pursuitSummary.expiring_count,
+    trackedCount: pursuitSummary.tracked_count,
+    dataState: pursuitSummary.data_state === "partial" || status === "error" || status === "stale"
+      ? "partial"
+      : "confirmed",
+    isSyncing: status === "loading" || status === "refreshing",
+    statusLabel: status === "loading"
+      ? "首次读取中"
+      : status === "refreshing"
+        ? "同步中"
+        : status === "cached"
+          ? "本地缓存"
+          : status === "stale"
+            ? "等待重新同步"
+            : status === "error"
+              ? "读取失败"
+              : status === "ready"
+                ? "已确认"
+                : "尚未读取",
+    ...(errorMessage ? { errorMessage } : {}),
+    ...(pursuitSummary.observed_at ? { observedAt: pursuitSummary.observed_at } : {}),
+    groups: attentionGroups.map((group, index) => ({
+      ...group,
+      defaultOpen: index === firstActionableGroupIndex
+    }))
   };
+}
+
+function isPursuitExpiring(pursuit: AccountPursuit, now: number): boolean {
+  if (!pursuit.expiration_date || pursuit.completion_state === "expired") return false;
+  const remaining = Date.parse(pursuit.expiration_date) - now;
+  return Number.isFinite(remaining) && remaining >= 0 && remaining <= 24 * 60 * 60 * 1000;
 }
 
 function buildAccountItemsSection(
@@ -730,13 +809,13 @@ function buildAccountItemsSection(
   const inventoryItems = character?.inventory_items ?? [];
   const carried = inventoryItems.filter((item) => Boolean(getAccountCarryKind(item)));
   const collection = inventoryItems.filter((item) => (
-    !getAccountTaskKind(item)
+    !item.pursuit
     && !getAccountCarryKind(item)
     && isAccountCollectionItem(item)
   ));
   const unknown = inventoryItems.filter((item) => (
     !isCombatItem(item)
-    && !getAccountTaskKind(item)
+    && !item.pursuit
     && !getAccountCarryKind(item)
     && !isAccountCollectionItem(item)
   ));
@@ -760,16 +839,6 @@ function buildAccountItemsSection(
       )
     ]
   };
-}
-
-type AccountTaskKind = "quests" | "orders" | "seasonal";
-
-function getAccountTaskKind(item: AccountItemSummary): AccountTaskKind | "" {
-  const text = accountItemSearchText(item);
-  if (includesAny(text, ["命令", "赏金", "bounty", "order"])) return "orders";
-  if (includesAny(text, ["神器", "赛季加成", "artifact"])) return "seasonal";
-  if (includesAny(text, ["任务", "任务步骤", "周常", "传承", "信条", "召唤", "证章", "回归者", "quest"])) return "quests";
-  return "";
 }
 
 function getAccountCarryKind(item: AccountItemSummary): "engrams" | "consumables" | "" {
@@ -811,6 +880,16 @@ function toReadonlyGroup(
   };
 }
 
+function toReadonlyGroupViews(
+  key: string,
+  label: string,
+  description: string,
+  items: AccountReadonlyItemView[],
+  status: AccountReadonlyGroupView["status"] = "neutral"
+): AccountReadonlyGroupView {
+  return { key, label, description, items, status };
+}
+
 function toReadonlyItems(items: AccountItemSummary[], sourceLabel: string): AccountReadonlyItemView[] {
   return items.map((item, index) => {
     const progress = buildReadonlyItemProgress(item);
@@ -823,6 +902,45 @@ function toReadonlyItems(items: AccountItemSummary[], sourceLabel: string): Acco
       ...progress
     };
   });
+}
+
+function toReadonlyPursuit(pursuit: AccountPursuit): AccountReadonlyItemView {
+  const status = pursuit.completion_state === "completed_pending_action"
+    ? { statusLabel: "已完成待处理", statusTone: "success" as const }
+    : pursuit.completion_state === "completed_confirmed"
+      ? { statusLabel: "已处理", statusTone: "neutral" as const }
+      : pursuit.completion_state === "expired"
+        ? { statusLabel: "已过期", statusTone: "warning" as const }
+        : pursuit.tracked
+          ? { statusLabel: "正在追踪", statusTone: "pending" as const }
+          : pursuit.completion_state === "in_progress"
+            ? { statusLabel: "进行中", statusTone: "neutral" as const }
+            : { statusLabel: "状态待确认", statusTone: "warning" as const };
+  const expiration = pursuit.expiration_date
+    ? ` · ${formatPursuitExpiration(pursuit.expiration_date)}`
+    : "";
+  return {
+    key: `pursuit:${pursuit.id}`,
+    name: pursuit.name,
+    icon: pursuit.icon,
+    typeLabel: pursuit.type_label,
+    sourceLabel: `${pursuit.class_name} · ${pursuit.source === "character_milestone" ? "角色目标" : pursuit.source === "record" ? "赛季挑战" : "任务物品"}${expiration}`,
+    ...(pursuit.progress_label ? { progressLabel: pursuit.progress_label } : {}),
+    ...(pursuit.progress_percent !== undefined ? { progressPercent: pursuit.progress_percent } : {}),
+    isComplete: pursuit.completion_state === "completed_pending_action" || pursuit.completion_state === "completed_confirmed",
+    statusLabel: status.statusLabel,
+    statusTone: status.statusTone
+  };
+}
+
+function formatPursuitExpiration(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "到期时间待确认";
+  const remaining = timestamp - Date.now();
+  if (remaining <= 0) return "已过期";
+  const hours = Math.floor(remaining / (60 * 60 * 1000));
+  if (hours < 24) return `${Math.max(1, hours)} 小时后到期`;
+  return `${Math.floor(hours / 24)} 天后到期`;
 }
 
 function buildReadonlyItemProgress(item: AccountItemSummary): Pick<AccountReadonlyItemView, "progressLabel" | "progressPercent" | "isComplete"> {

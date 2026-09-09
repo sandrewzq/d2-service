@@ -72,6 +72,7 @@ import type {
   AccountItemDetail,
   AccountItemDetailResource,
   AccountItemDetailRequestOptions,
+  AccountPursuitResource,
   AccountItemSummary,
   AccountSummary,
   AccountSummaryRequestOptions,
@@ -136,6 +137,7 @@ const accountSnapshotChangedChannel: typeof import("../contracts/account.js").ac
 type PreloadCacheDomain =
   | "asset-cache"
   | "account-snapshot"
+  | "account-pursuits"
   | "account-item-details"
   | "home-briefing"
   | "vendor-inventory"
@@ -223,6 +225,8 @@ contextBridge.exposeInMainWorld("d2", {
     invokeDesktopIpc<AccountSnapshotResource>("account:resource:snapshot", options),
   getAccountItemDetailResource: (instanceId: string, options?: AccountResourceRequestOptions) =>
     invokeDesktopIpc<AccountItemDetailResource>("account:resource:item-detail", instanceId, options),
+  getAccountPursuitResource: (options?: AccountResourceRequestOptions) =>
+    invokeDesktopIpc<AccountPursuitResource>("account:resource:pursuits", options),
   planArmor: <Job extends ArmorPlannerWorkspaceJob>(request: ArmorPlannerClientRunRequest<Job>) =>
     invokeDesktopIpc<ArmorPlannerClientRunResult<Job>>("armor:plan", request),
   invalidateArmorPlanner: (scopeId?: string) =>

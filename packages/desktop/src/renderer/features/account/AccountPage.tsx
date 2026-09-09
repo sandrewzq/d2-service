@@ -1,6 +1,7 @@
 import { AccountPageContentView, buildVaultRecommendationSummaryIndex, type InterfaceLocale } from "@d2-tools/ui";
 import type {
   AccountItemSummary,
+  AccountPursuitResource,
   AccountSummary,
   ActivityHistorySummary,
   LoadoutTemplate,
@@ -19,6 +20,7 @@ type AccountItemSource = "equipped" | "inventory" | "postmaster";
 export function AccountPage(props: {
   interfaceLocale?: InterfaceLocale;
   accountSummary: AccountSummary | null;
+  pursuitResource?: AccountPursuitResource | null;
   startupState: StartupState;
   selectedCharacterId: string;
   lastAccountLoadedAt?: Date | null;
@@ -59,6 +61,7 @@ export function AccountPage(props: {
   const viewModel = useMemo(() => selectAccountPageModel({
     cache: {
       accountSummary: props.accountSummary,
+      pursuitSummary: props.pursuitResource?.data,
       activitySummary: props.activitySummary
     },
     pageState: {
@@ -69,6 +72,8 @@ export function AccountPage(props: {
       isBungieConfigured,
       isAccountLoggedIn,
       isLoadingAccount: props.isLoadingAccount,
+      pursuitStatus: props.pursuitResource?.status,
+      pursuitError: props.pursuitResource?.error?.message,
       isShowingCachedAccount: props.isShowingCachedAccount,
       accountStatusLabel: props.startupState.cards.account.label,
       accountError: props.accountError,
@@ -84,6 +89,7 @@ export function AccountPage(props: {
     }
   }), [
     props.accountSummary,
+    props.pursuitResource,
     props.activitySummary,
     props.selectedCharacterId,
     props.lastAccountLoadedAt,

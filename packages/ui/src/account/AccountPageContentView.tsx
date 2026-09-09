@@ -69,7 +69,9 @@ export function AccountPageContentView(props: AccountPageContentViewProps) {
   const profile = viewModel.profile;
   const activitySummary = viewModel.activity.summary;
   const activityReview = activitySummary ? activitySummary.review : null;
-  const [section, setSection] = useState<AccountSection>("gear");
+  const [section, setSection] = useState<AccountSection>(() => (
+    typeof window !== "undefined" && window.location.hash === "#account-tasks" ? "tasks" : "gear"
+  ));
 
   if (!profile || !selectedCharacter) {
     return <AccountUnavailableState actions={actions} copy={copy} viewModel={viewModel} />;
@@ -152,7 +154,7 @@ function AccountPageWorkspace(props: {
   const navigation: Array<{ key: AccountSection; label: string; count?: number; groupLabel?: string; scopeLabel: string }> = [
     { key: "gear", label: accountText(props.copy, "战斗装备"), groupLabel: accountText(props.copy, "当前角色"), scopeLabel: accountText(props.copy, "当前角色") },
     { key: "configuration", label: accountText(props.copy, "角色物品与配置"), scopeLabel: accountText(props.copy, "当前角色") },
-    { key: "tasks", label: accountText(props.copy, "任务与赏金"), scopeLabel: accountText(props.copy, "当前角色") },
+    { key: "tasks", label: accountText(props.copy, "任务与赏金"), scopeLabel: accountText(props.copy, "全部角色") },
     { key: "postmaster", label: accountText(props.copy, "邮政官"), count: props.viewModel.postmaster.totalCount || undefined, scopeLabel: accountText(props.copy, "当前角色") },
     { key: "items", label: accountText(props.copy, "材料与货币"), groupLabel: accountText(props.copy, "整个账号"), scopeLabel: accountText(props.copy, "整个账号") },
     { key: "activity", label: accountText(props.copy, "账号战绩"), scopeLabel: accountText(props.copy, "整个账号") }
@@ -187,6 +189,10 @@ function AccountPageWorkspace(props: {
 
   function selectSection(nextSection: AccountSection): void {
     setIsPowerPanelOpen(false);
+    if (typeof window !== "undefined") {
+      if (nextSection === "tasks") window.history.replaceState(null, "", "#account-tasks");
+      else if (window.location.hash === "#account-tasks") window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    }
     props.setSection(nextSection);
   }
 
@@ -510,15 +516,41 @@ function AccountPageWorkspace(props: {
           hidden={props.section !== "tasks"}
         >
           <div className="account-column-head">
-            <h3 data-ui-part="value" data-info-priority="context" data-text-tone="primary">{props.selectedCharacter.className}{accountText(props.copy, "任务与赏金")}</h3>
-            <span data-ui-part="detail" data-info-priority="support" data-text-tone="body">{props.viewModel.tasks.itemCount} 项 · {accountText(props.copy, "按任务类型查看")}</span>
+            <h3 data-ui-part="value" data-info-priority="context" data-text-tone="primary">{accountText(props.copy, "账号任务与赏金")}</h3>
+            <span data-ui-part="detail" data-info-priority="support" data-text-tone="body">
+              {props.viewModel.tasks.itemCount} 项 · {accountText(props.copy, "覆盖全部角色")} · {accountText(props.copy, props.viewModel.tasks.statusLabel)}
+              {props.viewModel.tasks.observedAt ? ` · ${accountText(props.copy, "数据时间")} ${formatCompactDateTime(props.viewModel.tasks.observedAt)}` : ""}
+            </span>
           </div>
           <AccountStatusMatrix entries={[
-            { label: "任务与步骤", value: props.viewModel.tasks.questCount },
-            { label: "命令与赏金", value: props.viewModel.tasks.orderCount },
-            { label: "神器与赛季", value: props.viewModel.tasks.seasonalCount }
+            { label: "已完成待处理", value: props.viewModel.tasks.pendingCount },
+            { label: "24 小时内过期", value: props.viewModel.tasks.expiringCount },
+            { label: "正在追踪", value: props.viewModel.tasks.trackedCount }
           ]} />
-          <AccountDataGroups copy={props.copy} groups={props.viewModel.tasks.groups} />
+          {props.viewModel.tasks.isSyncing ? <p className="status-message status-pending" role="status">任务数据同步中，列表保留上次确认结果。</p> : null}
+          {props.viewModel.tasks.errorMessage ? <p className="status-message status-error" role="alert">任务同步失败，继续显示上次确认结果。{props.viewModel.tasks.errorMessage}</p> : null}
+          <div className="account-task-type-summary" aria-label="任务类型数量">
+            <span>任务与步骤 {props.viewModel.tasks.questCount}</span>
+            <span>命令与赏金 {props.viewModel.tasks.orderCount}</span>
+            <span>神器与赛季 {props.viewModel.tasks.seasonalCount}</span>
+          </div>
+          {props.viewModel.tasks.dataState === "partial" ? <p className="status-message status-warning">任务数据部分可用，未返回的任务不会被猜测补齐。</p> : null}
+          {props.viewModel.tasks.itemCount ? (
+            <AccountDataGroups copy={props.copy} groups={props.viewModel.tasks.groups} />
+          ) : (
+            <AccountInlineState
+              title={props.viewModel.tasks.isSyncing
+                ? "正在读取任务数据"
+                : props.viewModel.tasks.errorMessage
+                  ? "任务数据暂时不可用"
+                  : "没有读取到待处理任务"}
+              detail={props.viewModel.tasks.isSyncing
+                ? "装备数据保持可用，任务目标会在独立同步完成后出现。"
+                : props.viewModel.tasks.errorMessage
+                  ? "本次读取失败，不能把空列表解释为账号没有任务。"
+                  : "三个角色的任务物品和角色目标中没有可显示项目。"}
+            />
+          )}
         </section>
 
         <section
@@ -807,8 +839,17 @@ function AccountDataGroups(props: { copy: AccountCopy; groups: AccountReadonlyGr
 }
 
 function AccountDataGroup(props: { copy: AccountCopy; group: AccountReadonlyGroupView }) {
+  const [isOpen, setIsOpen] = useState(Boolean(props.group.defaultOpen));
+  useEffect(() => {
+    if (props.group.defaultOpen) setIsOpen(true);
+  }, [props.group.defaultOpen]);
   return (
-    <details className="account-data-group" data-status={props.group.status}>
+    <details
+      className="account-data-group"
+      data-status={props.group.status}
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+    >
       <summary>
         <span>
           <strong data-ui-part="value" data-info-priority="context" data-text-tone="primary">{props.group.label}</strong>
@@ -826,13 +867,14 @@ function AccountDataGroup(props: { copy: AccountCopy; group: AccountReadonlyGrou
 }
 
 function AccountReadonlyRow(props: { copy: AccountCopy; item: AccountReadonlyItemView }) {
-  const stateLabel = props.item.isComplete
+  const stateLabel = props.item.statusLabel ?? (props.item.isComplete
     ? accountText(props.copy, "已完成")
     : typeof props.item.progressPercent === "number"
       ? accountText(props.copy, "进行中")
-      : accountText(props.copy, "只读");
+      : accountText(props.copy, "只读"));
+  const stateTone = props.item.statusTone ?? (props.item.isComplete ? "success" : typeof props.item.progressPercent === "number" ? "pending" : undefined);
   return (
-    <div className="account-readonly-row" data-surface="row" data-interactive="false">
+    <div className="account-readonly-row" data-surface="row" data-interactive="false" data-status={stateTone}>
       <AccountReadonlyIcon item={props.item} />
       <span>
         <strong data-ui-part="value" data-info-priority="context" data-text-tone="primary">{props.item.name}</strong>
@@ -844,7 +886,7 @@ function AccountReadonlyRow(props: { copy: AccountCopy; item: AccountReadonlyIte
           </span>
         ) : null}
       </span>
-      <em data-ui-part="state" data-info-priority="support" data-text-tone="meta" data-status={props.item.isComplete ? "success" : typeof props.item.progressPercent === "number" ? "pending" : undefined}>{stateLabel}</em>
+      <em data-ui-part="state" data-info-priority="support" data-text-tone="meta" data-status={stateTone}>{stateLabel}</em>
     </div>
   );
 }

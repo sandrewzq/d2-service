@@ -195,6 +195,10 @@
       "types": "./dist/account/summary.d.ts",
       "import": "./dist/account/summary.js"
     },
+    "./account/pursuits": {
+      "types": "./dist/account/pursuits.d.ts",
+      "import": "./dist/account/pursuits.js"
+    },
     "./account/power": {
       "types": "./dist/account/power.d.ts",
       "import": "./dist/account/power.js"

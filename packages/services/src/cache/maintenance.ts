@@ -6,6 +6,7 @@ import { getAccountCacheMetrics, type AccountCacheMetrics } from "../account/cac
 /** Volatile cache domains that can be inspected and cleared independently. */
 export type CacheDomain =
   | "account-snapshot"
+  | "account-pursuits"
   | "account-item-details"
   | "home-briefing"
   | "vendor-inventory"
@@ -34,6 +35,7 @@ export type CacheClearResult = {
 
 const allDomains: readonly CacheDomain[] = [
   "account-snapshot",
+  "account-pursuits",
   "account-item-details",
   "home-briefing",
   "vendor-inventory",
@@ -97,6 +99,7 @@ export async function clearCache(
 function cachePaths(dataDir: string): Record<CacheDomain, string> {
   return {
     "account-snapshot": join(dataDir, "account-snapshot-cache.json"),
+    "account-pursuits": join(dataDir, "account-pursuit-cache.json"),
     "account-item-details": join(dataDir, "cache", "account-cache.sqlite"),
     "home-briefing": join(dataDir, "home-briefing-cache.json"),
     "vendor-inventory": join(dataDir, "vendor-inventory-cache.json"),

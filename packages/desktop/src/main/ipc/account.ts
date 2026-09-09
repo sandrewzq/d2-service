@@ -19,6 +19,7 @@ import {
   getAccountItemDetailByInstanceId,
   getAccountSnapshot,
   getAccountItemDetailResource,
+  getAccountPursuitResource,
   getAccountSnapshotResource,
   subscribeAccountSnapshotChanged
 } from "../runtime/accountSession.js";
@@ -76,6 +77,11 @@ export function registerAccountIpcHandlers(): void {
       if (!instanceId || typeof instanceId !== "string") throw new Error("装备实例 ID 无效");
       return getAccountItemDetailResource(instanceId, options?.force ? "refresh" : "cached");
     },
+    classifyAccountIpcError
+  ));
+
+  ipcMain.handle("account:resource:pursuits", (_event, options?: AccountResourceRequestOptions) => encodeDesktopIpcFailure(
+    () => getAccountPursuitResource(options?.force ? "refresh" : "cached"),
     classifyAccountIpcError
   ));
 }

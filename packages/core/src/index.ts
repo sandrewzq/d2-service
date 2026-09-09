@@ -15,6 +15,7 @@ export * from "./activities/modes.js";
 export * from "./activities/raidSummary.js";
 export * from "./items/detail.js";
 export * from "./account/summary.js";
+export * from "./account/pursuits.js";
 export type { BungieJsonFetcher } from "./bungie/transport.js";
 export * from "./config/defaults.js";
 export * from "./config/env.js";

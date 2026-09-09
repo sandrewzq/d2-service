@@ -35,6 +35,10 @@
       "types": "./dist/account/itemDetailStore.d.ts",
       "import": "./dist/account/itemDetailStore.js"
     },
+    "./account/pursuitStore": {
+      "types": "./dist/account/pursuitStore.d.ts",
+      "import": "./dist/account/pursuitStore.js"
+    },
     "./account/resource": {
       "types": "./dist/account/resource.d.ts",
       "import": "./dist/account/resource.js"

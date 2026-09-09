@@ -2,6 +2,7 @@ import type {
   AccountItemDetailQuery,
   AccountSnapshot
 } from "@d2-tools/core/account/summary";
+import type { AccountPursuitSummary } from "@d2-tools/core/account/pursuits";
 import {
   createDataResource,
   type DataResource,
@@ -13,16 +14,21 @@ import { recordAccountCacheMetric } from "./cacheMetrics.js";
 export type AccountDataRepositoryOptions = {
   session: AccountSession;
   now?: () => number;
+  initialPursuits?: {
+    data: AccountPursuitSummary;
+    fetchedAt: string;
+  };
   resolveItemQuery?: (snapshot: AccountSnapshot, instanceId: string) => AccountItemDetailQuery | null;
   onSnapshotRequest?: (outcome: "started" | "cache-hit" | "in-flight-reused") => void;
 };
 
 export type AccountDataRepository = {
   getSnapshot(options?: { freshness?: "cached" | "allow-stale" | "refresh" }): Promise<DataResource<AccountSnapshot>>;
+  getPursuits(options?: { freshness?: "cached" | "allow-stale" | "refresh" }): Promise<DataResource<AccountPursuitSummary>>;
   getItemDetail(instanceId: string, options?: { freshness?: "cached" | "allow-stale" | "refresh" }): Promise<DataResource<AccountItemDetailResult>>;
   prefetchItems(instanceIds: readonly string[], options?: { priority?: "visible" | "background" }): Promise<void>;
-  invalidate(input: { scope: "all" | "snapshot" | "items" | "item"; instance_id?: string }): void;
-  subscribe(resource: "snapshot" | "item", key: string | undefined, listener: (value: DataResource<unknown>) => void): () => void;
+  invalidate(input: { scope: "all" | "snapshot" | "pursuits" | "items" | "item"; instance_id?: string }): void;
+  subscribe(resource: "snapshot" | "pursuits" | "item", key: string | undefined, listener: (value: DataResource<unknown>) => void): () => void;
 };
 
 /**
@@ -33,6 +39,18 @@ export function createAccountDataRepository(options: AccountDataRepositoryOption
   const now = options.now ?? Date.now;
   let snapshotResource: DataResource<AccountSnapshot> | undefined;
   let snapshotRequest: Promise<DataResource<AccountSnapshot>> | undefined;
+  let pursuitResource: DataResource<AccountPursuitSummary> | undefined = options.initialPursuits
+    ? createDataResource({
+        data: options.initialPursuits.data,
+        source: "local",
+        fetchedAt: options.initialPursuits.fetchedAt
+      }, now())
+    : undefined;
+  let pursuitRequest: {
+    forceRefresh: boolean;
+    promise: Promise<DataResource<AccountPursuitSummary>>;
+  } | undefined;
+  let pursuitEpoch = 0;
   let repositoryEpoch = 0;
   let itemRepositoryEpoch = 0;
   const itemResources = new Map<string, DataResource<AccountItemDetailResult>>();
@@ -49,6 +67,7 @@ export function createAccountDataRepository(options: AccountDataRepositoryOption
 
   return {
     getSnapshot: (input = {}) => getSnapshot(input.freshness ?? "cached"),
+    getPursuits: (input = {}) => getPursuits(input.freshness ?? "cached"),
     getItemDetail: (instanceId, input = {}) => getItemDetail(instanceId, input.freshness ?? "cached"),
     prefetchItems: async (instanceIds, input = {}) => {
       const uniqueIds = [...new Set(instanceIds.filter(Boolean))];
@@ -60,7 +79,10 @@ export function createAccountDataRepository(options: AccountDataRepositoryOption
       if (input.scope === "all") {
         repositoryEpoch += 1;
         itemRepositoryEpoch += 1;
+        pursuitEpoch += 1;
         snapshotResource = undefined;
+        pursuitResource = undefined;
+        pursuitRequest = undefined;
         itemResources.clear();
         itemRequests.clear();
         itemEpochs.clear();
@@ -72,6 +94,12 @@ export function createAccountDataRepository(options: AccountDataRepositoryOption
         snapshotResource = undefined;
         itemResources.clear();
         itemRequests.clear();
+        return;
+      }
+      if (input.scope === "pursuits") {
+        pursuitEpoch += 1;
+        pursuitResource = undefined;
+        pursuitRequest = undefined;
         return;
       }
       if (input.scope === "items") {
@@ -132,6 +160,64 @@ export function createAccountDataRepository(options: AccountDataRepositoryOption
       snapshotRequest = undefined;
     });
     return snapshotRequest;
+  }
+
+  async function getPursuits(freshness: "cached" | "allow-stale" | "refresh"): Promise<DataResource<AccountPursuitSummary>> {
+    const existing = pursuitResource;
+    if (existing?.data && freshness !== "refresh") return existing;
+    if (pursuitRequest) {
+      if (freshness === "refresh" && !pursuitRequest.forceRefresh) {
+        await pursuitRequest.promise.catch(() => undefined);
+        return getPursuits("refresh");
+      }
+      return pursuitRequest.promise;
+    }
+    const previous = pursuitResource;
+    const requestEpoch = pursuitEpoch;
+    if (previous?.data && freshness === "refresh") {
+      pursuitResource = withRefreshing(previous);
+      emit("pursuits", undefined, pursuitResource);
+    }
+    const promise = (async () => {
+      try {
+        const data = await options.session.getPursuitSummary({
+          freshness: freshness === "refresh" ? "refresh" : "cached"
+        });
+        if (requestEpoch !== pursuitEpoch) {
+          return pursuitResource ?? createDataResource<AccountPursuitSummary>({
+            data: null,
+            source: "local",
+            unavailable: true
+          }, now());
+        }
+        pursuitResource = createDataResource({
+          data,
+          source: freshness === "refresh" ? "remote" : "merged",
+          fetchedAt: new Date(now()).toISOString()
+        }, now());
+      } catch (error) {
+        if (requestEpoch !== pursuitEpoch) {
+          return pursuitResource ?? createDataResource<AccountPursuitSummary>({
+            data: null,
+            source: "local",
+            unavailable: true
+          }, now());
+        }
+        pursuitResource = createDataResource({
+          data: previous?.data ?? null,
+          source: previous?.source ?? "local",
+          fetchedAt: previous?.fetchedAt,
+          staleAt: new Date(now()).toISOString(),
+          error: toResourceError(error)
+        }, now());
+      }
+      emit("pursuits", undefined, pursuitResource);
+      return pursuitResource;
+    })().finally(() => {
+      if (pursuitRequest?.promise === promise) pursuitRequest = undefined;
+    });
+    pursuitRequest = { forceRefresh: freshness === "refresh", promise };
+    return promise;
   }
 
   async function loadSnapshotFromSession(freshness: "cached" | "refresh"): Promise<DataResource<AccountSnapshot>> {
@@ -260,7 +346,7 @@ export function createAccountDataRepository(options: AccountDataRepositoryOption
     }
   }
 
-  function emit(resource: "snapshot" | "item", key: string | undefined, value: DataResource<unknown>): void {
+  function emit(resource: "snapshot" | "pursuits" | "item", key: string | undefined, value: DataResource<unknown>): void {
     listeners.get(`${resource}:${key ?? "default"}`)?.forEach((listener) => listener(value));
   }
 

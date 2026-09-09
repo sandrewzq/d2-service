@@ -7,6 +7,8 @@ import {
   classifyBucket,
   isPostmasterBucketHash,
   postmasterBucketHash,
+  pursuitBucketHash,
+  pursuitCategoryHashes,
   vaultBucketHash,
   type AmmoTypeKey,
   type EquipmentGroupKey
@@ -60,6 +62,17 @@ export type AccountItemSummary = {
   socket_plugs: AccountItemPlugSummary[];
   weapon_roll?: AccountWeaponRollSummary;
   catalyst?: AccountItemCatalystSummary;
+  pursuit?: AccountPursuitItemSummary;
+};
+
+export type AccountPursuitItemSummary = {
+  kind: "quest" | "bounty" | "seasonal" | "unknown";
+  tracked: boolean;
+  complete: boolean;
+  suppress_expiration_when_complete?: boolean;
+  expiration_date?: string;
+  quest_step?: { step: number; total: number };
+  reward_hashes?: number[];
 };
 
 export type AccountItemInstanceSummary = {
@@ -321,7 +334,7 @@ export type AccountSummary = {
 
 export type AccountItemSnapshot = Omit<
   AccountItemSummary,
-  "armor_energy" | "catalyst" | "item_objectives" | "sockets"
+  "armor_energy" | "catalyst" | "sockets"
 >;
 
 export type AccountCharacterSnapshot = Omit<
@@ -438,6 +451,7 @@ export type AccountDefinitionRequest = {
   objectiveHashes: number[];
   damageTypeHashes?: number[];
   recordHashes?: number[];
+  presentationNodeHashes?: number[];
   loadoutNameHashes: number[];
   expandSocketPlugSets?: boolean;
 };
@@ -451,6 +465,7 @@ export type AccountDefinitionData = {
   plugSetDefinitions?: DefinitionComponentData;
   objectiveDefinitions?: DefinitionComponentData;
   recordDefinitions?: DefinitionComponentData;
+  presentationNodeDefinitions?: DefinitionComponentData;
   loadoutNameDefinitions?: DefinitionComponentData;
 };
 
@@ -469,6 +484,7 @@ export type FetchAccountSummaryOptions = {
   plugSetDefinitions?: DefinitionComponentData;
   objectiveDefinitions?: DefinitionComponentData;
   recordDefinitions?: DefinitionComponentData;
+  presentationNodeDefinitions?: DefinitionComponentData;
   loadoutNameDefinitions?: DefinitionComponentData;
   loadDefinitions?: AccountDefinitionLoader;
 };
@@ -509,6 +525,11 @@ export type DestinyProfileResponse = {
   characterLoadouts?: {
     data?: Record<string, { loadouts?: DestinyCharacterLoadout[] }>;
   };
+  characterProgressions?: {
+    data?: Record<string, {
+      milestones?: Record<string, DestinyCharacterMilestone>;
+    }>;
+  };
   profileInventory?: {
     data?: { items?: DestinyProfileItem[] };
   };
@@ -524,6 +545,7 @@ export type DestinyProfileResponse = {
   profileRecords?: {
     data?: {
       records?: Record<string, DestinyRecordProgress>;
+      trackedRecordHash?: number;
     };
   };
   itemComponents?: {
@@ -572,6 +594,28 @@ export type DestinyProfileItem = {
   bucketHash?: number;
   quantity?: number;
   state?: number;
+  expirationDate?: string;
+  itemValueVisibility?: boolean[];
+};
+
+type DestinyCharacterMilestone = {
+  milestoneHash?: number;
+  startDate?: string;
+  endDate?: string;
+  availableQuests?: Array<{
+    questItemHash?: number;
+    status?: {
+      tracked?: boolean;
+      completed?: boolean;
+      redeemed?: boolean;
+      started?: boolean;
+      stepObjectives?: DestinyObjectiveProgress[];
+    };
+  }>;
+  activities?: Array<{
+    activityHash?: number;
+    challenges?: Array<{ objective?: DestinyObjectiveProgress }>;
+  }>;
 };
 
 type DestinyItemInstanceComponent = {
@@ -709,6 +753,7 @@ const snapshotProfileComponents = [
   205, // CharacterEquipment
   206, // CharacterLoadouts
   300, // ItemInstances
+  301, // ItemObjectives (pursuit progress)
   304, // ItemStats
   305, // ItemSockets
   310 // ItemReusablePlugs
@@ -915,6 +960,10 @@ async function hydrateAccountDefinitions(
     plugSetDefinitions: mergeDefinitionData(options.plugSetDefinitions, loaded.plugSetDefinitions),
     objectiveDefinitions: mergeDefinitionData(options.objectiveDefinitions, loaded.objectiveDefinitions),
     recordDefinitions: mergeDefinitionData(options.recordDefinitions, loaded.recordDefinitions),
+    presentationNodeDefinitions: mergeDefinitionData(
+      options.presentationNodeDefinitions,
+      loaded.presentationNodeDefinitions
+    ),
     loadoutNameDefinitions: mergeDefinitionData(
       options.loadoutNameDefinitions,
       loaded.loadoutNameDefinitions
@@ -1279,6 +1328,7 @@ function summarizeItem(
   const armorSet = groupKey === "armor" && definition
     ? summarizeEquipableItemSet(definition, equipableItemSetDefinitions, undefined)
     : undefined;
+  const pursuit = summarizePursuitItem(item, definition, instanceId, components, objectiveDefinitions);
   const summary: AccountItemSummary = {
     hash: item.itemHash,
     instance_id: instanceId,
@@ -1305,12 +1355,15 @@ function summarizeItem(
     ),
     socket_plugs: selectedPlugs,
     ...(weaponRoll ? { weapon_roll: weaponRoll } : {}),
+    ...(pursuit ? { pursuit } : {}),
     ...(mode === "full"
       ? {
           item_objectives: summarizeItemObjectives(instanceId, components, objectiveDefinitions),
           sockets
         }
-      : {})
+      : pursuit
+        ? { item_objectives: summarizeItemObjectives(instanceId, components, objectiveDefinitions) }
+        : {})
   };
   const armorStats = groupKey === "armor" ? summarizeArmorStats(instanceId, components) : undefined;
   if (armorStats) {
@@ -2187,6 +2240,67 @@ function summarizePlugObjectives(
         : undefined
     };
   });
+}
+
+function summarizePursuitItem(
+  item: DestinyProfileItem,
+  definition: DefinitionRecord | undefined,
+  instanceId: string | undefined,
+  components: DestinyProfileResponse["itemComponents"] | undefined,
+  objectiveDefinitions: DefinitionComponentData
+): AccountPursuitItemSummary | undefined {
+  const bucketHash = definition?.inventory?.bucketTypeHash ?? item.bucketHash;
+  const categories = new Set(definition?.itemCategoryHashes ?? []);
+  const isQuestBucket = bucketHash === pursuitBucketHash;
+  const isPursuit = isQuestBucket
+    || categories.has(pursuitCategoryHashes.quest)
+    || categories.has(pursuitCategoryHashes.questStep)
+    || categories.has(pursuitCategoryHashes.bounties)
+    || categories.has(pursuitCategoryHashes.repeatableBounties)
+    || categories.has(pursuitCategoryHashes.seasonalArtifact)
+    || Boolean(definition?.objectives?.questlineItemHash);
+  if (!isPursuit) return undefined;
+
+  const kind = categories.has(pursuitCategoryHashes.bounties)
+    || categories.has(pursuitCategoryHashes.repeatableBounties)
+    ? "bounty"
+    : categories.has(pursuitCategoryHashes.seasonalArtifact)
+      ? "seasonal"
+      : categories.has(pursuitCategoryHashes.quest)
+        || categories.has(pursuitCategoryHashes.questStep)
+        || Boolean(definition?.objectives?.questlineItemHash)
+        || isQuestBucket
+        ? "quest"
+        : "unknown";
+  const objectives = instanceId
+    ? components?.objectives?.data?.[instanceId]?.objectives ?? []
+    : [];
+  const visibleObjectives = objectives.filter((objective) => objective.visible !== false);
+  const complete = visibleObjectives.length > 0 && visibleObjectives.every((objective) => objective.complete);
+  // DestinyItemState.Tracked = 2. 64 is not a tracked-item flag and caused
+  // real tracked pursuits to be omitted from the attention summary.
+  const tracked = typeof item.state === "number" && (item.state & 2) === 2;
+  const questItems = definition?.setData?.itemList ?? [];
+  const questStep = questItems.length
+    ? (() => {
+        const index = questItems.findIndex((entry) => entry.itemHash === item.itemHash);
+        return index >= 0 ? { step: index + 1, total: questItems.length } : undefined;
+      })()
+    : undefined;
+  const rewards = definition?.value?.itemValue
+    ?.filter((reward, index) => reward.itemHash && (item.itemValueVisibility?.[index] ?? true))
+    .map((reward) => reward.itemHash as number);
+  return {
+    kind,
+    tracked,
+    complete,
+    ...(definition?.inventory?.suppressExpirationWhenObjectivesComplete !== undefined
+      ? { suppress_expiration_when_complete: definition.inventory.suppressExpirationWhenObjectivesComplete }
+      : {}),
+    ...(item.expirationDate ? { expiration_date: normalizeProfileTimestamp(item.expirationDate) } : {}),
+    ...(questStep ? { quest_step: questStep } : {}),
+    ...(rewards?.length ? { reward_hashes: rewards } : {}),
+  };
 }
 
 function summarizeItemObjectives(

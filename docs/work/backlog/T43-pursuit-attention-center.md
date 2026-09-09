@@ -1,6 +1,6 @@
 # T43：任务待处理中心
 
-> 状态：📝 需求已细化，待排期
+> 状态：🟠 开发完成，待真实账号验收
 > 优先级：P1
 > 类型：账号任务资源 + 只读待处理摘要
 > 账号菜单合同：[应用工作区账号章节](../references/ui-specs/application-workspaces.md#账号)
@@ -12,9 +12,20 @@
 
 T43 回答“现在有哪些事情要处理”，不回答“做哪个最能提高光等”。
 
-## 2. 当前实现为什么不满足需求
+## 当前开发结果
 
-账号页目前已经有“任务与赏金”目录和分组外壳，但它不能作为 T43 的实现基线：
+- 已完成：任务物品使用 Quests bucket、Quest/Bounty/Seasonal category Hash 和 Objective 字段分类，不再使用名称关键词决定类型。
+- 已完成：账号页固定聚合三个角色，不随当前角色切换而丢失其他角色任务。
+- 已完成：接入 CharacterProgressions（202）中的 milestone / availableQuests，以及由 Bungie Settings 指定赛季挑战根节点的受控 ProfileRecords（900）。
+- 已完成：任务数据作为独立 `AccountPursuitResource` 读取、缓存和持久化；任务失败不会阻塞装备、仓库、容量和邮政官。
+- 已完成：刷新期间保留上次确认列表，显示同步中、部分可用、错误和服务器数据时间；旧请求不能覆盖新账号或新一轮刷新结果。
+- 已完成：账号页按“已完成待处理 → 24 小时内过期 → 正在追踪 → 其他进行中 → 已过期或已处理”排序和分组，首个需关注分组默认展开。
+- 已调整：首页不再展示任务清单；任务中心只保留在账号页，避免重复游戏内已有的直观任务列表并挤占首页空间。
+- 待验收：使用真实账号核对 Bungie 返回的任务数量、状态、到期时间和两页一致性；本轮没有用示例数据代替真实结果。
+
+## 2. 开发前的问题
+
+开发前账号页虽然已有“任务与赏金”目录和分组外壳，但存在以下问题；本次实现已替换这些旧逻辑：
 
 - `packages/app/src/workspaces/accountPage.ts` 的 `getAccountTaskKind` 通过中文/英文名称关键词分类；改名、翻译、缺少名称或同名物品都会造成误分类。
 - 任务区只遍历当前角色的 `equipped_items`、`inventory_items` 和 `postmaster_items`，没有读取其他角色的角色进度和里程碑。
@@ -56,13 +67,13 @@ T43 回答“现在有哪些事情要处理”，不回答“做哪个最能提�
 
 ### 4.2 角色进度与活动里程碑（补充来源）
 
-需要独立请求 `CharacterProgressions`（202），必要时组合 `CharacterActivities`（204），读取：
+独立请求 `CharacterProgressions`（202），读取：
 
-- 每个角色的 `milestones`、`availableQuests`、活动 challenges 和 Objective。
-- 里程碑的 `startDate`、`endDate`、`order`、活动/任务 Hash。
+- 每个角色的 `milestones`、`availableQuests` 和对应 Objective。
+- 里程碑的 `endDate`、里程碑 Hash 和任务 Hash。
 - 任务当前是否 `tracked`、是否 `completed`、是否 `redeemed`、是否 `started`。
 
-这类数据用于展示没有真实背包物品、但玩家仍有待完成/待领取状态的任务、周常和角色活动目标。它不能被伪装成角色背包物品，也不能重复计入物品任务。
+这类数据用于展示没有真实背包物品、但玩家仍有待完成/待领取状态的角色目标。它不能被伪装成角色背包物品，也不能重复计入物品任务。活动挑战与光等奖励路线仍由 T44 负责，T43 不把全部周常活动混入任务清单。
 
 ### 4.3 记录与赛季挑战（受控补充）
 
@@ -70,22 +81,21 @@ T43 回答“现在有哪些事情要处理”，不回答“做哪个最能提�
 
 如果当前 Profile 没有足够字段区分“已完成待领取”和“仅历史完成”，状态必须标为“已完成状态已知，领取状态无法确认”，不得推断为可领取。
 
-## 5. 统一领域模型（建议）
+## 5. 已实现的统一领域模型
 
 建立独立的 `AccountPursuitResource`，不要把完整任务数据扩展进 `AccountSnapshot` 首屏 DTO。每条任务统一成：
 
 - `id`：稳定身份，优先 `characterId + itemInstanceId`；里程碑/记录使用 `characterId + milestoneHash` 或 `recordHash`。
 - `kind`：`quest`、`bounty`、`seasonal`、`milestone`、`unknown`。
-- `characterId` / `className`。
-- `name`、`icon`、`typeLabel`。
-- `source`：活动、商人、赛季或任务链的 Hash/显示名称；无法确认时显示“来源未确认”。
-- `objectives[]`：原始进度、完成值、完成标记、可见标记和 Manifest 进度说明。
-- `completionState`：`in_progress`、`completed_pending_action`、`completed_confirmed`、`expired`、`unknown`。
-- `trackedState`：`tracked`、`untracked`、`not_supported`、`unknown`。
-- `expiration`：服务器时间、是否已过期、剩余秒数；没有服务器字段就为 `unknown`。
-- `rewardRefs[]`：只保存可确认的奖励 Hash/数量，不把奖励价值直接算成光等提升。
-- `sourceKind`：`inventory_item`、`character_milestone`、`record`。
-- `observedAt`、`profileMintedAt`、`dataState`。
+- `character_id` / `class_name`。
+- `name`、`icon`、`type_label`。
+- `source`：`inventory_item`、`character_milestone`、`record`，并保留 `source_hash` / `item_hash` 作为证据引用。
+- `progress_label` / `progress_percent`：只由可见 Objective 汇总，不伪造缺失进度。
+- `completion_state`：`in_progress`、`completed_pending_action`、`completed_confirmed`、`expired`、`unknown`。
+- `tracked`：只使用 Bungie 明确的任务追踪位或任务状态字段。
+- `expiration_date`：只保存 Bungie 返回的到期时间，并结合 Manifest 的完成后抑制到期规则判断。
+- `reward_hashes`：只保存可确认的奖励 Hash，不把奖励直接算成光等提升。
+- `observed_at` / `data_state`：保留服务器快照时间，并区分 `confirmed` 与 `partial`。
 
 任务资源必须保留原始来源和状态证据，方便后续 T44 使用，也方便解释“为什么这样显示”。
 
@@ -144,11 +154,9 @@ T43 回答“现在有哪些事情要处理”，不回答“做哪个最能提�
 
 ### 8.2 首页
 
-首页只消费压缩摘要，不复制完整清单：
-
-- 无待处理：显示“任务状态已确认，无待处理项目”。
-- 有待处理：显示数量和最多 3 条最高优先级事项，点击进入账号页任务分区。
-- 任务资源加载中或失败：显示真实状态，不显示 0，也不隐藏整个首页。
+- 首页不展示任务清单、任务进度或任务资源状态，避免重复游戏内已有信息并挤占首页核心活动与商人摘要。
+- T43 的玩家入口固定为“账号 → 任务与赏金”，首页不承担任务中心导航和验收。
+- 若后续需要重新引入提醒，应作为独立需求验证真实使用价值，只考虑极短时限等明确高紧迫事件，并提供关闭能力；不恢复常驻任务列表。
 
 ### 8.3 响应式与可访问性
 
@@ -157,17 +165,15 @@ T43 回答“现在有哪些事情要处理”，不回答“做哪个最能提�
 - 列表采用稳定键盘焦点顺序；任务只读行不进入装备卡专用左右网格导航。
 - 加载、部分失败和旧数据状态保留页面骨架，不能用整页遮罩清空旧内容。
 
-## 9. 实现拆分
+## 9. 已完成的实现切片
 
-建议按以下切片排期：
-
-1. **数据契约**：扩展 Bungie Profile 类型和 Definition 字段，确认 201/301/202/204/900 的最小组件集合。
+1. **数据契约**：扩展 Bungie Profile 类型和 Definition 字段，确认装备快照 201/301 与独立任务资源 100/200/202/900 的边界。
 2. **领域转换**：在 `packages/core` 新增任务分类、Objective 汇总、到期计算、任务链和去重纯函数；禁止名称关键词作为分类真相。
 3. **独立资源**：在 `packages/services` 接入中央 Session、请求合并、缓存和失败状态；任务资源不进入装备快照阻塞链。
 4. **跨端 ViewModel**：在 `packages/app` 输出任务摘要、分组、状态矩阵和首页压缩摘要。
 5. **账号 UI**：在 `packages/ui/src/account/` 替换现有关键词任务分组，补齐加载/空/部分/失败/过期/待处理状态。
-6. **Desktop/Web 接线**：仅接真实 adapter 和预览 fixture；不在平台壳复制任务页面。
-7. **真实账号验收**：至少覆盖三个角色、任务物品、赏金、里程碑、追踪切换、到期、完成待处理、组件失败和两台设备结果一致。
+6. **Desktop 接线**：通过独立 IPC / preload 契约接入真实资源；页面仍由 `packages/ui` 共享实现，不在平台壳复制。
+7. **真实账号验收**：尚待执行，至少覆盖三个角色、任务物品、赏金、角色目标、赛季挑战、追踪切换、到期、完成待处理、组件失败和首页/账号页结果一致。
 
 ## 10. 非目标
 
@@ -193,7 +199,7 @@ T43 回答“现在有哪些事情要处理”，不回答“做哪个最能提�
 - 玩家能在账号页一眼看到已完成待处理、快过期和追踪数量，并能定位到角色。
 - 任务同步期间旧列表不消失，页面明确显示同步中和数据时间；失败不清空其他账号页面。
 - 任务资源尚未加载、部分失败、无任务和已确认无待处理分别有可理解的状态文案。
-- 首页摘要与账号页使用同一份标准化任务状态，不出现一个页面显示有任务、另一个页面显示没有任务。
+- 账号页任务中心不依赖首页展示，首页移除任务清单后不得继续保留隐藏的数据接线或样式。
 
 ### 性能与架构
 

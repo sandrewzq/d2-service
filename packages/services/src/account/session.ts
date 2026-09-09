@@ -16,6 +16,10 @@ import {
   type DestinyProfileResponse,
   type UserMembershipData
 } from "@d2-tools/core/account/summary";
+import {
+  buildAccountPursuitSummaryFromProfile,
+  type AccountPursuitSummary
+} from "@d2-tools/core/account/pursuits";
 import { fetchBungieJson } from "../bungie/client.js";
 import { createServiceError } from "../errors.js";
 import type { BungieRequestOptions } from "../bungie/session.js";
@@ -32,12 +36,13 @@ export type AccountInvalidation =
   | { scope: "profile" }
   | { scope: "snapshot" }
   | { scope: "item-details" }
+  | { scope: "pursuits" }
   | { scope: "item"; instance_id: string };
 
 export type { AccountItemPatch } from "./itemPatches.js";
 
 export type AccountSessionDiagnosticEvent = {
-  stage: "oauth" | "membership" | "profile" | "definition-hydration" | "snapshot-build" | "snapshot-request";
+  stage: "oauth" | "membership" | "profile" | "definition-hydration" | "snapshot-build" | "snapshot-request" | "pursuits";
   outcome: "started" | "completed" | "failed" | "cache-hit" | "in-flight-reused" | "queued-after-in-flight";
   duration_ms: number;
 };
@@ -56,6 +61,9 @@ export type AccountSession = {
   getArmorPlannerSummary(input?: {
     freshness?: AccountSnapshotFreshness;
   }): Promise<AccountSummary>;
+  getPursuitSummary(input?: {
+    freshness?: AccountSnapshotFreshness;
+  }): Promise<AccountPursuitSummary>;
   getProfileComponents(input: {
     components: readonly number[];
     freshness?: AccountSnapshotFreshness;
@@ -74,7 +82,9 @@ export type CreateAccountSessionOptions = {
   loadDefinitions?: AccountDefinitionLoader;
   definitions?: AccountDefinitionData;
   initialSnapshot?: AccountSnapshot;
+  initialPursuitSummary?: AccountPursuitSummary;
   onSnapshot?: (snapshot: AccountSnapshot) => void | Promise<void>;
+  onPursuitSummary?: (summary: AccountPursuitSummary) => void | Promise<void>;
   onDiagnostic?: (event: AccountSessionDiagnosticEvent) => void;
   fetchJson?: <T>(
     path: string,
@@ -119,6 +129,11 @@ type SnapshotRequest = {
   promise: Promise<AccountSnapshot>;
 };
 
+type PursuitRequest = {
+  forceRefresh: boolean;
+  promise: Promise<AccountPursuitSummary>;
+};
+
 const snapshotComponents = new Set([
   100, // Profiles
   102, // ProfileInventories
@@ -127,6 +142,7 @@ const snapshotComponents = new Set([
   205, // CharacterEquipment
   206, // CharacterLoadouts
   300, // ItemInstances
+  301, // ItemObjectives (pursuit progress)
   304, // ItemStats
   305, // ItemSockets
   310 // ItemReusablePlugs
@@ -138,6 +154,8 @@ const armorPlannerComponents = new Set([
   309, // ItemPlugObjectives
   310 // ItemReusablePlugs
 ]);
+
+const pursuitComponents = new Set([100, 200, 202, 900]);
 
 const itemDetailComponents = [300, 301, 304, 305, 307, 309, 310].join(",");
 
@@ -159,6 +177,9 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
   const profileCaches = new Map<string, ProfileCache>();
   let profileInFlight: ProfileRequest | undefined;
   let snapshot: AccountSnapshot | undefined = options.initialSnapshot;
+  let pursuitSummary: AccountPursuitSummary | undefined = options.initialPursuitSummary;
+  let pursuitInFlight: PursuitRequest | undefined;
+  let pursuitEpoch = 0;
   let snapshotInFlight: SnapshotRequest | undefined;
   const itemDetails = new Map<string, ItemDetailCacheEntry>();
   const itemDetailInFlight = new Map<string, Promise<AccountItemDetailResult>>();
@@ -211,6 +232,90 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
         destinyMembership: membership.selected,
         profile
       });
+    },
+
+    async getPursuitSummary(input = {}) {
+      if (input.freshness !== "refresh" && pursuitSummary) {
+        reportDiagnostic({ stage: "pursuits", outcome: "cache-hit", duration_ms: 0 });
+        return pursuitSummary;
+      }
+      if (pursuitInFlight) {
+        if (input.freshness === "refresh" && !pursuitInFlight.forceRefresh) {
+          reportDiagnostic({ stage: "pursuits", outcome: "queued-after-in-flight", duration_ms: 0 });
+          await pursuitInFlight.promise.catch(() => undefined);
+          return session.getPursuitSummary(input);
+        }
+        reportDiagnostic({ stage: "pursuits", outcome: "in-flight-reused", duration_ms: 0 });
+        return pursuitInFlight.promise;
+      }
+      const startedAt = performance.now();
+      const requestPursuitEpoch = pursuitEpoch;
+      reportDiagnostic({ stage: "pursuits", outcome: "started", duration_ms: 0 });
+      const promise = (async () => {
+        // 任务资源复用已经确认的装备快照，任务刷新只强制读取自己的
+        // CharacterProgressions/ProfileRecords 组件，避免重复阻塞装备首屏。
+        const accountSnapshot = await session.getSnapshot({ freshness: "cached" });
+        const accessToken = await getScopedAccessToken();
+        const membership = await getMembership(accessToken);
+        const [profile, settings] = await Promise.all([
+          getProfile(
+            membership.selected,
+            accessToken,
+            pursuitComponents,
+            input.freshness === "refresh"
+          ),
+          fetchJson<{
+            destiny2CoreSettings?: { seasonalChallengesPresentationNodeHash?: number };
+          }>("/Settings/", accessToken, { forceRefresh: input.freshness === "refresh" })
+            .catch(() => undefined)
+        ]);
+        const seasonalChallengesPresentationNodeHash = settings?.destiny2CoreSettings
+          ?.seasonalChallengesPresentationNodeHash;
+        // ProfileRecords contains the account's entire record collection. T43
+        // only needs the seasonal subtree discovered from Settings, so keep
+        // those records out of the generic catalyst-definition request.
+        const definitionRequest = collectAccountDefinitionRequest({
+          ...profile,
+          profileRecords: undefined
+        });
+        const definitions = await loadDefinitions({
+          ...definitionRequest,
+          expandSocketPlugSets: false,
+          presentationNodeHashes: seasonalChallengesPresentationNodeHash
+            ? [seasonalChallengesPresentationNodeHash]
+            : []
+        });
+        const result = buildAccountPursuitSummaryFromProfile({
+          account: accountSnapshot,
+          profile,
+          itemDefinitions: definitions.itemDefinitions,
+          recordDefinitions: definitions.recordDefinitions,
+          presentationNodeDefinitions: definitions.presentationNodeDefinitions,
+          seasonalChallengesPresentationNodeHash
+        });
+        if (requestPursuitEpoch !== pursuitEpoch) {
+          throw new Error("Account pursuits were invalidated while the request was running");
+        }
+        pursuitSummary = result;
+        void Promise.resolve(options.onPursuitSummary?.(result)).catch(() => undefined);
+        reportDiagnostic({
+          stage: "pursuits",
+          outcome: "completed",
+          duration_ms: performance.now() - startedAt
+        });
+        return result;
+      })().catch((error) => {
+        reportDiagnostic({
+          stage: "pursuits",
+          outcome: "failed",
+          duration_ms: performance.now() - startedAt
+        });
+        throw error;
+      }).finally(() => {
+        if (pursuitInFlight?.promise === promise) pursuitInFlight = undefined;
+      });
+      pursuitInFlight = { forceRefresh: input.freshness === "refresh", promise };
+      return promise;
     },
 
     async getProfileComponents(input) {
@@ -308,10 +413,19 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
         void clearPersistentItemDetails(account).catch(() => undefined);
         return;
       }
+      if (input.scope === "pursuits") {
+        pursuitEpoch += 1;
+        pursuitSummary = undefined;
+        pursuitInFlight = undefined;
+        return;
+      }
       if (input.scope === "profile") {
         sessionEpoch += 1;
+        pursuitEpoch += 1;
         profileCaches.clear();
         profileInFlight = undefined;
+        pursuitSummary = undefined;
+        pursuitInFlight = undefined;
         return;
       }
       if (input.scope === "snapshot") {
@@ -396,10 +510,13 @@ export function createAccountSession(options: CreateAccountSessionOptions): Acco
 
   function clearAccountCaches(): void {
     sessionEpoch += 1;
+    pursuitEpoch += 1;
     profileCaches.clear();
     profileInFlight = undefined;
     snapshot = undefined;
     snapshotInFlight = undefined;
+    pursuitSummary = undefined;
+    pursuitInFlight = undefined;
     itemDetails.clear();
     itemDetailInFlight.clear();
     itemDetailVersions.clear();
@@ -1013,6 +1130,10 @@ function mergeDefinitionData(
     plugSetDefinitions: { ...base?.plugSetDefinitions, ...loaded?.plugSetDefinitions },
     objectiveDefinitions: { ...base?.objectiveDefinitions, ...loaded?.objectiveDefinitions },
     recordDefinitions: { ...base?.recordDefinitions, ...loaded?.recordDefinitions },
+    presentationNodeDefinitions: {
+      ...base?.presentationNodeDefinitions,
+      ...loaded?.presentationNodeDefinitions
+    },
     loadoutNameDefinitions: { ...base?.loadoutNameDefinitions, ...loaded?.loadoutNameDefinitions }
   };
 }

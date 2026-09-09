@@ -1469,6 +1469,15 @@
   display: block;
 }
 
+.app-shell .account-task-type-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 10px 0 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .app-shell .account-status-matrix span {
   color: var(--text-muted);
   font-size: var(--font-caption);
@@ -1550,6 +1559,10 @@
 
 .app-shell .account-readonly-row em[data-status="pending"] {
   color: var(--status-pending);
+}
+
+.app-shell .account-readonly-row em[data-status="warning"] {
+  color: var(--status-warning);
 }
 
 .app-shell .account-readonly-progress {

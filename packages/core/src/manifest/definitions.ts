@@ -21,6 +21,7 @@ export type DefinitionComponentName =
   | "DestinyDestinationDefinition"
   | "DestinyPlaceDefinition"
   | "DestinyObjectiveDefinition"
+  | "DestinyPresentationNodeDefinition"
   | "DestinyRecordDefinition";
 
 export type DefinitionRecord = {
@@ -77,6 +78,8 @@ export type DefinitionRecord = {
     tierType?: number;
     tierTypeName?: string;
     bucketTypeHash?: number;
+    suppressExpirationWhenObjectivesComplete?: boolean;
+    expiredInActivityMessage?: string;
   };
   itemCategoryHashes?: number[];
   equippingBlock?: {
@@ -115,11 +118,36 @@ export type DefinitionRecord = {
   collectibleHash?: number;
   displaySource?: string;
   sourceString?: string;
+  value?: {
+    itemValue?: Array<{
+      itemHash?: number;
+      quantity?: number;
+    }>;
+  };
+  objectives?: {
+    questlineItemHash?: number;
+  };
+  setData?: {
+    questLineName?: string;
+    itemList?: Array<{ itemHash?: number }>;
+  };
   sourceHash?: number;
   progressDescription?: string;
   completionValue?: number;
   objectiveHashes?: number[];
   recordTypeName?: string;
+  children?: {
+    presentationNodes?: Array<{ presentationNodeHash?: number }>;
+    records?: Array<{ recordHash?: number }>;
+  };
+  expirationInfo?: {
+    hasExpiration?: boolean;
+    expirationDate?: string;
+  };
+  rewardItems?: Array<{
+    itemHash?: number;
+    quantity?: number;
+  }>;
   translationBlock?: {
     artArrangementHash?: number;
     weaponPatternHash?: number;

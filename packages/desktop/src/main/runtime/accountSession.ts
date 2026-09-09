@@ -4,6 +4,7 @@ import type {
   AccountSummary,
   DestinyProfileResponse
 } from "@d2-tools/core/account/summary";
+import type { AccountPursuitSummary } from "@d2-tools/core/account/pursuits";
 import {
   createAccountSession,
   type AccountInvalidation,
@@ -18,6 +19,10 @@ import {
   saveCachedAccountSnapshot
 } from "@d2-tools/services/account/snapshotStore";
 import { createAccountItemDetailStore } from "@d2-tools/services/account/itemDetailStore";
+import {
+  loadCachedAccountPursuits,
+  saveCachedAccountPursuits
+} from "@d2-tools/services/account/pursuitStore";
 import { loadManifestMetadataCache } from "@d2-tools/services/manifest/cache";
 import { loadConfig } from "@d2-tools/services/config/store";
 import { loadOAuthToken } from "@d2-tools/services/oauth/tokenStore";
@@ -81,6 +86,21 @@ export async function getAccountSnapshotResource(
 ) {
   const state = await getAccountSessionState();
   return state.repository.getSnapshot({ freshness });
+}
+
+export async function getAccountPursuitResource(
+  freshness: "cached" | "refresh" = "cached"
+) {
+  const state = await getAccountSessionState();
+  return state.repository.getPursuits({ freshness });
+}
+
+export async function getAccountPursuitSummary(
+  freshness: "cached" | "refresh" = "cached"
+): Promise<AccountPursuitSummary> {
+  const resource = await getAccountPursuitResource(freshness);
+  if (resource.data) return resource.data;
+  throw new Error(resource.error?.message ?? "任务数据暂时不可用");
 }
 
 export async function getAccountItemDetailResource(
@@ -169,6 +189,8 @@ export async function invalidateAccountSession(input: AccountInvalidation): Prom
     state.repository.invalidate({ scope: "item", instance_id: input.instance_id });
   } else if (input.scope === "item-details") {
     state.repository.invalidate({ scope: "items" });
+  } else if (input.scope === "pursuits") {
+    state.repository.invalidate({ scope: "pursuits" });
   } else if (input.scope === "all" || input.scope === "snapshot" || input.scope === "profile") {
     state.repository.invalidate({ scope: input.scope === "profile" ? "all" : input.scope });
   }
@@ -260,6 +282,9 @@ async function getAccountSessionState(): Promise<AccountSessionState> {
     const cached = activeAccountId
       ? await loadCachedAccountSnapshot(config.data.data_dir, { accountId: activeAccountId })
       : null;
+    const cachedPursuits = activeAccountId
+      ? await loadCachedAccountPursuits(config.data.data_dir, activeAccountId)
+      : null;
     const session = createAccountSession({
       apiKey: config.bungie.api_key,
       getAccessToken: async () => {
@@ -281,14 +306,24 @@ async function getAccountSessionState(): Promise<AccountSessionState> {
       itemDetailStore: createAccountItemDetailStore(config.data.data_dir),
       manifestRevision: manifestRevision || "manifest-unavailable",
       initialSnapshot: cached?.snapshot,
+      initialPursuitSummary: cachedPursuits?.summary,
       onSnapshot: (snapshot) => {
         publishAccountSnapshotChanged(snapshot);
         return enqueueSnapshotSave(snapshot);
       },
+      onPursuitSummary: (summary) => activeAccountId
+        ? saveCachedAccountPursuits(config.data.data_dir, activeAccountId, summary).then(() => undefined)
+        : undefined,
       onDiagnostic: recordAccountSessionDiagnostic
     });
     const repository = createAccountDataRepository({
       session,
+      ...(cachedPursuits ? {
+        initialPursuits: {
+          data: cachedPursuits.summary,
+          fetchedAt: cachedPursuits.saved_at
+        }
+      } : {}),
       onSnapshotRequest: (outcome) => {
         recordRuntimeMetric(`account.refresh.repository.${outcome}`, 0);
       }

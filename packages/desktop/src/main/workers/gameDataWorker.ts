@@ -175,6 +175,27 @@ function projectDefinitions(
     }
     return projected;
   }
+  if (projection === "pursuit-record") {
+    return Object.fromEntries(Object.entries(definitions).map(([hash, definition]) => [hash, compactObject({
+      hash: definition.hash,
+      displayProperties: compactObject({
+        name: definition.displayProperties?.name,
+        description: definition.displayProperties?.description,
+        icon: definition.displayProperties?.icon
+      }),
+      objectiveHashes: definition.objectiveHashes,
+      expirationInfo: definition.expirationInfo,
+      rewardItems: definition.rewardItems,
+      recordTypeName: definition.recordTypeName
+    })]));
+  }
+  if (projection === "pursuit-node") {
+    return Object.fromEntries(Object.entries(definitions).map(([hash, definition]) => [hash, compactObject({
+      hash: definition.hash,
+      displayProperties: compactObject({ name: definition.displayProperties?.name }),
+      children: definition.children
+    })]));
+  }
   return Object.fromEntries(Object.entries(definitions).map(([hash, definition]) => [
     hash,
     projection === "account-snapshot"
@@ -342,8 +363,28 @@ function projectInventoryItemSummary(definition: DefinitionRecord): DefinitionRe
     classType: definition.classType,
     inventory: compactObject({
       tierTypeName: definition.inventory?.tierTypeName,
-      bucketTypeHash: definition.inventory?.bucketTypeHash
+      bucketTypeHash: definition.inventory?.bucketTypeHash,
+      suppressExpirationWhenObjectivesComplete: definition.inventory?.suppressExpirationWhenObjectivesComplete,
+      expiredInActivityMessage: definition.inventory?.expiredInActivityMessage
     }),
+    itemCategoryHashes: definition.itemCategoryHashes,
+    value: definition.value?.itemValue
+      ? compactObject({
+          itemValue: definition.value.itemValue.map((reward) => compactObject({
+            itemHash: reward.itemHash,
+            quantity: reward.quantity
+          }))
+        })
+      : undefined,
+    objectives: definition.objectives
+      ? compactObject({ questlineItemHash: definition.objectives.questlineItemHash })
+      : undefined,
+    setData: definition.setData
+      ? compactObject({
+          questLineName: definition.setData.questLineName,
+          itemList: definition.setData.itemList?.map((item) => compactObject({ itemHash: item.itemHash }))
+        })
+      : undefined,
     equippingBlock: compactObject({
       ammoType: definition.equippingBlock?.ammoType,
       equipableItemSetHash: definition.equippingBlock?.equipableItemSetHash

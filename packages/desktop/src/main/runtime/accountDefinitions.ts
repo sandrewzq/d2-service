@@ -55,6 +55,10 @@ export async function loadAccountDefinitions(
   const queriedItemHashes = new Set<number>();
   const queriedPlugSetHashes = new Set<number>();
   const objectiveHashes = new Set(request.objectiveHashes.map(toUnsignedHash));
+  const presentationNodeHashes = new Set((request.presentationNodeHashes ?? []).map(toUnsignedHash));
+  const queriedPresentationNodeHashes = new Set<number>();
+  const presentationNodeDefinitions: DefinitionComponentData = {};
+  const pursuitRecordHashes = new Set<number>();
   const equipableItemSetHashes = new Set<number>();
   const definitionOptions = request.expandSocketPlugSets
     ? undefined
@@ -74,6 +78,8 @@ export async function loadAccountDefinitions(
     );
     for (const definition of loadedItems) {
       addHash(bucketHashes, definition.inventory?.bucketTypeHash);
+      for (const step of definition.setData?.itemList ?? []) addHash(itemHashes, step.itemHash);
+      addHash(itemHashes, definition.objectives?.questlineItemHash);
       addHash(equipableItemSetHashes, definition.equippingBlock?.equipableItemSetHash);
       if (!request.expandSocketPlugSets) continue;
       for (const socket of definition.sockets?.socketEntries ?? []) {
@@ -99,11 +105,34 @@ export async function loadAccountDefinitions(
     }
   }
 
+  while (hasUnqueriedHash(presentationNodeHashes, queriedPresentationNodeHashes)) {
+    const loadedNodes = await queryNewDefinitions(
+      getDefinitions,
+      "DestinyPresentationNodeDefinition",
+      presentationNodeHashes,
+      queriedPresentationNodeHashes,
+      presentationNodeDefinitions,
+      { projection: "pursuit-node" }
+    );
+    for (const definition of loadedNodes) {
+      for (const child of definition.children?.presentationNodes ?? []) {
+        addHash(presentationNodeHashes, child.presentationNodeHash);
+      }
+      for (const child of definition.children?.records ?? []) {
+        addHash(pursuitRecordHashes, child.recordHash);
+      }
+    }
+  }
+
   const recordDefinitions = await loadCatalystRecordDefinitions(
     request.recordHashes ?? [],
     getDefinitions,
     catalystRecordCache
   );
+  const pursuitRecordDefinitions = pursuitRecordHashes.size
+    ? await getDefinitions("DestinyRecordDefinition", pursuitRecordHashes, { projection: "pursuit-record" })
+    : {};
+  Object.assign(recordDefinitions, pursuitRecordDefinitions);
   for (const definition of Object.values(recordDefinitions)) {
     for (const objectiveHash of definition.objectiveHashes ?? []) addHash(objectiveHashes, objectiveHash);
   }
@@ -132,6 +161,7 @@ export async function loadAccountDefinitions(
     equipableItemSetDefinitions,
     objectiveDefinitions,
     recordDefinitions,
+    presentationNodeDefinitions,
     loadoutNameDefinitions
   };
 }
@@ -173,7 +203,7 @@ async function loadCatalystRecordDefinitions(
 
 async function queryNewDefinitions(
   getDefinitions: DefinitionQuery,
-  component: "DestinyInventoryItemDefinition" | "DestinyPlugSetDefinition",
+  component: "DestinyInventoryItemDefinition" | "DestinyPlugSetDefinition" | "DestinyPresentationNodeDefinition",
   hashes: Set<number>,
   queriedHashes: Set<number>,
   target: DefinitionComponentData,

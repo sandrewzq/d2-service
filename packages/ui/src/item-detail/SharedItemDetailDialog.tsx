@@ -117,6 +117,7 @@ export function SharedItemDetailDialog(props: SharedItemDetailDialogProps) {
         ref={dialogRef}
         className={`item-modal shared-item-detail-dialog shared-item-detail-${props.variant ?? "default"}`}
         data-detail-contract={props.variant === "weapon" || props.variant === "armor" || props.variant === "loading" ? "detail.dossier" : undefined}
+        data-has-vendor-context={props.vendorContext ? "true" : undefined}
         data-state={props.detail.isBusy ? "loading" : "normal"}
         data-surface="dialog"
         role="dialog"

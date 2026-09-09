@@ -40,6 +40,16 @@ export const vaultBucketHash = 138197802;
 
 export const postmasterBucketHash = 215593132;
 
+/** Stable Destiny item/category identifiers used by the pursuit center. */
+export const pursuitBucketHash = 1345459588;
+export const pursuitCategoryHashes = {
+  quest: 53,
+  questStep: 16,
+  bounties: 1784235469,
+  repeatableBounties: 713159888,
+  seasonalArtifact: 1378222069
+} as const;
+
 export const accountCapacityDefinitionBucketHashes = [
   ...accountEquipmentBucketHashes,
   vaultBucketHash,

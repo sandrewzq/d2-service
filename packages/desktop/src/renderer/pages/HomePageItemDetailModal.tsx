@@ -95,6 +95,7 @@ export function HomePageItemDetailModal(props: {
           variant="weapon"
           subtitle={`${vendorWeaponModel.context.entry_label} · ${vendorWeaponModel.context.object_label}`}
           objectContext={vendorWeaponModel.context.read_only ? "只读查看" : "可管理实例"}
+          vendorContext={vendorDefinitionState.context}
           closeLabel="关闭武器详情"
           onClose={props.vendorDefinitionDetail.close}
           sections={(
@@ -152,6 +153,7 @@ export function HomePageItemDetailModal(props: {
           variant="armor"
           subtitle={`${vendorArmorModel.context.entry_label} · ${vendorArmorModel.context.object_label}`}
           objectContext="只读查看"
+          vendorContext={vendorDefinitionState.context}
           closeLabel="关闭护甲详情"
           onClose={props.vendorDefinitionDetail.close}
           sections={(

@@ -12,6 +12,7 @@ export function AccountMenuProvider() {
     <AccountPage
       interfaceLocale={session.diagnostics.languagePreferences.interfaceLocale}
       accountSummary={accountSummary}
+      pursuitResource={account.pursuitResource}
       startupState={session.state}
       selectedCharacterId={account.selectedCharacterId}
       lastAccountLoadedAt={session.lastAccountLoadedAt}

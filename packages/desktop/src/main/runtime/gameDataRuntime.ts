@@ -44,7 +44,7 @@ type ResumeWaiter = {
   timeout: ReturnType<typeof setTimeout>;
 };
 
-export type DefinitionProjection = "account-snapshot" | "catalyst-record" | "community-match" | "display-summary";
+export type DefinitionProjection = "account-snapshot" | "catalyst-record" | "pursuit-record" | "pursuit-node" | "community-match" | "display-summary";
 
 let worker: Worker | null = null;
 let nextRequestId = 1;
