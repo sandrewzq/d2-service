@@ -1,6 +1,6 @@
 {
   "name": "@d2-tools/http",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "license": "MIT",
   "private": true,
   "type": "module",
