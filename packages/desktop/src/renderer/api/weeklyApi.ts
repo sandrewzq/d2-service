@@ -1,4 +1,7 @@
-import type { WeeklyIronBannerSummary } from "@d2-tools/core/weekly/summary";
+import type {
+  WeeklyActivityCharacterState,
+  WeeklyIronBannerSummary
+} from "@d2-tools/core/weekly/summary";
 
 export type WeeklyApi = {
   getWeeklySummary(): Promise<WeeklySummary>;
@@ -30,6 +33,7 @@ export type WeeklySummaryItem = {
   weeklyActivityKind?: WeeklyPriorityKind | "public_clue";
   related_hashes?: number[];
   rewards?: WeeklyActivityReward[];
+  characters?: WeeklyActivityCharacterState[];
 };
 
 export type WeeklyActivityReward = {
@@ -46,6 +50,7 @@ export type WeeklyActivityEntry = {
   source?: string;
   related_hashes?: number[];
   rewards?: WeeklyActivityReward[];
+  characters?: WeeklyActivityCharacterState[];
 };
 
 export type WeeklySummary = {

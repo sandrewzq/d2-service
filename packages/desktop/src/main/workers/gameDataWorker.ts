@@ -364,6 +364,7 @@ function projectInventoryItemSummary(definition: DefinitionRecord): DefinitionRe
     inventory: compactObject({
       tierTypeName: definition.inventory?.tierTypeName,
       bucketTypeHash: definition.inventory?.bucketTypeHash,
+      recipeItemHash: definition.inventory?.recipeItemHash,
       suppressExpirationWhenObjectivesComplete: definition.inventory?.suppressExpirationWhenObjectivesComplete,
       expiredInActivityMessage: definition.inventory?.expiredInActivityMessage
     }),

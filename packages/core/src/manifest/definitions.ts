@@ -28,6 +28,9 @@ export type DefinitionRecord = {
   hash?: number;
   name?: string;
   gearTierOverlayImagePaths?: string[];
+  craftedOverlayPath?: string;
+  enhancedItemOverlayPath?: string;
+  craftedBackgroundPath?: string;
   displayProperties?: {
     name?: string;
     description?: string;
@@ -78,6 +81,7 @@ export type DefinitionRecord = {
     tierType?: number;
     tierTypeName?: string;
     bucketTypeHash?: number;
+    recipeItemHash?: number;
     suppressExpirationWhenObjectivesComplete?: boolean;
     expiredInActivityMessage?: string;
   };

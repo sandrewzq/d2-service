@@ -9,6 +9,13 @@ export type {
 } from "./workspaces/accountPower.js";
 export { buildCharacterPowerView } from "./workspaces/accountPower.js";
 export type {
+  AccountPowerRouteItemStatus,
+  AccountPowerRouteItemView,
+  AccountPowerRouteRewardTier,
+  AccountPowerRouteView
+} from "./workspaces/accountPowerRoute.js";
+export { buildAccountPowerRoute } from "./workspaces/accountPowerRoute.js";
+export type {
   AccountDerivedWorkspace,
   FullAccountWorkspace,
   LoadAccountDerivedWorkspaceOptions,

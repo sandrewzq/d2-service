@@ -12,7 +12,7 @@ describe("live vendor inventory service", () => {
     expect(requests.filter((url) => /\/Vendors\/\?/.test(url))).toHaveLength(2);
     expect(requests.filter((url) => url.includes("/Vendors/2190858386/"))).toHaveLength(2);
     expect(requests.filter((url) => url.includes("/Vendors/672118013/"))).toHaveLength(2);
-    expect(requests.some((url) => url.includes("/Vendors/3442679730/"))).toBe(false);
+    expect(requests.filter((url) => url.includes("/Vendors/3442679730/"))).toHaveLength(2);
     expect(requests.find((url) => /\/Vendors\/\?/.test(url))).toContain("components=400,401,402,600");
     expect(requests.find((url) => url.includes("/Vendors/2190858386/"))).toContain("components=304,305");
     expect(snapshot.characterContexts.hunter).toMatchObject({
@@ -22,7 +22,12 @@ describe("live vendor inventory service", () => {
     expect(snapshot.currencyBalances["9001"]).toBe(97);
     const xur = snapshot.vendors.find((vendor) => vendor.vendorHash === 2190858386)!;
     const banshee = snapshot.vendors.find((vendor) => vendor.vendorHash === 672118013)!;
-    expect(snapshot.vendors.some((vendor) => vendor.vendorHash === 3442679730)).toBe(false);
+    const eternityXur = snapshot.vendors.find((vendor) => vendor.vendorHash === 3442679730)!;
+    expect(eternityXur).toMatchObject({
+      name: "仄",
+      vendorGroupName: "30 周年纪念"
+    });
+    expect(eternityXur.offers[0]?.name).toBe("历史物品");
     expect(xur.iconUrl).toBe("/common/destiny2_content/icons/xur.png");
     expect(xur.offers[0]).toMatchObject({
       name: "鹰月",
@@ -119,6 +124,7 @@ function createOptions(
         "3442679730": {
           vendorIdentifier: "30TH_ANNIVERSARY_XUR",
           displayProperties: { name: "仄" },
+          groups: [{ vendorGroupHash: 4179305295 }],
           itemList: [{ itemHash: 1003, displayCategoryIndex: 0 }],
           displayCategories: [{ displayProperties: { name: "30 周年库存" } }]
         }
@@ -152,6 +158,9 @@ function createOptions(
           plug: { plugCategoryIdentifier: "ghost.mods.armorer" }
         },
         "9001": { displayProperties: { name: "奇异硬币" } }
+      },
+      vendorGroups: {
+        "4179305295": { categoryName: "30 周年纪念", order: 9 }
       }
     },
     fetchJson: async <T>(path: string): Promise<T> => {
@@ -216,6 +225,10 @@ function createOptions(
         } as T;
       }
 
+      if (path.includes("/Vendors/3442679730/")) {
+        return { itemComponents: {} } as T;
+      }
+
       throw new Error(`Unexpected request: ${path}`);
     }
   };
@@ -237,9 +250,14 @@ function createVendorListResponse() {
         },
         "3442679730": {
           vendorHash: 3442679730,
-          canPurchase: true,
+          canPurchase: false,
           nextRefreshDate: "2020-01-01T00:00:00.000Z"
         }
+      }
+    },
+    vendorGroups: {
+      data: {
+        groups: [{ vendorGroupHash: 4179305295, vendorHashes: [3442679730] }]
       }
     },
     categories: {

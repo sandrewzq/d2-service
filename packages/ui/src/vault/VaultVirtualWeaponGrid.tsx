@@ -45,11 +45,14 @@ export const VaultVirtualWeaponGrid = memo(function VaultVirtualWeaponGrid(props
 
 function NativeWeaponGrid(props: GridProps) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const handledFocusRequestIdRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
-    if (!props.focusRequest) return;
+    if (!props.focusRequest || handledFocusRequestIdRef.current === props.focusRequest.requestId) return;
     const index = findRequestedIndex(props);
-    if (index >= 0) focusItem(gridRef.current, index, true);
+    if (index < 0) return;
+    handledFocusRequestIdRef.current = props.focusRequest.requestId;
+    focusItem(gridRef.current, index, true);
   }, [props.focusRequest, props.itemKeys]);
 
   return (
@@ -73,6 +76,7 @@ function WindowedWeaponGrid(props: GridProps) {
     viewportHeight: 720
   });
   const pendingFocusIndexRef = useRef<number | null>(null);
+  const handledFocusRequestIdRef = useRef<number | null>(null);
   const updateFrameRef = useRef<number | null>(null);
   const measureFrameRef = useRef<number | null>(null);
   const [windowState, setWindowState] = useState<VirtualWindow>(() => ({
@@ -185,16 +189,17 @@ function WindowedWeaponGrid(props: GridProps) {
   }, [windowState.endIndex, windowState.startIndex]);
 
   useLayoutEffect(() => {
-    if (!props.focusRequest) return;
+    if (!props.focusRequest || handledFocusRequestIdRef.current === props.focusRequest.requestId) return;
     const index = findRequestedIndex(props);
     if (index < 0) return;
+    handledFocusRequestIdRef.current = props.focusRequest.requestId;
     focusVirtualItem(index);
   }, [props.focusRequest, props.itemKeys]);
 
   function focusVirtualItem(index: number) {
     const renderedTarget = findItemTarget(gridRef.current, index);
     if (renderedTarget) {
-      renderedTarget.focus();
+      renderedTarget.focus({ preventScroll: true });
       return;
     }
     const grid = gridRef.current;

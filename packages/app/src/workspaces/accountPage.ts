@@ -5,8 +5,10 @@ import {
   type AccountPursuitSummary
 } from "@d2-tools/core/account/pursuits";
 import type { ActivityHistorySummary } from "@d2-tools/core/activities/history";
+import type { WeeklySummary } from "@d2-tools/core/weekly/summary";
 import { accountEquipmentBucketHashes, bucketLabels } from "@d2-tools/core/items/classification";
 import { buildCharacterPowerView, type CharacterPowerView } from "./accountPower.js";
+import { buildAccountPowerRoute, type AccountPowerRouteView } from "./accountPowerRoute.js";
 
 export type AccountOpenItemPayload = {
   item: AccountItemSummary;
@@ -219,12 +221,14 @@ export type AccountPageViewModel = {
   materials: AccountMaterialsSectionView;
   postmaster: AccountPostmasterSectionView;
   capacity: AccountCapacitySectionView;
+  powerRoute: AccountPowerRouteView;
 };
 
 export type SharedDomainCache = {
   accountSummary: AccountSummary | null;
   activitySummary: ActivityHistorySummary | null;
   pursuitSummary?: AccountPursuitSummary | null;
+  weeklySummary?: WeeklySummary | null;
 };
 
 export type AccountPageState = {
@@ -237,6 +241,8 @@ export type AccountPageState = {
   isLoadingAccount: boolean;
   pursuitStatus?: "unavailable" | "cached" | "stale" | "loading" | "refreshing" | "ready" | "error";
   pursuitError?: string;
+  weeklySummaryStatus?: "unavailable" | "loading" | "refreshing" | "ready" | "stale" | "error";
+  weeklySummaryError?: string;
   isShowingCachedAccount?: boolean;
   accountStatusLabel?: string;
   accountError: string;
@@ -453,6 +459,22 @@ export function selectAccountPageModel(input: AccountPageModelInput): AccountPag
   );
   const items = buildAccountItemsSection(selectedCharacter, workspace.materialRows.length);
   const capacity = buildAccountCapacitySection(cache.accountSummary, selectedCharacterId);
+  const basePowerRoute = selectedCharacter && selectedCharacterPower
+    ? buildAccountPowerRoute({
+      characterId: selectedCharacter.character_id,
+      power: selectedCharacterPower,
+      weeklySummary: cache.weeklySummary ?? null
+    })
+    : buildAccountPowerRoute({
+      characterId: selectedCharacterId,
+      power: selectedCharacterPower ?? emptyCharacterPowerView(),
+      weeklySummary: cache.weeklySummary ?? null
+    });
+  const powerRoute: AccountPowerRouteView = {
+    ...basePowerRoute,
+    isRefreshing: pageState.weeklySummaryStatus === "loading" || pageState.weeklySummaryStatus === "refreshing",
+    errorMessage: pageState.weeklySummaryError || undefined
+  };
 
   return {
     connection: {
@@ -558,7 +580,25 @@ export function selectAccountPageModel(input: AccountPageModelInput): AccountPag
         : [],
       totalCount: selectedCharacter?.postmaster_items.length ?? 0
     },
-    capacity
+    capacity,
+    powerRoute
+  };
+}
+
+function emptyCharacterPowerView(): CharacterPowerView {
+  const emptyValue = {
+    complete: false,
+    denominator: 8 as const,
+    label: "数据不完整",
+    rows: []
+  };
+  return {
+    currentLabel: "-",
+    maxEquippable: emptyValue,
+    executablePower: emptyValue,
+    dropBaseline: emptyValue,
+    hasExternalSources: false,
+    executableMatchesAccountMaximum: false
   };
 }
 

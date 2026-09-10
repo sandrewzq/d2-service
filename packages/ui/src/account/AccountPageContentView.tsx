@@ -32,6 +32,7 @@ export type AccountPageActions = {
   loginBungie: () => void;
   refreshAccount: () => void;
   refreshActivity: () => void;
+  refreshPowerRoute: () => void;
   selectCharacter: (characterId: string) => void;
   equipHighestPower?: (characterId: string) => void;
   openItem: (payload: AccountOpenItemPayload) => void;
@@ -438,6 +439,12 @@ function AccountPageWorkspace(props: {
                   : props.copy.actions.equipHighestPower}
             </button> : null}
           </div>
+          <AccountPowerRouteOverview
+            copy={props.copy}
+            characterName={props.selectedCharacter.className}
+            onRefresh={props.actions.refreshPowerRoute}
+            route={props.viewModel.powerRoute}
+          />
           {isPowerPanelOpen ? (
             powerOverlayHost ? createPortal(
               <div className="modal-backdrop account-power-dialog-backdrop" role="presentation" onClick={() => {
@@ -645,6 +652,122 @@ function AccountPageWorkspace(props: {
         </ConfirmationDialog>
       ) : null}
     </>
+  );
+}
+
+function AccountPowerRouteOverview(props: {
+  copy: AccountCopy;
+  characterName: string;
+  onRefresh: () => void;
+  route: AccountPageViewModel["powerRoute"];
+}) {
+  const availableItems = props.route.items.filter((item) => item.status === "available");
+  const primaryItems = availableItems.slice(0, 3);
+  const secondaryItems = [
+    ...availableItems.slice(3),
+    ...props.route.items.filter((item) => item.status !== "available")
+  ];
+  const routeStateLabel = props.route.status === "ready"
+    ? "周奖励状态已确认"
+    : props.route.status === "partial"
+      ? "部分状态待确认"
+      : "周奖励尚未读取";
+
+  const visibleStateLabel = props.route.isRefreshing ? "正在刷新周奖励" : routeStateLabel;
+
+  return (
+    <section className="account-power-route" data-ui-kind="summary-frame" data-state={props.route.status} aria-labelledby="account-power-route-title">
+      <div className="account-power-route-heading">
+        <div>
+          <h3 id="account-power-route-title">{props.characterName}{accountText(props.copy, "提光路线")}</h3>
+          <p>
+            {accountText(props.copy, "当前掉落基准")} {props.route.baselineLabel}
+            {` · ${props.route.availableCount} ${accountText(props.copy, "个已确认奖励可做")}`}
+          </p>
+        </div>
+        <div className="account-power-route-heading-actions">
+          <span className={`ui-badge status-${props.route.status === "ready" && !props.route.isRefreshing ? "ready" : "pending"}`} data-ui-kind="status-chip">
+            {accountText(props.copy, visibleStateLabel)}
+          </span>
+          <RefreshControlButton variant="secondary" refreshing={props.route.isRefreshing} onClick={props.onRefresh}>
+            {accountText(props.copy, props.route.isRefreshing ? "刷新中" : "刷新提光路线")}
+          </RefreshControlButton>
+        </div>
+      </div>
+
+      {props.route.errorMessage ? (
+        <p className="status-message status-warning" role="status">
+          {accountText(props.copy, "周奖励刷新失败，继续显示上次结果。")} {props.route.errorMessage}
+        </p>
+      ) : null}
+
+      {primaryItems.length ? (
+        <div className="account-power-route-list">
+          {primaryItems.map((item, index) => (
+            <AccountPowerRouteItem copy={props.copy} item={item} key={item.key} priority={index + 1} />
+          ))}
+        </div>
+      ) : (
+        <p className="account-power-route-empty">
+          {accountText(
+            props.copy,
+            props.route.status === "unavailable"
+              ? "读取周奖励后，这里会显示当前角色下一步可以做什么。"
+              : "当前没有可执行的已确认提光奖励，不会用普通活动掉落猜测推荐。"
+          )}
+        </p>
+      )}
+
+      {secondaryItems.length ? (
+        <details className="account-power-route-more">
+          <summary>{accountText(props.copy, "查看其余提光项目")}（{secondaryItems.length}）</summary>
+          <div className="account-power-route-list">
+            {secondaryItems.map((item, index) => (
+              <AccountPowerRouteItem copy={props.copy} item={item} key={item.key} priority={primaryItems.length + index + 1} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      <p className="account-power-route-source">
+        {accountText(props.copy, "周期")}：{props.route.sourceLabel} · {accountText(props.copy, "奖励槽位随机，不保证补到最低位置")}
+      </p>
+    </section>
+  );
+}
+
+function AccountPowerRouteItem(props: {
+  copy: AccountCopy;
+  item: AccountPageViewModel["powerRoute"]["items"][number];
+  priority: number;
+}) {
+  const isRecommended = props.item.status === "available" && props.item.rewardTier !== "unknown";
+  const tierLabel = props.item.rewardTier === "pinnacle"
+    ? "巅峰奖励"
+    : props.item.rewardTier === "powerful"
+      ? "强力奖励"
+      : "奖励待确认";
+
+  return (
+    <article className="account-power-route-item" data-status={props.item.status} data-reward-tier={props.item.rewardTier}>
+      <div className="account-power-route-identity">
+        <span>{isRecommended ? `${accountText(props.copy, "优先")} ${props.priority}` : accountText(props.copy, props.item.activityTypeLabel)}</span>
+        <strong>{props.item.activityName}</strong>
+        <small>{accountText(props.copy, props.item.activityTypeLabel)}</small>
+      </div>
+      <div className="account-power-route-state">
+        <span className={`ui-badge status-${props.item.status === "completed" ? "ready" : props.item.status === "available" ? "pending" : "warning"}`}>
+          {accountText(props.copy, props.item.statusLabel)}
+        </span>
+        <strong>{accountText(props.copy, tierLabel)}</strong>
+        <small>{props.item.rewardLabel}{props.item.progressLabel ? ` · ${props.item.progressLabel}` : ""}</small>
+      </div>
+      <div className="account-power-route-value">
+        <strong>{accountText(props.copy, props.item.valueLabel)}</strong>
+        <p>{accountText(props.copy, props.item.reason)}</p>
+        <small>{accountText(props.copy, "来源")}：{props.item.sourceLabel}</small>
+      </div>
+    </article>
   );
 }
 

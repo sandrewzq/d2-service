@@ -135,7 +135,7 @@ async function buildHomeBriefing(
     ? buildWeeklySummary(now, weeklyLiveData)
     : cached.weekly;
   return {
-    version: 6,
+    version: 8,
     context_key: contextKey,
     saved_at: now.toISOString(),
     fetched_at: snapshot.fetchedAt,
@@ -215,13 +215,25 @@ async function loadHomeDefinitions(snapshot: BungieHomeSnapshot): Promise<{
     ((activity.rewards as Array<{ rewardItems?: Array<{ itemHash?: number }> }> | undefined) ?? [])
       .flatMap((reward) => (reward.rewardItems ?? []).flatMap((item) => numberValue(item.itemHash)))
   );
+  const challengeRewardHashes = activityRecords.flatMap((activity) =>
+    (((activity as DefinitionRecord & {
+      challenges?: Array<{
+        dummyRewards?: Array<{ itemHash?: number }>;
+        displayRewards?: Array<{ itemQuantity?: { itemHash?: number } }>;
+      }>;
+    }).challenges) ?? [])
+      .flatMap((challenge) => [
+        ...(challenge.dummyRewards ?? []).flatMap((item) => numberValue(item.itemHash)),
+        ...(challenge.displayRewards ?? []).flatMap((item) => numberValue(item.itemQuantity?.itemHash))
+      ])
+  );
   const [modifiers, destinations, places, activityRewardItems] = await Promise.all([
     getDefinitions("DestinyActivityModifierDefinition", [...modifierHashes, ...activeModifierHashes]),
     getDefinitions("DestinyDestinationDefinition", destinationHashes),
     getDefinitions("DestinyPlaceDefinition", placeHashes),
     getDefinitions(
       "DestinyInventoryItemDefinition",
-      activityRewardHashes,
+      [...activityRewardHashes, ...challengeRewardHashes],
       { projection: "display-summary" }
     )
   ]);

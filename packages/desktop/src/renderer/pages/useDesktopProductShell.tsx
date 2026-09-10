@@ -144,7 +144,10 @@ export function useDesktopProductShell(props: {
     diagnostics.manifestStatus?.language,
     diagnostics.manifestStatus?.version
   ]);
-  const library = useLibraryWorkspace({ vendorSourcePaths });
+  const library = useLibraryWorkspace({
+    vendorSourcePaths,
+    weeklySummary: daily.weeklySummary
+  });
   const loadoutLibrary = useLoadoutTemplates();
   const cleanupProtectedItemKeys = useMemo(() => ({
     instanceIds: new Set([

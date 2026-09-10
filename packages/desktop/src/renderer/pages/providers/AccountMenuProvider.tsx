@@ -23,6 +23,9 @@ export function AccountMenuProvider() {
       itemDetailError=""
       itemDetailLoadingKey=""
       activitySummary={account.activitySummary}
+      weeklySummary={session.daily.weeklySummary}
+      weeklySummaryStatus={session.daily.dailyResourceStatus}
+      weeklySummaryError={session.daily.dailyError}
       activityMessage={account.activityMessage}
       activityError={account.activityError}
       loadoutMessage={writeActions.loadoutMessage}
@@ -37,6 +40,7 @@ export function AccountMenuProvider() {
       onLoginBungie={() => void account.loginBungie()}
       onLoadAccount={session.refreshAccountManually}
       onRefreshActivity={() => void account.refreshAccountDerivedData()}
+      onRefreshPowerRoute={() => void session.daily.loadDailySummary(true)}
       onSelectCharacter={account.setSelectedCharacterId}
       onEquipHighestPowerItems={(character) => void writeActions.loadoutWriteActions.equipHighestPowerItems(character)}
       onOpenItem={(item, options) => session.itemDetail.openItemDetail(item, options)}

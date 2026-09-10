@@ -486,6 +486,7 @@ function WebApp() {
                 loginBungie: () => undefined,
                 refreshAccount: () => undefined,
                 refreshActivity: () => undefined,
+                refreshPowerRoute: () => undefined,
                 selectCharacter: setSelectedAccountCharacterId,
                 openItem: (payload) => openWebAccountItem(payload.item, "account")
               }}
@@ -717,6 +718,12 @@ function WebApp() {
                 onLoadPerkRelatedEquipment: () => undefined,
                 onOpenRelatedItem: (item) => {
                   const definition = fixture.libraryItems.find((candidate) => candidate.hash === item.hash);
+                  if (definition) openWebLibraryDetail(definition);
+                },
+                onRefreshWeeklyRotation: () => undefined,
+                onRefreshWeeklyFarming: () => undefined,
+                onOpenWeeklyFarmingItem: (item) => {
+                  const definition = fixture.libraryItems.find((candidate) => candidate.hash === item.item.hash);
                   if (definition) openWebLibraryDetail(definition);
                 },
                 onAddFavorite: (item) => setLibraryHistory((current) => current.favorites.some((favorite) => favorite.hash === item.hash)

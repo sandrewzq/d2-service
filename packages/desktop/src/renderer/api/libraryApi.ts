@@ -13,6 +13,10 @@ import type {
   WeaponBreakerTypeSummary,
   WeaponFrameSummary
 } from "./sharedTypes";
+import type {
+  WeeklyFarmingCatalogResource,
+  WeeklyFarmingRequest
+} from "@d2-tools/core/weekly/farming";
 
 export type LibraryApi = {
   getLibraryRuntimeCapabilities(): Promise<LibraryRuntimeCapabilities>;
@@ -22,6 +26,7 @@ export type LibraryApi = {
   searchPerks(query: string): Promise<PerkSearchResult[]>;
   getPerkRelatedEquipment(input: PerkRelatedEquipmentQuery): Promise<PerkRelatedEquipmentPage>;
   getLiveItemAvailability(itemHashes: number[]): Promise<LiveItemAvailability>;
+  getWeeklyFarmingCatalog(input: WeeklyFarmingRequest): Promise<WeeklyFarmingCatalogResource>;
   getItemAliases(): Promise<ItemAliases>;
   saveItemAlias(input: ItemAliasEntry): Promise<ItemAliases>;
   getLibraryHistory(): Promise<LibraryHistory>;

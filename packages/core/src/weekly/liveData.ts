@@ -5,6 +5,7 @@ import { classifyBucket } from "../items/classification.js";
 import type { BungieOAuthToken } from "../oauth/login.js";
 import type {
   WeeklyActivityReward,
+  WeeklyActivityCharacterState,
   WeeklyIronBannerChallenge,
   WeeklyIronBannerLootItem,
   WeeklyIronBannerLootPool,
@@ -778,27 +779,31 @@ function mapProfileActivities(
   definitions: NonNullable<BuildWeeklyLiveDataInput["definitions"]>
 ): WeeklySummaryItem[] {
   const items: WeeklySummaryItem[] = [];
-  const activityGroups = new Map<number, DestinyAvailableActivity[]>();
+  const activityGroups = new Map<number, Array<{ characterId: string; activity: DestinyAvailableActivity }>>();
+  const characterIds = [...new Set([
+    ...Object.keys(profile?.characters?.data ?? {}),
+    ...Object.keys(profile?.characterActivities?.data ?? {})
+  ])].sort((left, right) => left.localeCompare(right));
   const activeSurges = new Map<ElementalSurgeKey, {
     name: string;
     modifierHashes: Set<number>;
     activityHashes: Set<number>;
   }>();
 
-  for (const component of Object.values(profile?.characterActivities?.data ?? {})) {
+  for (const [characterId, component] of Object.entries(profile?.characterActivities?.data ?? {})) {
     for (const activity of component.availableActivities ?? []) {
       const activityHash = activity.activityHash;
       if (activityHash === undefined) {
         continue;
       }
       const group = activityGroups.get(activityHash) ?? [];
-      group.push(activity);
+      group.push({ characterId, activity });
       activityGroups.set(activityHash, group);
     }
   }
 
-  for (const [activityHash, activities] of activityGroups) {
-    const activity = mergeProfileActivities(activities);
+  for (const [activityHash, characterActivities] of activityGroups) {
+    const activity = mergeProfileActivities(characterActivities.map((entry) => entry.activity));
 
     const activityDefinition = definitionRecord(definitions.activities, activityHash);
     const challengeObjectives = (activity.challenges ?? [])
@@ -824,40 +829,49 @@ function mapProfileActivities(
     }
 
     if (objectiveTexts.some(isGrandmasterVanguardAlertObjective)) {
+      const matchingObjectives = challengeObjectives.filter((hash) => isGrandmasterVanguardAlertObjective(objectiveText(definitions.objectives, hash)));
+      const rewards = activityChallengeRewards(activityDefinition, matchingObjectives, definitions.items);
       items.push({
         title: activityName,
         subtitle: "先锋行动 · 宗师先锋警戒",
-        description: rewardDescription(activity, definitions.items),
-        source: "Bungie CharacterActivities",
+        description: rewardDescription(rewards),
+        source: "Bungie 角色周挑战 + 当前资料库",
         weeklyActivityKind: "nightfall",
         related_hashes: [activityHash, ...challengeObjectives],
-        rewards: activityRewards(activity, definitions.items)
+        rewards,
+        characters: activityCharacterStates(characterIds, characterActivities, definitions.objectives, isGrandmasterVanguardAlertObjective)
       });
       continue;
     }
 
     if (isRaidActivity(activityDefinition) && objectiveTexts.some(isWeeklyRaidChallengeObjective)) {
+      const matchingObjectives = challengeObjectives.filter((hash) => isWeeklyRaidChallengeObjective(objectiveText(definitions.objectives, hash)));
+      const rewards = activityChallengeRewards(activityDefinition, matchingObjectives, definitions.items);
       items.push({
         title: activityName,
         subtitle: "周常突袭挑战",
-        description: rewardDescription(activity, definitions.items),
-        source: "Bungie CharacterActivities",
+        description: rewardDescription(rewards),
+        source: "Bungie 角色周挑战 + 当前资料库",
         weeklyActivityKind: "rotating_raid",
         related_hashes: [activityHash, ...challengeObjectives],
-        rewards: activityRewards(activity, definitions.items)
+        rewards,
+        characters: activityCharacterStates(characterIds, characterActivities, definitions.objectives, isWeeklyRaidChallengeObjective)
       });
       continue;
     }
 
     if (isDungeonActivity(activityDefinition) && objectiveTexts.some(isWeeklyDungeonChallengeObjective)) {
+      const matchingObjectives = challengeObjectives.filter((hash) => isWeeklyDungeonChallengeObjective(objectiveText(definitions.objectives, hash)));
+      const rewards = activityChallengeRewards(activityDefinition, matchingObjectives, definitions.items);
       items.push({
         title: activityName,
         subtitle: "周常地牢挑战",
-        description: rewardDescription(activity, definitions.items),
-        source: "Bungie CharacterActivities",
+        description: rewardDescription(rewards),
+        source: "Bungie 角色周挑战 + 当前资料库",
         weeklyActivityKind: "rotating_dungeon",
         related_hashes: [activityHash, ...challengeObjectives],
-        rewards: activityRewards(activity, definitions.items)
+        rewards,
+        characters: activityCharacterStates(characterIds, characterActivities, definitions.objectives, isWeeklyDungeonChallengeObjective)
       });
     }
   }
@@ -880,6 +894,47 @@ function mapProfileActivities(
   }
 
   return items;
+}
+
+function activityCharacterStates(
+  characterIds: string[],
+  entries: Array<{ characterId: string; activity: DestinyAvailableActivity }>,
+  objectives: DefinitionComponentData | null | undefined,
+  matchesObjective: (value: string) => boolean
+): WeeklyActivityCharacterState[] {
+  const activityByCharacter = new Map(entries.map((entry) => [entry.characterId, entry.activity]));
+  return characterIds.map((characterId) => {
+    const activity = activityByCharacter.get(characterId);
+    const objective = (activity?.challenges ?? [])
+      .map((challenge) => challenge.objective)
+      .find((candidate) => (
+        candidate?.objectiveHash !== undefined
+        && matchesObjective(objectiveText(objectives, candidate.objectiveHash))
+      ));
+    if (!objective) return { character_id: characterId };
+
+    const progress = Math.max(0, objective.progress ?? 0);
+    const objectiveDefinition = objective.objectiveHash === undefined
+      ? undefined
+      : definitionRecord(objectives, objective.objectiveHash);
+    const completionValue = positiveNumber(objective.completionValue)
+      ?? positiveNumber(objectiveDefinition?.completionValue)
+      ?? 1;
+    const complete = objective.complete === true || progress >= completionValue;
+    return {
+      character_id: characterId,
+      challenge: {
+        objective_hash: objective.objectiveHash,
+        progress,
+        completion_value: completionValue,
+        complete,
+        progress_label: completionValue > 0 ? `${Math.min(progress, completionValue)} / ${completionValue}` : undefined,
+        description: objectiveDefinition?.progressDescription
+          ?? objectiveDefinition?.displayProperties?.description
+          ?? objectiveDefinition?.displayProperties?.name
+      }
+    };
+  });
 }
 
 function mergeProfileActivities(activities: DestinyAvailableActivity[]): DestinyAvailableActivity {
@@ -991,41 +1046,34 @@ function activityModeTypes(activity: DefinitionRecord | undefined): number[] {
   return Array.isArray(values) ? values.filter((value): value is number => typeof value === "number") : [];
 }
 
-function activityRewards(
-  activity: DestinyAvailableActivity,
+function activityChallengeRewards(
+  activityDefinition: DefinitionRecord | undefined,
+  objectiveHashes: number[],
   definitions: DefinitionComponentData | null | undefined
 ): WeeklyActivityReward[] {
-  const rewardHashes = new Set(
-    (activity.visibleRewards ?? [])
-      .flatMap((reward) => reward.rewardItems ?? [])
-      .map((rewardItem) => rewardItem.itemQuantity?.itemHash)
-      .filter((hash): hash is number => hash !== undefined)
-  );
+  const objectiveSet = new Set(objectiveHashes);
+  const challenges = ((activityDefinition as (DefinitionRecord & {
+    challenges?: Array<{
+      objectiveHash?: number;
+      dummyRewards?: Array<{ itemHash?: number }>;
+      displayRewards?: Array<{ itemQuantity?: { itemHash?: number } }>;
+    }>;
+  }) | undefined)?.challenges) ?? [];
+  const rewardHashes = uniqueNumbers(challenges
+    .filter((challenge) => challenge.objectiveHash !== undefined && objectiveSet.has(challenge.objectiveHash))
+    .flatMap((challenge) => [
+      ...(challenge.dummyRewards ?? []).flatMap((reward) => numberList(reward.itemHash)),
+      ...(challenge.displayRewards ?? []).flatMap((reward) => numberList(reward.itemQuantity?.itemHash))
+    ]));
 
-  return [...rewardHashes]
-    .map((hash) => {
-      const definition = definitionRecord(definitions, hash);
-      const name = definition?.displayProperties?.name?.trim();
-      if (!name) return undefined;
-      const reward: WeeklyActivityReward = { hash, name };
-      if (definition?.displayProperties?.icon) {
-        reward.icon = definition.displayProperties.icon;
-      }
-      if (typeof definition?.itemTypeDisplayName === "string") {
-        reward.item_type = definition.itemTypeDisplayName;
-      }
-      const group = classifyBucket(definition?.inventory?.bucketTypeHash)?.group;
-      if (group) reward.group_key = group;
-      return reward;
-    })
+  return rewardHashes
+    .map((hash) => activityReward(hash, definitions))
     .filter((reward): reward is WeeklyActivityReward => Boolean(reward));
 }
 
 function rewardDescription(
-  activity: DestinyAvailableActivity,
-  definitions: DefinitionComponentData | null | undefined
+  rewards: WeeklyActivityReward[]
 ): string | undefined {
-  const rewards = activityRewards(activity, definitions);
   if (!rewards.length) return undefined;
   return `奖励：${rewards.map((reward) => reward.name).join(" / ")}`;
 }
@@ -1044,11 +1092,33 @@ function uniqueByTitle(items: WeeklySummaryItem[]): WeeklySummaryItem[] {
 }
 
 function uniqueByKindAndTitle(items: WeeklySummaryItem[]): WeeklySummaryItem[] {
-  const seen = new Set<string>();
-  return items.filter((item) => {
+  const merged = new Map<string, WeeklySummaryItem>();
+  for (const item of items) {
     const key = `${item.weeklyActivityKind ?? "unknown"}:${item.title}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, item);
+      continue;
+    }
+    const characters = new Map((current.characters ?? []).map((entry) => [entry.character_id, entry]));
+    for (const entry of item.characters ?? []) {
+      const previous = characters.get(entry.character_id);
+      const shouldReplace = !previous
+        || !previous.challenge
+        || Boolean(entry.challenge?.complete && !previous.challenge.complete)
+        || (entry.challenge?.progress ?? 0) > (previous.challenge?.progress ?? 0);
+      if (shouldReplace) {
+        characters.set(entry.character_id, entry);
+      }
+    }
+    const rewards = new Map((current.rewards ?? []).map((reward) => [reward.hash, reward]));
+    for (const reward of item.rewards ?? []) rewards.set(reward.hash, reward);
+    merged.set(key, {
+      ...current,
+      related_hashes: uniqueNumbers([...(current.related_hashes ?? []), ...(item.related_hashes ?? [])]),
+      rewards: [...rewards.values()],
+      characters: [...characters.values()].sort((left, right) => left.character_id.localeCompare(right.character_id))
+    });
+  }
+  return [...merged.values()];
 }

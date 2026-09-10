@@ -37,8 +37,15 @@ export function VaultListItem(props: VaultListItemProps) {
   const isArmor = props.item.group_key === "armor";
   const detailAvailable = props.item.group_key === "weapons" || props.item.group_key === "armor";
   const gearTierOverlay = props.item.instance?.gear_tier_overlay ?? gearTierOverlayUrl(gearTier);
+  const crafting = isWeapon ? props.item.crafting : undefined;
   const visual = (
-    <div className="vault-card-visual" title={gearTier > 0 ? `装备阶级 T${gearTier}` : undefined}>
+    <div
+      className="vault-card-visual"
+      title={[
+        gearTier > 0 ? `装备阶级 T${gearTier}` : "",
+        crafting ? craftingLabel(crafting.kind, true) : ""
+      ].filter(Boolean).join(" · ") || undefined}
+    >
       <GameAssetImage
         alt=""
         fetchPriority={props.imagePriority ? "high" : "auto"}
@@ -46,6 +53,24 @@ export function VaultListItem(props: VaultListItemProps) {
         src={props.item.icon}
         fallback={<div className="item-icon-placeholder" />}
       />
+      {crafting?.background ? (
+        <GameAssetImage
+          className="vault-crafting-background"
+          alt=""
+          aria-hidden="true"
+          loading={props.imagePriority ? "eager" : "lazy"}
+          src={crafting.background}
+        />
+      ) : null}
+      {crafting?.overlay ? (
+        <GameAssetImage
+          className="vault-crafting-overlay"
+          alt=""
+          aria-hidden="true"
+          loading={props.imagePriority ? "eager" : "lazy"}
+          src={crafting.overlay}
+        />
+      ) : null}
       <GameAssetImage
         className="vault-gear-tier"
         alt=""
@@ -128,6 +153,15 @@ export function VaultListItem(props: VaultListItemProps) {
       <div className="vault-weapon-status">
         <span className="vault-weapon-location-state">
           <span className="vault-weapon-location">{getVaultItemLocationLabel(props.item)}</span>
+          {crafting ? (
+            <span
+              className="vault-weapon-crafting"
+              data-crafting-kind={crafting.kind}
+              title={craftingLabel(crafting.kind, true)}
+            >
+              {craftingLabel(crafting.kind)}
+            </span>
+          ) : null}
           {disposition === "none"
             ? props.isOrganizing ? <span className="vault-weapon-unmarked">未整理</span> : null
             : <span className={`vault-score-badge score-${disposition}`}>{dispositionShortLabel(disposition)}</span>}
@@ -389,6 +423,11 @@ function displayGearTier(value: number | null | undefined): number {
   return Math.min(5, Math.floor(value));
 }
 
+function craftingLabel(kind: NonNullable<AccountItemSummary["crafting"]>["kind"], full = false): string {
+  if (kind === "crafted") return full ? "锻造武器" : "锻造";
+  return full ? "强化武器" : "强化";
+}
+
 function formatVaultCardTitle(
   item: AccountItemSummary,
   disposition: "none" | "keep" | "review" | "junk",
@@ -399,6 +438,7 @@ function formatVaultCardTitle(
     formatVaultCardMeta(item),
     item.group_key === "weapons" ? formatWeaponSlot(item) : "",
     item.group_key === "weapons" && item.ammo_type ? ammoFilterLabels[item.ammo_type] : "",
+    item.crafting ? craftingLabel(item.crafting.kind, true) : "",
     formatVaultCardContext(item),
     item.power !== undefined ? `光等 ${item.power}` : "",
     `整理状态：${disposition === "none" && item.group_key === "weapons" ? "未整理" : dispositionLabel(disposition)}`,
@@ -414,6 +454,7 @@ export function formatVaultItemMeta(item: AccountItemSummary): string {
     item.ammo_type ? ammoFilterLabels[item.ammo_type] : undefined,
     item.tier,
     item.power ? `光等 ${item.power}` : undefined,
+    item.crafting ? craftingLabel(item.crafting.kind, true) : undefined,
     formatArmorStatsInline(item),
     item.locked ? "已锁定" : undefined
   ].filter(Boolean).join(" / ");

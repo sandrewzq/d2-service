@@ -132,29 +132,65 @@ function createVendorDefinitionHydratingFetchJson(options: {
         }
       )
     ));
-    const itemHashes = collectNumericProperties(payload, new Set([
+    const payloadItemHashes = collectNumericProperties(payload, new Set([
       "itemHash",
       "plugHash",
       "plugItemHash"
     ]));
-    const vendorHashes = new Set([
+    const payloadVendorHashes = new Set([
       ...collectNumericProperties(payload, new Set(["vendorHash"])),
       ...collectVendorComponentKeys(payload)
     ]);
+    const payloadVendorGroupHashes = collectNumericProperties(payload, new Set(["vendorGroupHash"]));
     await measureRuntime("vendors.inventory.definition-hydration", async () => {
-      const items = await getDefinitions("DestinyInventoryItemDefinition", itemHashes);
+      const items = await getDefinitions("DestinyInventoryItemDefinition", payloadItemHashes);
       Object.assign(options.definitions.items, items);
-      for (const item of Object.values(items) as DefinitionRecord[]) {
-        const previewVendorHash = (item.preview as { previewVendorHash?: number } | undefined)
-          ?.previewVendorHash;
-        if (typeof previewVendorHash === "number") {
-          vendorHashes.add(previewVendorHash);
-        }
-      }
+      const previewVendorHashes = collectPreviewVendorHashesFromDefinitions(items);
+      const vendorHashes = new Set([...payloadVendorHashes, ...previewVendorHashes]);
       const vendors = await getDefinitions("DestinyVendorDefinition", vendorHashes);
       Object.assign(options.definitions.vendors, vendors);
-      const vendorGroupHashes = new Set<number>();
-      for (const vendor of Object.values(vendors) as DefinitionRecord[]) {
+
+      const traversedStaticVendorHashes = new Set<number>();
+      let pendingStaticVendorHashes = [...previewVendorHashes];
+      while (pendingStaticVendorHashes.length) {
+        const batch = [...new Set(pendingStaticVendorHashes)].filter((hash) => (
+          hash > 0 && !traversedStaticVendorHashes.has(hash)
+        ));
+        pendingStaticVendorHashes = [];
+        if (!batch.length) break;
+        batch.forEach((hash) => traversedStaticVendorHashes.add(hash));
+
+        const missingVendorHashes = batch.filter((hash) => !options.definitions.vendors[String(hash)]);
+        if (missingVendorHashes.length) {
+          Object.assign(
+            options.definitions.vendors,
+            await getDefinitions("DestinyVendorDefinition", missingVendorHashes)
+          );
+        }
+
+        const staticVendors: DefinitionComponentData = {};
+        for (const hash of batch) {
+          const definition = options.definitions.vendors[String(hash)] as DefinitionRecord | undefined;
+          const returnWithVendorRequest = (definition as (DefinitionRecord & {
+            returnWithVendorRequest?: boolean;
+          }) | undefined)?.returnWithVendorRequest;
+          if (definition && returnWithVendorRequest !== true) {
+            staticVendors[String(hash)] = definition;
+          }
+        }
+        const staticItemHashes = collectNumericProperties(staticVendors, new Set([
+          "itemHash",
+          "plugHash",
+          "plugItemHash"
+        ]));
+        if (!staticItemHashes.size) continue;
+        const staticItems = await getDefinitions("DestinyInventoryItemDefinition", staticItemHashes);
+        Object.assign(options.definitions.items, staticItems);
+        pendingStaticVendorHashes.push(...collectPreviewVendorHashesFromDefinitions(staticItems));
+      }
+
+      const vendorGroupHashes = new Set<number>(payloadVendorGroupHashes);
+      for (const vendor of Object.values(options.definitions.vendors) as DefinitionRecord[]) {
         const groups = vendor.groups as Array<{ vendorGroupHash?: number }> | undefined;
         for (const group of groups ?? []) {
           if (typeof group.vendorGroupHash === "number") {
@@ -162,7 +198,7 @@ function createVendorDefinitionHydratingFetchJson(options: {
           }
         }
       }
-      const destinationHashes = new Set(Object.values(vendors).flatMap((definition) => {
+      const destinationHashes = new Set(Object.values(options.definitions.vendors).flatMap((definition) => {
         const locations = definition.locations as Array<{ destinationHash?: number }> | undefined;
         return (locations ?? []).flatMap((location) =>
           typeof location.destinationHash === "number" ? [location.destinationHash] : []
@@ -240,4 +276,16 @@ function collectVendorComponentKeys(value: unknown, output = new Set<number>()):
     collectVendorComponentKeys(nested, output);
   }
   return output;
+}
+
+function collectPreviewVendorHashesFromDefinitions(
+  definitions: DefinitionComponentData
+): number[] {
+  return [...new Set(Object.values(definitions).flatMap((definition) => {
+    const previewVendorHash = (definition.preview as { previewVendorHash?: number } | undefined)
+      ?.previewVendorHash;
+    return typeof previewVendorHash === "number" && previewVendorHash > 0
+      ? [previewVendorHash]
+      : [];
+  }))];
 }

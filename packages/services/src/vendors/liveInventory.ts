@@ -26,9 +26,15 @@ type DefinitionRecord = {
   plug?: { plugCategoryIdentifier?: string };
   traitIds?: string[];
   failureStrings?: string[];
+  returnWithVendorRequest?: boolean;
   itemList?: Array<{
+    vendorItemIndex?: number;
     itemHash?: number;
+    quantity?: number;
+    failureIndexes?: number[];
+    currencies?: Array<{ itemHash?: number; quantity?: number }>;
     displayCategoryIndex?: number;
+    categoryIndex?: number;
     redirectToSaleIndexes?: number[];
   }>;
   displayCategories?: Array<{
@@ -78,9 +84,15 @@ type ProfileResponse = {
 
 type VendorListResponse = {
   vendors?: { data?: Record<string, RawVendorComponent> };
+  vendorGroups?: { data?: { groups?: RawVendorGroup[] } };
   categories?: { data?: Record<string, { categories?: RawVendorCategory[] }> };
   sales?: { data?: Record<string, { saleItems?: Record<string, RawSaleItem> }> };
   currencyLookups?: { data?: CurrencyLookupData };
+};
+
+type RawVendorGroup = {
+  vendorGroupHash?: number;
+  vendorHashes?: number[];
 };
 
 type CurrencyLookupData = {
@@ -160,13 +172,16 @@ export async function fetchVendorInventorySnapshot(
 
     mergeCurrencyBalances(currencyBalances, result.value.response.currencyLookups?.data);
     const details = new Map<number, VendorDetailResponse>();
-    const detailVendorHashes = options.detailVendorHashes
+    const requestedVendorHashes = options.detailVendorHashes
       ?? discoverVendorHashes(
         result.value.response,
         options.definitions.vendors,
         options.definitions.items
       );
-    detailVendorHashes.forEach((vendorHash) => requestedDetailVendorHashes.add(vendorHash));
+    requestedVendorHashes.forEach((vendorHash) => requestedDetailVendorHashes.add(vendorHash));
+    const detailVendorHashes = requestedVendorHashes.filter((vendorHash) =>
+      Boolean(result.value.response.sales?.data?.[String(vendorHash)])
+    );
     const detailResults = await mapSettledWithConcurrency(
       detailVendorHashes,
       vendorDetailConcurrency,
@@ -221,11 +236,13 @@ function discoverVendorHashes(
   itemDefinitions: Record<string, DefinitionRecord>
 ): number[] {
   const previewVendorHashes = collectPreviewVendorHashes(response, itemDefinitions);
+  const activeVendorGroups = collectActiveVendorGroups(response);
   return Object.keys(response.sales?.data ?? {})
     .filter((vendorHash) => shouldIncludeTopLevelVendor(
       response.vendors?.data?.[vendorHash],
       vendorDefinitions[vendorHash],
-      previewVendorHashes.has(Number(vendorHash))
+      previewVendorHashes.has(Number(vendorHash)),
+      activeVendorGroups.has(Number(vendorHash))
     ))
     .map(Number)
     .filter((vendorHash) => Number.isInteger(vendorHash) && vendorHash > 0);
@@ -234,15 +251,15 @@ function discoverVendorHashes(
 function shouldIncludeTopLevelVendor(
   vendor: RawVendorComponent | undefined,
   definition: DefinitionRecord | undefined,
-  referencedByPreview = false
+  referencedByPreview = false,
+  referencedByActiveGroup = false
 ): boolean {
   if (
     definition?.vendorIdentifier === "TOWER_NINE"
     || definition?.vendorIdentifier === "TOWER_NINE_OFFERS"
     || definition?.vendorIdentifier === "TOWER_NINE_GEAR"
   ) return true;
-  if (definition?.vendorIdentifier === "30TH_ANNIVERSARY_XUR") return false;
-  return referencedByPreview || vendor?.canPurchase === true;
+  return referencedByActiveGroup || referencedByPreview || vendor?.canPurchase === true;
 }
 
 async function mapSettledWithConcurrency<T, TResult>(
@@ -311,53 +328,177 @@ function mapVendorResponses(
 ): Record<string, VendorResponseInput> {
   const mapped: Record<string, VendorResponseInput> = {};
   const previewVendorHashes = collectPreviewVendorHashes(list, definitions.items);
-  for (const [vendorKey, salesComponent] of Object.entries(list.sales?.data ?? {})) {
-    const vendorHash = Number(vendorKey);
+  const activeVendorGroups = collectActiveVendorGroups(list);
+  const queue = Object.keys(list.sales?.data ?? {})
+    .map(Number)
+    .filter((vendorHash) => Number.isInteger(vendorHash) && vendorHash > 0)
+    .filter((vendorHash) => shouldIncludeTopLevelVendor(
+      list.vendors?.data?.[String(vendorHash)],
+      definitions.vendors[String(vendorHash)],
+      previewVendorHashes.has(vendorHash),
+      activeVendorGroups.has(vendorHash)
+    ));
+  const visited = new Set<number>();
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const vendorHash = queue[index];
+    if (visited.has(vendorHash)) continue;
+    visited.add(vendorHash);
+    const vendorKey = String(vendorHash);
     const vendor = list.vendors?.data?.[vendorKey] ?? {};
     const vendorDefinition = definitions.vendors[vendorKey];
-    if (!shouldIncludeTopLevelVendor(vendor, vendorDefinition, previewVendorHashes.has(vendorHash))) continue;
-    const vendorGroup = selectVendorGroup(vendorDefinition, definitions.vendorGroups ?? {});
-    const detail = details.get(vendorHash);
-    const categories = list.categories?.data?.[vendorKey]?.categories ?? [];
-    mapped[vendorKey] = {
-      vendorHash: vendor.vendorHash ?? vendorHash,
-      canPurchase: vendor.canPurchase ?? false,
-      location: resolveVendorLocation(vendor, vendorDefinition, definitions.destinations ?? {}),
-      vendorGroupHash: vendorGroup?.hash,
-      vendorGroupName: vendorGroup?.name,
-      vendorGroupOrder: vendorGroup?.order,
-      nextRefreshAt: vendor.nextRefreshDate,
-      progression: vendor.progression,
-      categories: categories.map((category) => ({
-        categoryIndex: category.displayCategoryIndex ?? -1,
-        name: cleanManifestDisplayText(
-          vendorDefinition?.displayCategories?.[category.displayCategoryIndex ?? -1]
-            ?.displayProperties?.name
-        ) || "其他",
-        identifier: vendorDefinition?.displayCategories?.[category.displayCategoryIndex ?? -1]
-          ?.identifier?.trim() || undefined,
-        itemIndexes: category.itemIndexes ?? []
-      })),
-      saleItems: Object.fromEntries(Object.entries(salesComponent.saleItems ?? {}).map(([itemKey, sale]) => [
-        itemKey,
-        {
-          vendorItemIndex: sale.vendorItemIndex ?? Number(itemKey),
-          itemHash: sale.itemHash ?? 0,
-          quantity: sale.quantity ?? 1,
-          costs: (sale.costs ?? []).map((cost) => ({
-            itemHash: cost.itemHash ?? 0,
-            quantity: cost.quantity ?? 0
-          })),
-          failureIndexes: sale.failureIndexes ?? [],
-          saleStatus: sale.saleStatus ?? 0,
-          apiPurchasable: sale.apiPurchasable ?? null
-        }
-      ])),
-      stats: mapStats(detail),
-      sockets: mapSockets(detail)
-    };
+    const salesComponent = list.sales?.data?.[vendorKey];
+    const vendorGroup = selectVendorGroup(
+      vendorHash,
+      vendorDefinition,
+      definitions.vendorGroups ?? {},
+      activeVendorGroups
+    );
+    const response = salesComponent
+      ? mapLiveVendorResponse(
+        vendorHash,
+        vendor,
+        vendorDefinition,
+        vendorGroup,
+        salesComponent.saleItems ?? {},
+        list.categories?.data?.[vendorKey]?.categories ?? [],
+        details.get(vendorHash),
+        definitions.destinations ?? {}
+      )
+      : mapDefinitionVendorResponse(
+        vendorHash,
+        vendorDefinition,
+        vendorGroup,
+        definitions.destinations ?? {}
+      );
+    if (!response) continue;
+    mapped[vendorKey] = response;
+    for (const previewVendorHash of collectMappedPreviewVendorHashes(response, definitions.items)) {
+      if (!visited.has(previewVendorHash)) queue.push(previewVendorHash);
+    }
   }
   return mapped;
+}
+
+function mapLiveVendorResponse(
+  vendorHash: number,
+  vendor: RawVendorComponent,
+  vendorDefinition: DefinitionRecord | undefined,
+  vendorGroup: { hash: number; name: string; order: number } | undefined,
+  saleItems: Record<string, RawSaleItem>,
+  categories: RawVendorCategory[],
+  detail: VendorDetailResponse | undefined,
+  destinations: Record<string, DefinitionRecord>
+): VendorResponseInput {
+  return {
+    vendorHash: vendor.vendorHash ?? vendorHash,
+    canPurchase: vendor.canPurchase ?? false,
+    location: resolveVendorLocation(vendor, vendorDefinition, destinations),
+    vendorGroupHash: vendorGroup?.hash,
+    vendorGroupName: vendorGroup?.name,
+    vendorGroupOrder: vendorGroup?.order,
+    nextRefreshAt: vendor.nextRefreshDate,
+    progression: vendor.progression,
+    categories: categories.map((category) => mapVendorCategory(category, vendorDefinition)),
+    saleItems: Object.fromEntries(Object.entries(saleItems).map(([itemKey, sale]) => [
+      itemKey,
+      {
+        vendorItemIndex: sale.vendorItemIndex ?? Number(itemKey),
+        itemHash: sale.itemHash ?? 0,
+        quantity: sale.quantity ?? 1,
+        costs: (sale.costs ?? []).map((cost) => ({
+          itemHash: cost.itemHash ?? 0,
+          quantity: cost.quantity ?? 0
+        })),
+        failureIndexes: sale.failureIndexes ?? [],
+        saleStatus: sale.saleStatus ?? 0,
+        apiPurchasable: sale.apiPurchasable ?? null
+      }
+    ])),
+    stats: mapStats(detail),
+    sockets: mapSockets(detail)
+  };
+}
+
+function mapDefinitionVendorResponse(
+  vendorHash: number,
+  vendorDefinition: DefinitionRecord | undefined,
+  vendorGroup: { hash: number; name: string; order: number } | undefined,
+  destinations: Record<string, DefinitionRecord>
+): VendorResponseInput | undefined {
+  if (!vendorDefinition || vendorDefinition.returnWithVendorRequest === true) return undefined;
+  const saleItems = mapDefinitionSaleItems(vendorDefinition);
+  if (!Object.keys(saleItems).length) return undefined;
+  return {
+    vendorHash,
+    canPurchase: false,
+    location: resolveVendorLocation({}, vendorDefinition, destinations),
+    vendorGroupHash: vendorGroup?.hash,
+    vendorGroupName: vendorGroup?.name,
+    vendorGroupOrder: vendorGroup?.order,
+    categories: mapDefinitionVendorCategories(vendorDefinition),
+    saleItems
+  };
+}
+
+function mapVendorCategory(
+  category: RawVendorCategory,
+  vendorDefinition: DefinitionRecord | undefined
+): VendorResponseInput["categories"][number] {
+  const categoryIndex = category.displayCategoryIndex ?? -1;
+  return {
+    categoryIndex,
+    name: cleanManifestDisplayText(
+      vendorDefinition?.displayCategories?.[categoryIndex]?.displayProperties?.name
+    ) || "其他",
+    identifier: vendorDefinition?.displayCategories?.[categoryIndex]?.identifier?.trim() || undefined,
+    itemIndexes: category.itemIndexes ?? []
+  };
+}
+
+function mapDefinitionVendorCategories(
+  vendorDefinition: DefinitionRecord
+): VendorResponseInput["categories"] {
+  const indexes = new Map<number, number[]>();
+  for (let index = 0; index < (vendorDefinition.itemList ?? []).length; index += 1) {
+    const item = vendorDefinition.itemList?.[index];
+    const vendorItemIndex = item?.vendorItemIndex ?? index;
+    const categoryIndex = item?.displayCategoryIndex ?? item?.categoryIndex ?? -1;
+    const items = indexes.get(categoryIndex) ?? [];
+    items.push(vendorItemIndex);
+    indexes.set(categoryIndex, items);
+  }
+  return [...indexes.entries()].map(([categoryIndex, itemIndexes]) => mapVendorCategory({
+    displayCategoryIndex: categoryIndex,
+    itemIndexes
+  }, vendorDefinition));
+}
+
+function mapDefinitionSaleItems(
+  vendorDefinition: DefinitionRecord
+): Record<string, VendorResponseInput["saleItems"][string]> {
+  const result: Record<string, VendorResponseInput["saleItems"][string]> = {};
+  for (let index = 0; index < (vendorDefinition.itemList ?? []).length; index += 1) {
+    const item = vendorDefinition.itemList?.[index];
+    if (!item || typeof item.itemHash !== "number" || !Number.isInteger(item.itemHash) || item.itemHash <= 0) {
+      continue;
+    }
+    const vendorItemIndex = item.vendorItemIndex ?? index;
+    result[String(vendorItemIndex)] = {
+      vendorItemIndex,
+      itemHash: item.itemHash,
+      quantity: item.quantity ?? 1,
+      costs: (item.currencies ?? []).flatMap((cost) => (
+        typeof cost.itemHash === "number" && Number.isInteger(cost.itemHash) && cost.itemHash > 0
+          ? [{ itemHash: cost.itemHash, quantity: cost.quantity ?? 0 }]
+          : []
+      )),
+      failureIndexes: item.failureIndexes ?? [],
+      saleStatus: 0,
+      apiPurchasable: false
+    };
+  }
+  return result;
 }
 
 function resolveVendorLocation(
@@ -372,13 +513,17 @@ function resolveVendorLocation(
 }
 
 function selectVendorGroup(
+  vendorHash: number,
   vendorDefinition: DefinitionRecord | undefined,
-  vendorGroups: Record<string, DefinitionRecord>
+  vendorGroups: Record<string, DefinitionRecord>,
+  activeVendorGroups: Map<number, number[]>
 ): { hash: number; name: string; order: number } | undefined {
-  return (vendorDefinition?.groups ?? [])
-    .flatMap((group) => {
-      const hash = group.vendorGroupHash;
-      if (typeof hash !== "number") return [];
+  const activeHashes = activeVendorGroups.get(vendorHash) ?? [];
+  const manifestHashes = (vendorDefinition?.groups ?? []).flatMap((group) =>
+    typeof group.vendorGroupHash === "number" ? [group.vendorGroupHash] : []
+  );
+  return (activeHashes.length ? activeHashes : manifestHashes)
+    .flatMap((hash) => {
       const definition = vendorGroups[String(hash)];
       const name = cleanManifestDisplayText(definition?.categoryName);
       if (!name) return [];
@@ -391,6 +536,21 @@ function selectVendorGroup(
     .sort((left, right) => left.order - right.order)[0];
 }
 
+function collectActiveVendorGroups(response: VendorListResponse): Map<number, number[]> {
+  const result = new Map<number, number[]>();
+  for (const group of response.vendorGroups?.data?.groups ?? []) {
+    const groupHash = group.vendorGroupHash;
+    if (typeof groupHash !== "number" || !Number.isInteger(groupHash) || groupHash <= 0) continue;
+    for (const vendorHash of group.vendorHashes ?? []) {
+      if (!Number.isInteger(vendorHash) || vendorHash <= 0) continue;
+      const groups = result.get(vendorHash) ?? [];
+      groups.push(groupHash);
+      result.set(vendorHash, groups);
+    }
+  }
+  return result;
+}
+
 function collectPreviewVendorHashes(
   response: VendorListResponse,
   itemDefinitions: Record<string, DefinitionRecord>
@@ -398,9 +558,19 @@ function collectPreviewVendorHashes(
   return new Set(Object.values(response.sales?.data ?? {}).flatMap((sales) =>
     Object.values(sales.saleItems ?? {}).flatMap((sale) => {
       const previewVendorHash = itemDefinitions[String(sale.itemHash)]?.preview?.previewVendorHash;
-      return previewVendorHash === undefined ? [] : [previewVendorHash];
+      return typeof previewVendorHash === "number" && previewVendorHash > 0 ? [previewVendorHash] : [];
     })
   ));
+}
+
+function collectMappedPreviewVendorHashes(
+  response: VendorResponseInput,
+  itemDefinitions: Record<string, DefinitionRecord>
+): number[] {
+  return [...new Set(Object.values(response.saleItems).flatMap((sale) => {
+    const previewVendorHash = itemDefinitions[String(sale.itemHash)]?.preview?.previewVendorHash;
+    return typeof previewVendorHash === "number" && previewVendorHash > 0 ? [previewVendorHash] : [];
+  }))];
 }
 
 function mapStats(detail: VendorDetailResponse | undefined): Record<string, Record<string, number>> {
@@ -442,7 +612,7 @@ function mapDefinitions(
         failureStrings: (definition?.failureStrings ?? [])
           .map(cleanManifestDisplayText)
           .filter(Boolean),
-        itemList: Object.fromEntries((definition?.itemList ?? []).map((item, index) => [String(index), {
+        itemList: Object.fromEntries((definition?.itemList ?? []).map((item, index) => [String(item.vendorItemIndex ?? index), {
           displayCategoryIndex: item.displayCategoryIndex ?? -1,
           redirectToSaleIndexes: item.redirectToSaleIndexes ?? []
         }]))

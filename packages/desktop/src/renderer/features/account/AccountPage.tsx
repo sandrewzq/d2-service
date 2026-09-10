@@ -5,7 +5,8 @@ import type {
   AccountSummary,
   ActivityHistorySummary,
   LoadoutTemplate,
-  StartupState
+  StartupState,
+  WeeklySummary
 } from "../../api/types";
 import type { DimWishlist, RecommendationCardSummary } from "../../api/types";
 import { selectAccountPageModel, type AccountOpenItemPayload, type AccountOperationFeedbackView } from "@d2-tools/app/account";
@@ -31,6 +32,9 @@ export function AccountPage(props: {
   itemDetailError: string;
   itemDetailLoadingKey: string;
   activitySummary: ActivityHistorySummary | null;
+  weeklySummary: WeeklySummary | null;
+  weeklySummaryStatus: "unavailable" | "loading" | "refreshing" | "ready" | "stale" | "error";
+  weeklySummaryError: string;
   activityMessage: string;
   activityError: string;
   loadoutMessage: string;
@@ -45,6 +49,7 @@ export function AccountPage(props: {
   onLoginBungie: () => void;
   onLoadAccount: () => void;
   onRefreshActivity: () => void;
+  onRefreshPowerRoute: () => void;
   onSelectCharacter: (characterId: string) => void;
   onEquipHighestPowerItems: (character: AccountSummary["characters"][number]) => void;
   onOpenItem: (
@@ -62,7 +67,8 @@ export function AccountPage(props: {
     cache: {
       accountSummary: props.accountSummary,
       pursuitSummary: props.pursuitResource?.data,
-      activitySummary: props.activitySummary
+      activitySummary: props.activitySummary,
+      weeklySummary: props.weeklySummary
     },
     pageState: {
       selectedCharacterId: props.selectedCharacterId,
@@ -74,6 +80,8 @@ export function AccountPage(props: {
       isLoadingAccount: props.isLoadingAccount,
       pursuitStatus: props.pursuitResource?.status,
       pursuitError: props.pursuitResource?.error?.message,
+      weeklySummaryStatus: props.weeklySummaryStatus,
+      weeklySummaryError: props.weeklySummaryError,
       isShowingCachedAccount: props.isShowingCachedAccount,
       accountStatusLabel: props.startupState.cards.account.label,
       accountError: props.accountError,
@@ -91,6 +99,9 @@ export function AccountPage(props: {
     props.accountSummary,
     props.pursuitResource,
     props.activitySummary,
+    props.weeklySummary,
+    props.weeklySummaryStatus,
+    props.weeklySummaryError,
     props.selectedCharacterId,
     props.lastAccountLoadedAt,
     props.itemDetailLoadingKey,
@@ -149,6 +160,7 @@ export function AccountPage(props: {
         loginBungie: props.onLoginBungie,
         refreshAccount: props.onLoadAccount,
         refreshActivity: props.onRefreshActivity,
+        refreshPowerRoute: props.onRefreshPowerRoute,
         selectCharacter: props.onSelectCharacter,
         equipHighestPower: (characterId) => {
           const character = findCharacter(characterId);

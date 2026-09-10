@@ -105,7 +105,7 @@
 
 :where(.app-shell) .library-mode-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
@@ -735,6 +735,274 @@
   font-size: var(--font-content);
 }
 
+:where(.app-shell) .library-weekly-sidebar {
+  display: grid;
+  align-content: start;
+}
+
+:where(.app-shell) .library-weekly-summary,
+:where(.app-shell) .library-weekly-refresh {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+:where(.app-shell) .library-weekly-summary dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+:where(.app-shell) .library-weekly-summary dl > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+:where(.app-shell) .library-weekly-summary dl > div:nth-child(even) {
+  border-right: 0;
+}
+
+:where(.app-shell) .library-weekly-summary dl > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+:where(.app-shell) .library-weekly-summary dt,
+:where(.app-shell) .library-weekly-summary dd {
+  margin: 0;
+}
+
+:where(.app-shell) .library-weekly-summary dt {
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+}
+
+:where(.app-shell) .library-weekly-summary dd {
+  margin-top: 3px;
+  color: var(--text-title);
+  font-size: var(--font-row-title);
+  font-weight: 700;
+}
+
+:where(.app-shell) .library-weekly-summary dd.status-warning {
+  color: var(--status-warning);
+}
+
+:where(.app-shell) .library-weekly-summary dd.status-ready {
+  color: var(--status-ready);
+}
+
+:where(.app-shell) .library-weekly-refresh {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+
+:where(.app-shell) .library-weekly-refresh strong {
+  color: var(--text-title);
+  font-size: var(--font-content);
+}
+
+:where(.app-shell) .library-weekly-refresh span,
+:where(.app-shell) .library-weekly-source-note {
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+:where(.app-shell) .library-weekly-refresh button {
+  width: 100%;
+  margin-top: 5px;
+}
+
+:where(.app-shell) .library-weekly-source-note {
+  margin: 0;
+  padding: 12px;
+}
+
+:where(.app-shell) .library-weekly-activities {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+:where(.app-shell) .library-weekly-activity {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: var(--surface-panel);
+}
+
+:where(.app-shell) .library-weekly-activity > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+}
+
+:where(.app-shell) .library-weekly-activity > header h3,
+:where(.app-shell) .library-weekly-activity > header p,
+:where(.app-shell) .library-weekly-item h4,
+:where(.app-shell) .library-weekly-decision {
+  margin: 0;
+}
+
+:where(.app-shell) .library-weekly-kicker {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--status-pending);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+:where(.app-shell) .library-weekly-activity > header h3 {
+  color: var(--text-title);
+  font-size: var(--font-section-title);
+}
+
+:where(.app-shell) .library-weekly-activity > header p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+
+:where(.app-shell) .library-weekly-activity-counts {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+  white-space: nowrap;
+}
+
+:where(.app-shell) .library-weekly-activity-counts strong {
+  color: var(--status-warning);
+  font-size: var(--font-content);
+}
+
+:where(.app-shell) .library-weekly-items {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+:where(.app-shell) .library-weekly-item {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 156px;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--object-border);
+  border-radius: var(--radius-object);
+  background: var(--card-bg);
+}
+
+:where(.app-shell) .library-weekly-item-icon,
+:where(.app-shell) .library-weekly-item > .library-result-icon-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-control);
+}
+
+:where(.app-shell) .library-weekly-item-icon {
+  object-fit: cover;
+}
+
+:where(.app-shell) .library-weekly-item-body {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+:where(.app-shell) .library-weekly-item-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+
+:where(.app-shell) .library-weekly-item-title > div {
+  min-width: 0;
+}
+
+:where(.app-shell) .library-weekly-item-title h4 {
+  color: var(--text-title);
+  font-size: var(--font-row-title);
+  overflow-wrap: anywhere;
+}
+
+:where(.app-shell) .library-weekly-item-title > div > span {
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+}
+
+:where(.app-shell) .library-weekly-decision {
+  color: var(--text-body);
+  font-size: var(--font-content);
+  line-height: 1.45;
+}
+
+:where(.app-shell) .library-weekly-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+}
+
+:where(.app-shell) .library-weekly-facts > span {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+  overflow-wrap: anywhere;
+}
+
+:where(.app-shell) .library-weekly-facts strong {
+  margin-right: 5px;
+  color: var(--text-title);
+}
+
+:where(.app-shell) .library-weekly-pattern-progress {
+  display: grid;
+  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--font-caption);
+}
+
+:where(.app-shell) .library-weekly-pattern-progress progress {
+  width: 100%;
+}
+
+:where(.app-shell) .library-weekly-evidence {
+  margin-top: 1px;
+}
+
+:where(.app-shell) .library-weekly-item-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+:where(.app-shell) .library-weekly-item-action button {
+  width: 100%;
+  min-height: 34px;
+}
+
+:where(.app-shell) .library-weekly-coverage-empty {
+  margin: 8px;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--object-border);
+  border-radius: var(--radius-frame);
+  background: var(--card-bg);
+}
+
 @container product-workspace (max-width: 940px) {
   :where(.app-shell) .library-workbench {
     grid-template-columns: 210px minmax(0, 1fr);
@@ -765,6 +1033,25 @@
   :where(.app-shell) .library-result-actions {
     grid-column: 2;
     grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  }
+
+  :where(.app-shell) .library-weekly-item {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  :where(.app-shell) .library-weekly-item-icon,
+  :where(.app-shell) .library-weekly-item > .library-result-icon-placeholder {
+    width: 48px;
+    height: 48px;
+  }
+
+  :where(.app-shell) .library-weekly-item-action {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  :where(.app-shell) .library-weekly-item-action button {
+    width: auto;
   }
 }
 
@@ -848,6 +1135,16 @@
   :where(.app-shell) .library-source-details summary span {
     white-space: normal;
   }
+
+  :where(.app-shell) .library-weekly-activity > header {
+    grid-template-columns: 1fr;
+  }
+
+  :where(.app-shell) .library-weekly-activity-counts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-items: start;
+    white-space: normal;
+  }
 }
 
 @container product-workspace (max-width: 460px) {
@@ -863,5 +1160,29 @@
 
   :where(.app-shell) .library-manifest-cell:last-child {
     border-bottom: 0;
+  }
+
+  :where(.app-shell) .library-weekly-activity-counts,
+  :where(.app-shell) .library-weekly-facts,
+  :where(.app-shell) .library-weekly-pattern-progress {
+    grid-template-columns: 1fr;
+  }
+
+  :where(.app-shell) .library-weekly-item {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  :where(.app-shell) .library-weekly-item-icon,
+  :where(.app-shell) .library-weekly-item > .library-result-icon-placeholder {
+    width: 40px;
+    height: 40px;
+  }
+
+  :where(.app-shell) .library-weekly-item-action {
+    grid-column: 1 / -1;
+  }
+
+  :where(.app-shell) .library-weekly-item-action button {
+    width: 100%;
   }
 }

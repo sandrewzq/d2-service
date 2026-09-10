@@ -245,6 +245,7 @@ Renderer UI 的长期边界只在本节保留，具体视觉数值与菜单合�
 - 首页、资料库实时来源和账号 Session 共享 Bungie 请求 Broker；每日与每周通过同一次 `home:briefing` 获取，避免重复 membership、Profile 和里程碑请求。
 - 首页简报使用运行缓存保存已解析数据，按每日重置、每周重置和仄商人出现/离开窗口分别判断是否需要访问 Bungie；应用重启后优先复用缓存，倒计时只在 renderer 本地重算，手动刷新可强制绕过周期缓存。
 - 商人基础库存不再依赖商人菜单挂载。账号摘要准备后由顶层 workspace 后台预热当前角色库存；仄处于开放窗口时同时预热默认仄详情。主进程按账号、角色、详情范围和资料库版本合并并缓存请求，缓存到商人 `nextRefreshAt` 后失效，手动刷新强制重新读取。
+- 商人顶层目录以当前角色 Vendors 响应中的官方 `vendorGroups` 为真相，`canPurchase=false` 只表示不能通过 Bungie API 直接购买，不得据此删除仍启用且有库存的商人。分组外的实时销售节点只有在可购买或被 `previewVendorHash` 引用时保留，并由 workspace 合并到父商人；实时 `sales` 缺失且 Manifest `returnWithVendorRequest=false` 的子商人使用 `itemList` 生成只读库存，`returnWithVendorRequest=true` 时保持为空。周末仄继续由开放窗口控制，永恒宝藏库仄和星马常驻显示。
 - 脱敏诊断必须保留 Catalog、账号快照、首页简报的耗时、p95、payload 和进程内存信息；绝对性能预算只在专项本地诊断和 Release 环境判断，不写成依赖机器速度的普通 CI 断言。
 - 切换菜单、卸载页面或重新进入页面不得中断资料库更新、应用更新下载等长任务；页面只订阅 `useBackgroundTasks` 和 `useManifestStatus` 等共享状态。
 - 设置页负责详细管理入口：应用更新、资料库状态、后台任务、AI、备份迁移、诊断导出和操作日志；写操作由对应业务页面在用户确认后执行。

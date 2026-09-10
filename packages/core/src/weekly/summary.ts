@@ -15,6 +15,7 @@ export type WeeklySummaryItem = {
   weeklyActivityKind?: WeeklyPriorityKind | "public_clue";
   related_hashes?: number[];
   rewards?: WeeklyActivityReward[];
+  characters?: WeeklyActivityCharacterState[];
 };
 
 export type WeeklyActivityReward = {
@@ -32,6 +33,11 @@ export type WeeklyIronBannerChallenge = {
   complete: boolean;
   progress_label?: string;
   description?: string;
+};
+
+export type WeeklyActivityCharacterState = {
+  character_id: string;
+  challenge?: WeeklyIronBannerChallenge;
 };
 
 export type WeeklyIronBannerCharacter = {
@@ -92,6 +98,7 @@ export type WeeklyActivityEntry = {
   source?: string;
   related_hashes?: number[];
   rewards?: WeeklyActivityReward[];
+  characters?: WeeklyActivityCharacterState[];
 };
 
 export type WeeklySummaryPriority = {
@@ -225,7 +232,8 @@ function buildPriority(kind: WeeklyPriorityKind, items: WeeklySummaryItem[]): We
       evidence: candidate.source,
       source: candidate.source,
       related_hashes: candidate.related_hashes,
-      rewards: candidate.rewards
+      rewards: candidate.rewards,
+      characters: candidate.characters
     }))
   };
 }

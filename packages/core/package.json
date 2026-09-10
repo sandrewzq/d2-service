@@ -235,6 +235,10 @@
       "types": "./dist/weekly/liveData.d.ts",
       "import": "./dist/weekly/liveData.js"
     },
+    "./weekly/farming": {
+      "types": "./dist/weekly/farming.d.ts",
+      "import": "./dist/weekly/farming.js"
+    },
     "./health": {
       "types": "./dist/health/index.d.ts",
       "import": "./dist/health/index.js"

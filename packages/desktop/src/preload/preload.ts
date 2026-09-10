@@ -69,6 +69,10 @@ import type {
 import type { SaveVaultNoteInput, SaveVaultTagInput, VaultTags } from "@d2-tools/core/vault/tags";
 import type { WeeklySummary } from "@d2-tools/core/weekly/summary";
 import type {
+  WeeklyFarmingCatalogResource,
+  WeeklyFarmingRequest
+} from "@d2-tools/core/weekly/farming";
+import type {
   AccountItemDetail,
   AccountItemDetailResource,
   AccountItemDetailRequestOptions,
@@ -269,6 +273,8 @@ contextBridge.exposeInMainWorld("d2", {
   getArmorSetCatalog: () => invokeDesktopIpc<ArmorSetCatalogEntry[]>("items:armor-sets:list"),
   getLiveItemAvailability: (itemHashes: number[]) =>
     invokeDesktopIpc<LiveItemAvailability>("items:live-availability", itemHashes),
+  getWeeklyFarmingCatalog: (input: WeeklyFarmingRequest) =>
+    invokeDesktopIpc<WeeklyFarmingCatalogResource>("library:weekly-farming:get", input),
   getItemAliases: () => ipcRenderer.invoke("aliases:get") as Promise<ItemAliases>,
   saveItemAlias: (input: ItemAliasEntry) => ipcRenderer.invoke("aliases:save", input) as Promise<ItemAliases>,
   getLibraryHistory: () => ipcRenderer.invoke("library:history:get") as Promise<LibraryHistory>,

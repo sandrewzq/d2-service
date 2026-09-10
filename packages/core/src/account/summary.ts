@@ -56,6 +56,7 @@ export type AccountItemSummary = {
   armor_stat_breakdown?: ArmorStatBreakdownSummary;
   armor_energy?: ArmorEnergySummary;
   weapon_stats?: WeaponStatSummary;
+  crafting?: AccountWeaponCraftingSummary;
   instance?: AccountItemInstanceSummary;
   item_objectives?: AccountItemPlugObjectiveSummary[];
   sockets?: AccountItemSocketSummary[];
@@ -63,6 +64,12 @@ export type AccountItemSummary = {
   weapon_roll?: AccountWeaponRollSummary;
   catalyst?: AccountItemCatalystSummary;
   pursuit?: AccountPursuitItemSummary;
+};
+
+export type AccountWeaponCraftingSummary = {
+  kind: "crafted" | "enhanced";
+  overlay?: string;
+  background?: string;
 };
 
 export type AccountPursuitItemSummary = {
@@ -1329,6 +1336,9 @@ function summarizeItem(
     ? summarizeEquipableItemSet(definition, equipableItemSetDefinitions, undefined)
     : undefined;
   const pursuit = summarizePursuitItem(item, definition, instanceId, components, objectiveDefinitions);
+  const crafting = groupKey === "weapons"
+    ? summarizeWeaponCrafting(item.state, definition, inventoryItemConstantsDefinitions)
+    : undefined;
   const summary: AccountItemSummary = {
     hash: item.itemHash,
     instance_id: instanceId,
@@ -1348,6 +1358,7 @@ function summarizeItem(
     ...(armorSet ? { armor_set: { hash: armorSet.hash, name: armorSet.name } } : {}),
     power: instance?.primaryStat?.value,
     locked: isLocked(item.state),
+    ...(crafting ? { crafting } : {}),
     instance: summarizeItemInstance(
       instance,
       damageTypeDefinitions,
@@ -1403,6 +1414,31 @@ function summarizeItem(
   }
 
   return sanitizeAccountItemSummary(summary);
+}
+
+function summarizeWeaponCrafting(
+  itemState: number | undefined,
+  definition: DefinitionRecord | undefined,
+  inventoryItemConstantsDefinitions: DefinitionComponentData
+): AccountWeaponCraftingSummary | undefined {
+  // DestinyItemState.Crafted = 8. Bungie also applies this flag to enhanced
+  // weapons, matching DIM's first-stage detection.
+  if (typeof itemState !== "number" || (itemState & 8) !== 8) return undefined;
+  const kind: AccountWeaponCraftingSummary["kind"] = typeof definition?.inventory?.recipeItemHash === "number"
+    && definition.inventory.recipeItemHash > 0
+    ? "crafted"
+    : "enhanced";
+  const constants = inventoryItemConstantsDefinitions["1"] as DefinitionRecord | undefined
+    ?? Object.values(inventoryItemConstantsDefinitions)[0];
+  const overlay = normalizeBungieAssetUrl(kind === "crafted"
+    ? constants?.craftedOverlayPath
+    : constants?.enhancedItemOverlayPath);
+  const background = normalizeBungieAssetUrl(constants?.craftedBackgroundPath);
+  return {
+    kind,
+    ...(overlay ? { overlay } : {}),
+    ...(background ? { background } : {})
+  };
 }
 
 function summarizeArmorEnergy(instance: DestinyItemInstanceComponent | undefined): ArmorEnergySummary | undefined {

@@ -10,6 +10,14 @@ import {
   type ItemAliasEntry
 } from "@d2-tools/services/items/aliases";
 import { buildLiveItemAvailabilityFromBungie } from "@d2-tools/core/items/liveAvailability";
+import type {
+  WeeklyFarmingCatalogResource,
+  WeeklyFarmingRequest
+} from "@d2-tools/core/weekly/farming";
+import {
+  buildWeeklyFarmingCatalogResource,
+  collectActivityLootItemHashes
+} from "@d2-tools/services/community/activityLoot";
 import {
   addFavoriteItem,
   addRecentItem,
@@ -22,8 +30,10 @@ import {
   type BungieVendorsResponse
 } from "@d2-tools/services/bungie/session";
 import { getArmorSetCatalog, getDefinitions, getGameDataCatalog } from "../runtime/gameDataRuntime.js";
+import { getAccountProfileComponents } from "../runtime/accountSession.js";
 import { getSharedBungieSession } from "../runtime/bungieSession.js";
 import { loadFreshOAuthToken } from "./authSession.js";
+import { getDesktopManifestStatus } from "./manifest.js";
 
 export function registerLibraryIpcHandlers(): void {
   ipcMain.handle("library:capabilities", async () => {
@@ -98,6 +108,13 @@ export function registerLibraryIpcHandlers(): void {
     });
   }, classifyGameDataIpcError));
 
+  ipcMain.handle("library:weekly-farming:get", (_event, rawRequest: WeeklyFarmingRequest) => (
+    encodeDesktopIpcFailure(
+      () => loadWeeklyFarmingCatalog(normalizeWeeklyFarmingRequest(rawRequest)),
+      classifyGameDataIpcError
+    )
+  ));
+
   ipcMain.handle("items:detail", (_event, hash: number) => encodeDesktopIpcFailure(async () => {
     const detail = await getGameDataCatalog().getItemDetail({ hash: Number(hash) });
     if (!detail) {
@@ -136,6 +153,48 @@ export function registerLibraryIpcHandlers(): void {
     const config = loadConfig();
     return removeFavoriteItem(config.data.data_dir, Number(hash));
   });
+}
+
+async function loadWeeklyFarmingCatalog(
+  request: WeeklyFarmingRequest
+): Promise<WeeklyFarmingCatalogResource> {
+  const itemHashes = collectActivityLootItemHashes(request);
+  const [itemDefinitions, recordsResult] = await Promise.all([
+    getDefinitions("DestinyInventoryItemDefinition", itemHashes, { projection: "display-summary" }),
+    getAccountProfileComponents([900], request.force ? "refresh" : "cached")
+      .then((profile) => ({ records: profile.profileRecords?.data?.records, failed: false }))
+      .catch(() => ({ records: undefined, failed: true }))
+  ]);
+  return buildWeeklyFarmingCatalogResource({
+    request,
+    manifestVersion: getDesktopManifestStatus().version,
+    itemDefinitions,
+    profileRecords: recordsResult.records,
+    patternReadFailed: recordsResult.failed
+  });
+}
+
+function normalizeWeeklyFarmingRequest(value: WeeklyFarmingRequest): WeeklyFarmingRequest {
+  const activities = Array.isArray(value?.activities)
+    ? value.activities.flatMap((activity) => {
+        if (!activity || (activity.kind !== "raid" && activity.kind !== "dungeon")) return [];
+        const title = typeof activity.title === "string" ? activity.title.trim() : "";
+        if (!title) return [];
+        return [{
+          kind: activity.kind,
+          title,
+          related_hashes: Array.isArray(activity.related_hashes)
+            ? activity.related_hashes.map(Number).filter(Number.isFinite)
+            : [],
+          source: typeof activity.source === "string" ? activity.source : undefined
+        }];
+      })
+    : [];
+  return {
+    activities,
+    reset_at: typeof value?.reset_at === "string" ? value.reset_at : undefined,
+    force: value?.force === true
+  };
 }
 
 async function loadAvailabilityDefinitions(

@@ -36,7 +36,7 @@ export type VendorInventoryResourceOptions = {
 const defaultFreshTtlMs = 5 * 60 * 1000;
 
 type VendorInventoryCacheFile = {
-  version: 1;
+  version: 2;
   entries: Record<string, CachedVendorInventory>;
 };
 
@@ -164,11 +164,11 @@ export async function saveCachedVendorInventory(
 async function readCacheFile(dataDir: string): Promise<VendorInventoryCacheFile> {
   try {
     const parsed = JSON.parse(await readFile(cachePath(dataDir), "utf8")) as Partial<VendorInventoryCacheFile>;
-    if (parsed.version !== 1 || !parsed.entries || typeof parsed.entries !== "object") {
+    if (parsed.version !== 2 || !parsed.entries || typeof parsed.entries !== "object") {
       return emptyCacheFile();
     }
     return {
-      version: 1,
+      version: 2,
       entries: Object.fromEntries(Object.entries(parsed.entries).filter((entry): entry is [string, CachedVendorInventory] => (
         typeof entry[1]?.saved_at === "string" && isVendorInventorySnapshot(entry[1]?.snapshot)
       )))
@@ -179,7 +179,7 @@ async function readCacheFile(dataDir: string): Promise<VendorInventoryCacheFile>
 }
 
 function emptyCacheFile(): VendorInventoryCacheFile {
-  return { version: 1, entries: {} };
+  return { version: 2, entries: {} };
 }
 
 function cachePath(dataDir: string): string {

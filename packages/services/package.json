@@ -159,6 +159,10 @@
       "types": "./dist/community/personalWeaponKnowledge.d.ts",
       "import": "./dist/community/personalWeaponKnowledge.js"
     },
+    "./community/activityLoot": {
+      "types": "./dist/community/activityLoot.d.ts",
+      "import": "./dist/community/activityLoot.js"
+    },
     "./diagnostics/export": {
       "types": "./dist/diagnostics/export.d.ts",
       "import": "./dist/diagnostics/export.js"

@@ -459,6 +459,140 @@
   min-height: 34px;
 }
 
+:where(.app-shell) .account-power-route {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-frame);
+  background: var(--surface-recessed);
+}
+
+:where(.app-shell) .account-power-route-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+:where(.app-shell) .account-power-route-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+:where(.app-shell) .account-power-route-heading-actions .control-refresh-button {
+  min-height: 30px;
+}
+
+:where(.app-shell) .account-power-route-heading h3,
+:where(.app-shell) .account-power-route-heading p,
+:where(.app-shell) .account-power-route-value p,
+:where(.app-shell) .account-power-route-source,
+:where(.app-shell) .account-power-route-empty {
+  margin: 0;
+}
+
+:where(.app-shell) .account-power-route-heading h3 {
+  color: var(--text-title);
+  font-size: var(--priority-context);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+:where(.app-shell) .account-power-route-heading p,
+:where(.app-shell) .account-power-route-empty,
+:where(.app-shell) .account-power-route-source {
+  color: var(--text-muted);
+  font-size: var(--priority-support);
+  line-height: 1.45;
+}
+
+:where(.app-shell) .account-power-route-heading p {
+  margin-top: 2px;
+}
+
+:where(.app-shell) .account-power-route-list {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-frame);
+  background: var(--surface-panel);
+}
+
+:where(.app-shell) .account-power-route-item {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(130px, 0.72fr) minmax(220px, 1.48fr);
+  gap: 12px;
+  padding: 10px;
+  background: var(--surface-panel);
+}
+
+:where(.app-shell) .account-power-route-item + .account-power-route-item {
+  border-top: 1px solid var(--border-subtle);
+}
+
+:where(.app-shell) .account-power-route-identity,
+:where(.app-shell) .account-power-route-state,
+:where(.app-shell) .account-power-route-value {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+
+:where(.app-shell) .account-power-route-identity > span {
+  color: var(--accent-primary);
+  font-size: var(--priority-trace);
+  font-weight: 700;
+}
+
+:where(.app-shell) .account-power-route-identity strong,
+:where(.app-shell) .account-power-route-state strong,
+:where(.app-shell) .account-power-route-value strong {
+  min-width: 0;
+  color: var(--text-title);
+  font-size: var(--priority-support);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+:where(.app-shell) .account-power-route-identity small,
+:where(.app-shell) .account-power-route-state small,
+:where(.app-shell) .account-power-route-value small,
+:where(.app-shell) .account-power-route-value p {
+  color: var(--text-muted);
+  font-size: var(--priority-trace);
+  line-height: 1.45;
+}
+
+:where(.app-shell) .account-power-route-state > .ui-badge {
+  justify-self: start;
+  margin-bottom: 1px;
+}
+
+:where(.app-shell) .account-power-route-more {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+:where(.app-shell) .account-power-route-more > summary {
+  width: fit-content;
+  color: var(--text-body);
+  font-size: var(--priority-support);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+:where(.app-shell) .account-power-route-more[open] > summary {
+  margin-bottom: 8px;
+}
+
+:where(.app-shell) .account-power-route-more > summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 :where(.app-shell) .account-highest-power-confirmation-list {
   display: grid;
   gap: 1px;
@@ -1938,6 +2072,16 @@
     grid-template-columns: 1fr;
   }
 
+  :where(.app-shell) .account-power-route-item {
+    grid-template-columns: minmax(0, 1fr) minmax(130px, 0.8fr);
+  }
+
+  :where(.app-shell) .account-power-route-value {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 8px;
+  }
+
   .app-shell .account-band-heading,
   .app-shell .account-toolbar,
   .app-shell .account-section-heading {
@@ -2139,5 +2283,27 @@
   :where(.app-shell) .account-power-item > img,
   :where(.app-shell) .account-power-item > span:first-child {
     display: none;
+  }
+
+  :where(.app-shell) .account-power-route-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  :where(.app-shell) .account-power-route-heading-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  :where(.app-shell) .account-power-route-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  :where(.app-shell) .account-power-route-state,
+  :where(.app-shell) .account-power-route-value {
+    grid-column: auto;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 8px;
   }
 }
