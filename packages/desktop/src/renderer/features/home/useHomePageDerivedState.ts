@@ -1,6 +1,7 @@
 import { createHomePageDerivedState, type HomePageKey } from "@d2-tools/app/home";
 import type { ShellPageKey } from "@d2-tools/ui";
 import type { AccountSummary, D2Config, LoadoutTemplate, StartupState } from "../../api/types";
+import type { LibraryViewMode } from "../../utils/libraryFilters";
 import { buildDiagnosticRows } from "../../components/DiagnosticsPanel";
 import { buildLoadoutTemplateLookup } from "../../shared/domain/loadouts/loadoutLookup";
 import { isAiSettingsConfigured } from "../../utils/aiSettings";
@@ -14,7 +15,7 @@ export function useHomePageDerivedState(input: {
   activeLoadoutTemplate: LoadoutTemplate | null;
   library: {
     libraryHistory: { recent: Array<{ name: string }> };
-    libraryViewMode: "equipment" | "perks";
+    libraryViewMode: LibraryViewMode;
     equipmentFilters: { query: string };
     perkFilters: { query: string };
     items: unknown[];

@@ -189,7 +189,7 @@ export function buildWeeklyFarmingCatalogResource(input: {
     const items = activity.items.flatMap((item) => {
       const definition = input.itemDefinitions[String(toUnsignedHash(item.item_hash))] as DefinitionRecord | undefined;
       const name = definition?.displayProperties?.name?.trim();
-      if (!name) {
+      if (!definition || !name) {
         warnings.push(`${rotation.title} 的装备 ${item.item_hash} 在当前资料库中不存在，已停止展示。`);
         return [];
       }

@@ -13,6 +13,7 @@ import {
   homePageMetaMap,
   type HomePageKey
 } from "./pageMetadata.js";
+import type { LibraryViewMode } from "./libraryPage.js";
 
 export type AssistantPageContext = {
   page_key: HomePageKey;
@@ -53,7 +54,7 @@ export type HomePageDerivedState = {
   activeLoadoutTemplate?: LoadoutTemplate | null;
   libraryRecentNames?: string[];
   vaultFacts?: string[];
-  libraryViewMode: "equipment" | "perks";
+  libraryViewMode: LibraryViewMode;
   equipmentQuery: string;
   perkQuery: string;
   equipmentResultCount: number;
@@ -151,7 +152,7 @@ export function buildLoadoutContextFacts(input: {
 }
 
 export function buildLibraryContextFacts(input: {
-  viewMode: "equipment" | "perks";
+  viewMode: LibraryViewMode;
   equipmentQuery: string;
   perkQuery: string;
   equipmentResultCount: number;
@@ -159,6 +160,10 @@ export function buildLibraryContextFacts(input: {
   equipmentSearchTouched: boolean;
   perkSearchTouched: boolean;
 }): string[] {
+  if (input.viewMode === "weekly_farming") {
+    return ["资料库搜索：当前在本周刷取模式，展示本周可刷活动的掉落清单。"];
+  }
+
   const isPerkMode = input.viewMode === "perks";
   const query = isPerkMode ? input.perkQuery : input.equipmentQuery;
   const touched = isPerkMode ? input.perkSearchTouched : input.equipmentSearchTouched;

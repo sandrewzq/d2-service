@@ -168,8 +168,7 @@ describe("weekly summary", () => {
               availableActivities: [
                 {
                   activityHash: 461602663,
-                  challenges: [{ objective: { objectiveHash: 3511848321 } }],
-                  visibleRewards: [{ rewardItems: [{ itemQuantity: { itemHash: 891765152 } }] }]
+                  challenges: [{ objective: { objectiveHash: 3511848321 } }]
                 },
                 {
                   activityHash: 1441982566,
@@ -207,7 +206,11 @@ describe("weekly summary", () => {
       },
       definitions: {
         activities: {
-          "461602663": { displayProperties: { name: "移民号的坠毁: 自定义" }, originalDisplayProperties: { name: "移民号的坠毁" } },
+          "461602663": {
+            displayProperties: { name: "移民号的坠毁: 自定义" },
+            originalDisplayProperties: { name: "移民号的坠毁" },
+            challenges: [{ objectiveHash: 3511848321, displayRewards: [{ itemQuantity: { itemHash: 891765152 } }] }]
+          },
           "1441982566": { displayProperties: { name: "门徒誓约: 标准" }, originalDisplayProperties: { name: "门徒誓约" }, activityTypeHash: 2043403989, directActivityModeType: 4, activityModeTypes: [4, 7] },
           "3889634515": { displayProperties: { name: "门徒誓约: 大师" }, originalDisplayProperties: { name: "门徒誓约" }, activityTypeHash: 2043403989, directActivityModeType: 4, activityModeTypes: [4, 7] },
           "1541433876": { displayProperties: { name: "救赎的边缘: 标准" }, originalDisplayProperties: { name: "救赎的边缘" }, activityTypeHash: 2043403989, directActivityModeType: 4, activityModeTypes: [4, 7] },

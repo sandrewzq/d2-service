@@ -19,6 +19,7 @@ import type {
   AiAssistantMessageView,
   LibraryEquipmentFilter,
   LibraryPerkFilter,
+  LibraryViewMode,
   ShellBackgroundTaskItem,
   ShellPageKey
 } from "@d2-tools/ui";
@@ -659,7 +660,7 @@ export function createWebLoadoutsPageModel(input: {
 }
 
 export function createWebLibraryPageModel(input: {
-  libraryViewMode: "equipment" | "perks";
+  libraryViewMode: LibraryViewMode;
   equipmentFilters: LibraryEquipmentFilter;
   perkFilters: LibraryPerkFilter;
   libraryHistory?: LibraryHistory;

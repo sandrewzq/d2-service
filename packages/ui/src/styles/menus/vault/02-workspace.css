@@ -3253,13 +3253,13 @@
 }
 
 :where(.app-shell) .vault-results-column .vault-crafting-overlay {
-  z-index: 2;
+  z-index: var(--vault-layer-decoration);
 }
 
 :where(.app-shell) .vault-results-column .vault-gear-tier {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: var(--vault-layer-control);
   display: block;
   width: 100%;
   height: 100%;

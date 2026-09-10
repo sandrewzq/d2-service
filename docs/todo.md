@@ -7,7 +7,7 @@
 
 | 检查项 | 状态 | 备注 |
 |---|---|---|
-| 本地 CI | ✅ 2026-09-09 通过 | 已通过文档、编码、全部 workspace 构建、488 项行为测试、质量门禁、62 项架构测试、UI 合同、共享 Shell 视觉合同和全量类型检查 |
+| 本地 CI | ✅ 2026-09-10 通过 | 已通过文档、编码、全部 workspace 构建、490 项行为测试、质量门禁（含 UI 合同）、62 项架构测试、共享 Shell 视觉合同和全量类型检查 |
 | GitHub CI | ⏳ push 后异步执行 | 执行 frozen install、`pnpm test`、共享 Shell 视觉契约、UI 合同静态门禁和构建后的 `pnpm typecheck:ci`；普通 push 不等待结果 |
 | Release 门禁 | ✅ 0.0.22 已发布 | 已通过 macOS 发布入口完成本地门禁、GitHub Actions、Windows NSIS 安装包和 GitHub Release |
 | Agent 自动验证 | ⛔ 默认禁用 | 只有用户明确要求本地测试、构建或打包时才执行 |
@@ -17,6 +17,8 @@
 | 编号 | 优先级 | 状态 | 任务 | Backlog | 下一步 |
 |---|---|---|---|---|---|
 | Bug #81 | P0 | 🟠 代码完成，待验收 | 仓库快捷取出后保持结果列表滚动位置 | — | 在仓库结果列表中连续取出多件装备，确认卡片移除后焦点落到相邻卡片，右侧滚动位置不再因旧焦点请求重复执行而跳动。 |
+| Bug #82 | P0 | 🟠 代码完成，待启动确认 | T45 活动掉落定义类型收窄阻塞 Desktop 启动 | — | 重新启动 Desktop，确认 Services 构建不再报告 `activityLoot.ts` 的 `definition is possibly undefined`。 |
+| Bug #83 | P0 | 🟠 代码完成，待 push 后 CI 确认 | 三处 CI 门禁回归：仓库卡片裸 z-index、LibraryViewMode 类型窄化、weekly summary 奖励 fixture 过期 | — | push 后确认 GitHub CI 绿灯：`ui:contract:check`、`typecheck:ci`（web/desktop）、`weekly.summary` 行为测试均已本地复验通过。 |
 | T1 | P1 | 📝 候选方案，待排期 | 全应用英文国际化补齐 | [任务说明](work/backlog/T1-english-internationalization.md) | 先补齐页面标题、顶部状态和共享弹窗，再按仓库、装备详情、配装、AI 助手顺序迁移；完成核心工作流前不宣称完整英文支持。 |
 | T23 | P2 | ⏸️ 等待官方书面授权 | D2Checkpoint 进度机器人集成 | [执行 backlog](work/backlog/T23-d2checkpoint-integration.md) | 用户已于 2026-09-08 向 `support@d2checkpoint.com` 发送授权申请；收到回复前不进入开发。 |
 | T43 | P1 | 🟠 开发完成，待真实账号验收 | 任务待处理中心 | [任务说明](work/backlog/T43-pursuit-attention-center.md) | 使用真实账号在“账号 → 任务与赏金”核对三角色任务、赏金、角色目标和赛季挑战的数量、进度、追踪、到期与完成待处理状态；首页任务卡已取消。 |
