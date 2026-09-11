@@ -401,7 +401,15 @@ function WeaponIdentity(props: {
   return (
     <header className="weapon-detail-identity" data-surface="section">
       <div className="weapon-detail-identity-main">
-        <GameAssetImage src={identity.icon} alt="" loading="eager" fallback={<span className="weapon-detail-icon-placeholder" aria-hidden="true" />} />
+        <span className="weapon-detail-identity-icon">
+          {identity.crafting?.background ? (
+            <GameAssetImage className="weapon-detail-crafting-background" src={identity.crafting.background} alt="" aria-hidden="true" loading="eager" />
+          ) : null}
+          <GameAssetImage src={identity.icon} alt="" loading="eager" fallback={<span className="weapon-detail-icon-placeholder" aria-hidden="true" />} />
+          {identity.crafting?.overlay ? (
+            <GameAssetImage className="weapon-detail-crafting-overlay" src={identity.crafting.overlay} alt="" aria-hidden="true" loading="eager" />
+          ) : null}
+        </span>
         <div>
           <h2 data-ui-part="value" data-text-tone="primary" data-info-priority="display">{identity.name}</h2>
           <p data-ui-part="detail" data-text-tone="body" data-info-priority="reading">{[identity.item_type, identity.frame?.name].filter(Boolean).join(" · ")}</p>
@@ -420,6 +428,7 @@ function WeaponIdentity(props: {
                 tone={`champion-${identity.champion.key}`}
               />
             ) : null}
+            {identity.crafting ? <Fact label={identity.crafting.label} tone={`crafting-${identity.crafting.kind}`} /> : null}
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import type {
   AccountItemPlugSummary,
   AccountItemSummary,
+  AccountWeaponCraftingSummary,
   AmmoTypeKey,
   WeaponFrameSummary,
   WeaponStatKey,
@@ -44,6 +45,13 @@ export type WeaponDetailIdentity = {
   champion?: WeaponDetailChampionEffect;
   release?: ItemReleaseSummary;
   definition_version?: ItemDefinitionVersionSummary;
+  /** 锻造标识：账号实例为 crafted，资料库定义为 craftable；只做锻造，不标强化。 */
+  crafting?: {
+    kind: "crafted" | "craftable";
+    label: string;
+    overlay?: string;
+    background?: string;
+  };
 };
 
 export type WeaponDetailAmmo = {
@@ -355,6 +363,8 @@ export type WeaponDetailSelectedItemLike = {
     definition: boolean;
     instance: boolean;
   };
+  crafting?: AccountWeaponCraftingSummary;
+  craftable?: boolean;
 };
 
 export type WeaponDetailInstanceLike = Pick<
@@ -460,7 +470,17 @@ export function buildWeaponDetailViewModel(input: BuildWeaponDetailViewModelInpu
       frame: item.weapon_frame,
       champion: input.champion,
       release: item.release,
-      definition_version: item.definition_version
+      definition_version: item.definition_version,
+      crafting: item.crafting?.kind === "crafted"
+        ? {
+            kind: "crafted",
+            label: "锻造",
+            overlay: item.crafting.overlay,
+            background: item.crafting.background
+          }
+        : item.craftable
+          ? { kind: "craftable", label: "可锻造" }
+          : undefined
     },
     context,
     versions: input.versions?.length

@@ -1,6 +1,6 @@
 # 当前待办
 
-> 更新时间：2026-09-10
+> 更新时间：2026-09-11
 > 本文件只保留当前任务、状态和下一步。详细范围与验收标准由对应 backlog 维护，阶段过程使用 Git 历史追溯。
 
 ## 健康度
@@ -16,15 +16,15 @@
 
 | 编号 | 优先级 | 状态 | 任务 | Backlog | 下一步 |
 |---|---|---|---|---|---|
-| Bug #81 | P0 | 🟠 代码完成，待验收 | 仓库快捷取出后保持结果列表滚动位置 | — | 在仓库结果列表中连续取出多件装备，确认卡片移除后焦点落到相邻卡片，右侧滚动位置不再因旧焦点请求重复执行而跳动。 |
-| Bug #82 | P0 | 🟠 代码完成，待启动确认 | T45 活动掉落定义类型收窄阻塞 Desktop 启动 | — | 重新启动 Desktop，确认 Services 构建不再报告 `activityLoot.ts` 的 `definition is possibly undefined`。 |
-| Bug #83 | P0 | 🟠 代码完成，待 push 后 CI 确认 | 三处 CI 门禁回归：仓库卡片裸 z-index、LibraryViewMode 类型窄化、weekly summary 奖励 fixture 过期 | — | push 后确认 GitHub CI 绿灯：`ui:contract:check`、`typecheck:ci`（web/desktop）、`weekly.summary` 行为测试均已本地复验通过。 |
 | T1 | P1 | 📝 候选方案，待排期 | 全应用英文国际化补齐 | [任务说明](work/backlog/T1-english-internationalization.md) | 先补齐页面标题、顶部状态和共享弹窗，再按仓库、装备详情、配装、AI 助手顺序迁移；完成核心工作流前不宣称完整英文支持。 |
 | T23 | P2 | ⏸️ 等待官方书面授权 | D2Checkpoint 进度机器人集成 | [执行 backlog](work/backlog/T23-d2checkpoint-integration.md) | 用户已于 2026-09-08 向 `support@d2checkpoint.com` 发送授权申请；收到回复前不进入开发。 |
 | T43 | P1 | 🟠 开发完成，待真实账号验收 | 任务待处理中心 | [任务说明](work/backlog/T43-pursuit-attention-center.md) | 使用真实账号在“账号 → 任务与赏金”核对三角色任务、赏金、角色目标和赛季挑战的数量、进度、追踪、到期与完成待处理状态；首页任务卡已取消。 |
 | T44 | P1 | 🟠 已修正奖励来源，待真实账号验收 | 光等提升路线 | [任务说明](work/backlog/T44-character-progression-center.md) | 周挑战奖励按 Objective 读取 Manifest `displayRewards` 并兼容 `dummyRewards`，普通活动掉落不再参与推荐；需核对三角色“本周可做 / 当前无可领取挑战”与游戏内一致。 |
 | T45 | P1 | 🟠 首版开发完成，待真实账号验收 | 本周刷取清单 | [任务说明](work/backlog/T45-weekly-farming-checklist.md) | 在“资料库 → 本周刷取”核对当前轮换活动、活动级装备来源、T20 推荐、账号持有与游戏内图样进度；重点确认已完成、进行中、不可制作和未返回四类图样状态。 |
 | T52 | P1 | 🟠 代码完成，待真实账号验收 | 仓库武器区分锻造与强化状态 | [任务说明](work/backlog/T52-vault-crafted-weapon-status.md) | 同步装备数据后，在仓库武器卡片核对普通武器无额外标记、锻造武器显示“锻造”、可强化掉落武器显示“强化”，并确认官方图层不遮挡装备阶级。 |
+| T53 | P1 | 🟠 代码完成，待本地启动复验 | 仓库武器锻造状态筛选 | [任务说明](work/backlog/T52-vault-crafted-weapon-status.md) | 武器模式「武器条件」区新增锻造状态三段筛选：全部 / 可锻造（有图样）/ 非锻造（其余含可强化掉落）；切出武器组重置、参与重置按钮与已生效条件摘要。重启 Desktop 用真实账号核对命中数量与卡片标记一致。 |
+| T54 | P1 | 🟠 代码完成，待本地启动复验 | 武器详情与资料库详情身份区锻造标识 | [任务说明](work/backlog/T52-vault-crafted-weapon-status.md) | 账号实例 `crafted` 显示「锻造」标签 + 官方锻造图层；资料库定义 `recipeItemHash` 存在显示「可锻造」标签不叠图层；强化不进入身份区。重启 Desktop 分别打开仓库锻造武器与资料库可锻造武器确认标识与图层，普通武器无标识。 |
+| T55 | P1 | 🟠 代码完成，待本地启动复验 | 仓库推荐筛选支持多来源（AND 聚合） | [任务说明](work/backlog/T20-weapon-recommendation-vault-cleanup.md) | 结果列使用竖向来源行：人工来源可多选、DIM 互斥；每个已选来源维护自己的核心 / 完整条件，多来源按各来源条件 AND 聚合，不要求事实键一致；未选中来源只显示行头，勾选后展开条件；徽标按其他已选来源条件与左侧筛选后的候选重算，窄屏自动换行。重启 Desktop 多选两个来源核对每行命中件数、分段徽标与卡片来源摘要一致，切换来源无卡顿。 |
 
 ## 已完成基线
 

@@ -213,6 +213,8 @@ export const homeCopy: Record<InterfaceLocale, LocaleCopy["home"]> = {
         "仄本周八件轮换": "Xur weekly eight-item rotation",
         "本周八件轮换": "Weekly eight-item rotation",
         "本周奖励": "Weekly rewards",
+        "掉落池": "Loot pool",
+        "掉落池待确认": "Loot pool pending",
         "奖励待确认": "Rewards pending confirmation",
         "公开接口尚未返回可读奖励。": "The public API has not returned readable rewards.",
         "项已确认": "confirmed",

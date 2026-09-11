@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import {
   ammoFilterLabels,
   classFilterLabels,
+  craftingFilterLabels,
   damageFilterLabels,
   gearTierFilterLabels,
   lockFilterLabels,
@@ -12,6 +13,7 @@ import {
   type VaultArmorSetOption,
   type VaultArmorStatRule,
   type VaultClassFilter,
+  type VaultCraftingFilter,
   type VaultDamageFilter,
   type VaultFrameFilter,
   type VaultFrameOption,
@@ -63,6 +65,7 @@ export function VaultFilterToolbar(props: {
   gearTierFilter: VaultGearTierFilter;
   classFilter: VaultClassFilter;
   damageFilter: VaultDamageFilter;
+  craftingFilter: VaultCraftingFilter;
   armorSetFilter: VaultArmorSetFilter;
   frameFilters: VaultFrameFilter;
   group: VaultGroupFilter;
@@ -91,6 +94,7 @@ export function VaultFilterToolbar(props: {
   onGearTierFilterChange: (value: VaultGearTierFilter) => void;
   onClassFilterChange: (value: VaultClassFilter) => void;
   onDamageFilterChange: (value: VaultDamageFilter) => void;
+  onCraftingFilterChange: (value: VaultCraftingFilter) => void;
   onArmorSetFilterChange: (value: VaultArmorSetFilter) => void;
   onGroupChange: (value: VaultGroupFilter) => void;
   onToggleFrameFilter: (key: string) => void;
@@ -221,6 +225,12 @@ export function VaultFilterToolbar(props: {
               tone={(key) => key === "all" ? undefined : `damage-${key}`}
               wrap
               onChange={(value) => props.onDamageFilterChange(value as VaultDamageFilter)}
+            />
+            <SegmentedFilter
+              label="锻造状态"
+              value={props.craftingFilter}
+              options={Object.entries(craftingFilterLabels)}
+              onChange={(value) => props.onCraftingFilterChange(value as VaultCraftingFilter)}
             />
             <details className="vault-frame-filter" open={Boolean(props.frameFilters.length)}>
               <summary><span>武器框架</span><small>{props.frameFilters.length ? `已选 ${props.frameFilters.length} 项` : "全部框架"}</small></summary>

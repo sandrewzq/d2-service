@@ -236,7 +236,8 @@ describe("weekly summary", () => {
     const summary = buildWeeklySummary(new Date("2026-07-09T09:00:00.000Z"), liveData, { timeZone: "Asia/Shanghai" });
 
     expect(summary.priorities.nightfall.title).toBe("移民号的坠毁");
-    expect(summary.priorities.nightfall.detail).toContain("奖励：崇拜");
+    expect(summary.priorities.nightfall.detail).toBe("先锋行动 · 宗师先锋警戒");
+    expect(summary.priorities.nightfall.entries?.[0]?.loot_pool?.map((reward) => reward.name)).toEqual(["崇拜"]);
     expect(summary.priorities.rotating_raid.entries?.map((entry) => entry.title)).toEqual(["门徒誓约", "救赎的边缘"]);
     expect(summary.priorities.rotating_dungeon.entries?.map((entry) => entry.title)).toEqual(["晚星之主", "二象性"]);
     expect(summary.priorities.rotating_dungeon.entries?.map((entry) => entry.title)).not.toContain("平衡");

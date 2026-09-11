@@ -10,7 +10,7 @@ import {
 } from "../account/resource.js";
 
 export type CachedHomeBriefing = {
-  version: 8;
+  version: 9;
   context_key: string;
   saved_at: string;
   fetched_at: string;
@@ -49,7 +49,7 @@ export async function loadCachedHomeBriefing(
 ): Promise<CachedHomeBriefing | null> {
   try {
     const parsed = JSON.parse(await readFile(cachePath(dataDir), "utf8")) as Partial<CachedHomeBriefing>;
-    if (parsed.version !== 8
+    if (parsed.version !== 9
       || parsed.context_key !== contextKey
       || !parsed.saved_at
       || !parsed.fetched_at

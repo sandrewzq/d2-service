@@ -105,6 +105,7 @@ export type HomeWeeklyActivityEntry = {
   source?: string;
   related_hashes?: number[];
   rewards?: HomeWeeklyActivityReward[];
+  loot_pool?: HomeWeeklyActivityReward[];
 };
 export type HomeStartupState = {
   cards: {
@@ -536,7 +537,8 @@ function HomeActivityEntry(props: {
   copy: HomeCopy;
   onOpenReward?: (reward: HomeWeeklyActivityReward) => void;
 }) {
-  const rewards = props.entry.rewards?.filter((reward) => reward.name.trim()) ?? [];
+  const lootPool = props.entry.loot_pool?.filter((reward) => reward.name.trim())
+    ?? (props.entry.rewards ?? []).filter((reward) => reward.name.trim() && isHomeWeaponReward(reward));
   return (
     <div className={props.featured ? "weekly-activity-entry is-featured" : "weekly-activity-entry"}>
       <div className="weekly-activity-copy">
@@ -544,14 +546,14 @@ function HomeActivityEntry(props: {
         {props.entry.detail ? <p data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{props.entry.detail}</p> : null}
       </div>
       <div className="weekly-activity-reward-panel">
-        <span data-ui-part="label" data-info-priority="support" data-text-tone="meta">{homeText(props.copy, "本周奖励")}</span>
+        <span data-ui-part="label" data-info-priority="support" data-text-tone="meta">{homeText(props.copy, "掉落池")}</span>
         <div className="weekly-activity-reward-list">
-          {rewards.length ? rewards.map((reward) => (
+          {lootPool.length ? lootPool.map((reward) => (
             <HomeActivityReward key={reward.hash} reward={reward} onOpen={props.onOpenReward} />
           )) : (
             <div className="weekly-activity-reward is-pending">
               <div>
-                <strong data-ui-part="value" data-info-priority="context" data-text-tone="primary">{homeText(props.copy, "奖励待确认")}</strong>
+                <strong data-ui-part="value" data-info-priority="context" data-text-tone="primary">{homeText(props.copy, "掉落池待确认")}</strong>
                 <small data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{homeText(props.copy, "公开接口尚未返回可读奖励。")}</small>
               </div>
             </div>
@@ -562,17 +564,27 @@ function HomeActivityEntry(props: {
   );
 }
 
+function isHomeWeaponReward(reward: HomeWeeklyActivityReward): boolean {
+  if (reward.group_key === "weapons") return true;
+  return /武器|步枪|手炮|弓|霰弹|狙击|榴弹|机枪|火箭|剑|融合|冲锋枪|手枪|偃月|weapon|rifle|hand cannon|bow|shotgun|sniper|launcher|machine gun|rocket|sword|fusion|submachine|sidearm|glaive/i.test(reward.item_type ?? "");
+}
+
 function HomeActivityReward(props: {
   reward: HomeWeeklyActivityReward;
   onOpen?: (reward: HomeWeeklyActivityReward) => void;
 }) {
+  const typeNote = props.reward.item_type?.trim();
   const content = <>
       {props.reward.icon ? (
         <span className="weekly-activity-reward-icon"><GameAssetImage src={normalizeBungieIconUrl(props.reward.icon) ?? props.reward.icon} alt="" loading="eager" /></span>
       ) : <span className="weekly-activity-reward-icon is-missing" aria-label={`${props.reward.name} 无图标`}>?</span>}
       <div>
-        <strong data-ui-part="value" data-info-priority="context" data-text-tone="primary">{props.reward.name}</strong>
-        {props.reward.item_type ? <small data-ui-part="detail" data-info-priority="reading" data-text-tone="body">{props.reward.item_type}</small> : null}
+        <strong
+          data-ui-part="value"
+          data-info-priority="context"
+          data-text-tone="primary"
+          title={typeNote ? `${props.reward.name} · ${typeNote}` : props.reward.name}
+        >{props.reward.name}</strong>
       </div>
     </>;
 

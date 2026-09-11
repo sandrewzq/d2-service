@@ -42,6 +42,7 @@ export function VaultItemSections(props: {
   onQuickAction?: (item: AccountItemSummary, action: "lock" | "unlock" | "transfer") => void | Promise<void>;
 }) {
   const sectionListRef = useRef<HTMLDivElement>(null);
+  const handledFocusRequestIdRef = useRef<number | null>(null);
   const totalItemCount = useMemo(
     () => props.sections.reduce((total, section) => total + section.items.length, 0),
     [props.sections]
@@ -116,6 +117,8 @@ export function VaultItemSections(props: {
 
   useLayoutEffect(() => {
     if (canUseKeyedWeaponGrid || !props.focusRequest) return;
+    if (handledFocusRequestIdRef.current === props.focusRequest.requestId) return;
+    handledFocusRequestIdRef.current = props.focusRequest.requestId;
     const cards = [...(sectionListRef.current?.querySelectorAll<HTMLElement>("[data-vault-item-key]") ?? [])];
     const card = cards.find((candidate) => candidate.dataset.vaultItemKey === props.focusRequest?.itemKey)
       ?? cards[cards.length - 1];

@@ -18,6 +18,7 @@ export type VaultLocatedItem = AccountItemSummary & {
   is_postmaster_item?: boolean;
 };
 export type VaultAmmoFilter = AmmoTypeKey | "all";
+export type VaultCraftingFilter = "all" | "crafted" | "uncrafted";
 export type VaultArmorStatFilter = ArmorStatKey | "total" | "all";
 export type VaultSortKey = "name" | "group" | "tier" | "power" | "armor-total" | ArmorStatKey;
 export type VaultTagFilter = Exclude<VaultTagValue, "none"> | "all" | "untagged" | "noted" | "wishlist" | "target";
@@ -43,6 +44,7 @@ export type VaultFilter = {
   location?: VaultLocationFilter;
   currentCharacterId?: string;
   ammo?: VaultAmmoFilter;
+  crafting?: VaultCraftingFilter;
   itemType?: string;
   rarity?: VaultRarityFilter;
   gearTier?: VaultGearTierFilter;
@@ -215,6 +217,12 @@ export const damageFilterLabels: Record<VaultDamageFilter, string> = {
   strand: "缚丝"
 };
 
+export const craftingFilterLabels: Record<VaultCraftingFilter, string> = {
+  all: "全部",
+  crafted: "可锻造",
+  uncrafted: "非锻造"
+};
+
 export const armorStatLabels: Record<ArmorStatKey, string> = {
   health: "生命值",
   melee: "近战",
@@ -271,6 +279,7 @@ export function createVaultListWorkspace(input: {
       slotFilter: filter.slot ?? "all",
       locationFilter: filter.location ?? "all",
       ammoFilter: filter.ammo ?? "all",
+      craftingFilter: filter.crafting ?? "all",
       itemTypeFilter: filter.itemType ?? "all",
       rarityFilter: filter.rarity ?? "all",
       gearTierFilter: filter.gearTier ?? "all",
@@ -311,6 +320,7 @@ export function filterVaultItems(items: AccountItemSummary[], filter: VaultFilte
     if (!matchesGearTier(item, filter.gearTier ?? "all")) return false;
     if (!matchesClass(item, filter.classType ?? "all")) return false;
     if (!matchesDamage(item, filter.damageType ?? "all")) return false;
+    if (!matchesCrafting(item, filter.crafting ?? "all")) return false;
     if (!matchesArmorSet(item, filter.armorSet ?? "all")) return false;
     if (filter.frames?.length && !filter.frames.includes(item.weapon_frame?.key ?? "")) return false;
     if (parsedQuery.locked !== undefined && item.locked !== parsedQuery.locked) return false;
@@ -483,26 +493,35 @@ export function sortVaultItems(
   return [...items].sort((left, right) => {
     if (sortKey === "power") {
       return (right.power ?? 0) - (left.power ?? 0)
-        || compareText(left.name, right.name);
+        || compareVaultItemIdentity(left, right);
     }
 
     if (isArmorStatSortKey(sortKey)) {
       return armorStatValue(right, sortKey) - armorStatValue(left, sortKey)
-        || compareText(left.name, right.name);
+        || compareVaultItemIdentity(left, right);
     }
 
     if (sortKey === "group") {
       return groupSortOrder[left.group_key] - groupSortOrder[right.group_key]
-        || compareText(left.name, right.name);
+        || compareVaultItemIdentity(left, right);
     }
 
     if (sortKey === "tier") {
       return tierRank(left.tier) - tierRank(right.tier)
-        || compareText(left.name, right.name);
+        || compareVaultItemIdentity(left, right);
     }
 
-    return compareText(left.name, right.name);
+    return compareVaultItemIdentity(left, right);
   });
+}
+
+/**
+ * 名称相同（同一把武器的多个实例）时按实例 ID 固定次序，
+ * 保证取出等账号操作后同名卡片不互换位置。
+ */
+function compareVaultItemIdentity(left: AccountItemSummary, right: AccountItemSummary): number {
+  return compareText(left.name, right.name)
+    || compareText(left.instance_id, right.instance_id);
 }
 
 export function countLocalTargetMatches(items: AccountItemSummary[], rules?: LocalTargetRules | null): number {
@@ -521,6 +540,7 @@ export function buildVaultContextFacts(input: {
   slotFilter: VaultSlotFilter;
   locationFilter?: VaultLocationFilter;
   ammoFilter: VaultAmmoFilter;
+  craftingFilter?: VaultCraftingFilter;
   itemTypeFilter?: string;
   rarityFilter?: VaultRarityFilter;
   gearTierFilter?: VaultGearTierFilter;
@@ -545,6 +565,7 @@ export function buildVaultContextFacts(input: {
     input.slotFilter !== "all" ? `位置：${input.slotFilter}` : "",
     input.locationFilter && input.locationFilter !== "all" ? `所在位置：${locationFilterLabels[input.locationFilter]}` : "",
     input.ammoFilter !== "all" ? ammoFilterLabels[input.ammoFilter] : "",
+    input.craftingFilter && input.craftingFilter !== "all" ? `锻造状态：${craftingFilterLabels[input.craftingFilter]}` : "",
     input.itemTypeFilter && input.itemTypeFilter !== "all" ? `类型：${input.itemTypeFilter}` : "",
     input.rarityFilter && input.rarityFilter !== "all" ? `稀有度：${rarityFilterLabels[input.rarityFilter]}` : "",
     input.gearTierFilter && input.gearTierFilter !== "all" ? `装备阶级：${gearTierFilterLabels[input.gearTierFilter]}` : "",
@@ -769,6 +790,12 @@ function matchesClass(item: AccountItemSummary, classType: VaultClassFilter): bo
 function matchesDamage(item: AccountItemSummary, damageType: VaultDamageFilter): boolean {
   if (damageType === "all") return true;
   return damageTypeForItem(item) === damageType;
+}
+
+function matchesCrafting(item: AccountItemSummary, crafting: VaultCraftingFilter): boolean {
+  if (crafting === "all") return true;
+  const isCrafted = item.crafting?.kind === "crafted";
+  return crafting === "crafted" ? isCrafted : !isCrafted;
 }
 
 function matchesArmorSet(item: AccountItemSummary, armorSet: VaultArmorSetFilter): boolean {

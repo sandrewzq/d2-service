@@ -56,6 +56,8 @@ export type ItemSearchResult = {
   release?: ItemReleaseSummary;
   definition_version?: ItemDefinitionVersionSummary;
   armor_set?: EquipableItemSetSummary;
+  /** 定义层可确认的支持锻造（recipeItemHash 存在）。 */
+  craftable?: boolean;
   class_name?: string;
   damage_type?: string;
   damage_type_summary?: DamageTypeSummary;

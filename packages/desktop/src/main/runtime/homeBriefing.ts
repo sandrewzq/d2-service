@@ -4,7 +4,13 @@ import { isXurActiveAt, xurPeriodKey, xurVendorHash } from "@d2-tools/core/daily
 import type { D2Config } from "@d2-tools/core/config/schema";
 import type { DefinitionComponentData, DefinitionRecord } from "@d2-tools/core/manifest/definitions";
 import { buildWeeklyLiveDataFromBungie } from "@d2-tools/core/weekly/liveData";
-import { buildWeeklySummary } from "@d2-tools/core/weekly/summary";
+import {
+  buildWeeklySummary,
+  type WeeklyActivityReward,
+  type WeeklySummary,
+  type WeeklySummaryItem
+} from "@d2-tools/core/weekly/summary";
+import { lootPoolItemHashesForActivity } from "@d2-tools/services/community/activityLoot";
 import {
   type BungieHomeSnapshot,
   type BungiePublicSale,
@@ -121,6 +127,11 @@ async function buildHomeBriefing(
     characterVendors: snapshot.characterVendors,
     definitions
   });
+  const lootPoolHashes = collectRotatingLootPoolHashes(weeklyLiveData.items ?? []);
+  if (lootPoolHashes.length) {
+    const lootDefinitions = await getDefinitions("DestinyInventoryItemDefinition", lootPoolHashes);
+    Object.assign(definitions.items, lootDefinitions);
+  }
   const freshDaily = buildDailySummary(now, dailyLiveData);
   const daily = cached ? {
     ...freshDaily,
@@ -132,10 +143,10 @@ async function buildHomeBriefing(
     }
   } : freshDaily;
   const weekly = refreshPlan.activities || !cached
-    ? buildWeeklySummary(now, weeklyLiveData)
+    ? attachRotatingLootPools(buildWeeklySummary(now, weeklyLiveData), definitions.items)
     : cached.weekly;
   return {
-    version: 8,
+    version: 9,
     context_key: contextKey,
     saved_at: now.toISOString(),
     fetched_at: snapshot.fetchedAt,
@@ -146,6 +157,57 @@ async function buildHomeBriefing(
     daily,
     weekly
   };
+}
+
+/**
+ * 轮换突袭与轮换地牢的掉落池来自受控数据集（Bungie Collectible + DIM 交叉核对）。
+ * 首页周报里只装配武器清单；数据集未覆盖的活动保留原有聚合奖励展示。
+ */
+function collectRotatingLootPoolHashes(items: WeeklySummaryItem[]): number[] {
+  const hashes = new Set<number>();
+  for (const item of items) {
+    if (item.weeklyActivityKind !== "rotating_raid" && item.weeklyActivityKind !== "rotating_dungeon") {
+      continue;
+    }
+    const activityHash = item.related_hashes?.[0];
+    if (typeof activityHash !== "number" || !Number.isFinite(activityHash)) continue;
+    for (const hash of lootPoolItemHashesForActivity(activityHash)) hashes.add(hash);
+  }
+  return [...hashes];
+}
+
+function attachRotatingLootPools(
+  summary: WeeklySummary,
+  itemDefinitions: DefinitionComponentData
+): WeeklySummary {
+  const priorities = { ...summary.priorities };
+  for (const kind of ["rotating_raid", "rotating_dungeon"] as const) {
+    const priority = priorities[kind];
+    const entries = (priority.entries ?? []).map((entry) => {
+      const lootPool = buildLootPool(entry.related_hashes?.[0], itemDefinitions);
+      return lootPool.length ? { ...entry, loot_pool: lootPool } : entry;
+    });
+    priorities[kind] = { ...priority, entries };
+  }
+  return { ...summary, priorities };
+}
+
+function buildLootPool(
+  activityHash: number | undefined,
+  itemDefinitions: DefinitionComponentData
+): WeeklyActivityReward[] {
+  if (typeof activityHash !== "number" || !Number.isFinite(activityHash)) return [];
+  return lootPoolItemHashesForActivity(activityHash)
+    .map((hash) => {
+      const definition = itemDefinitions[String(hash)];
+      const name = definition?.displayProperties?.name?.trim();
+      if (!name) return undefined;
+      const reward: WeeklyActivityReward = { hash, name, group_key: "weapons" };
+      if (definition.displayProperties?.icon) reward.icon = definition.displayProperties.icon;
+      if (typeof definition.itemTypeDisplayName === "string") reward.item_type = definition.itemTypeDisplayName;
+      return reward;
+    })
+    .filter((reward): reward is WeeklyActivityReward => Boolean(reward));
 }
 
 async function loadHomeDefinitions(snapshot: BungieHomeSnapshot): Promise<{

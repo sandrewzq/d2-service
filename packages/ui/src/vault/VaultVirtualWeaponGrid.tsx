@@ -193,10 +193,11 @@ function WindowedWeaponGrid(props: GridProps) {
     const index = findRequestedIndex(props);
     if (index < 0) return;
     handledFocusRequestIdRef.current = props.focusRequest.requestId;
-    focusVirtualItem(index);
+    // 快捷操作后的焦点恢复不滚动，只有键盘方向键导航才允许滚动到目标。
+    focusVirtualItem(index, false);
   }, [props.focusRequest, props.itemKeys]);
 
-  function focusVirtualItem(index: number) {
+  function focusVirtualItem(index: number, allowScroll: boolean) {
     const renderedTarget = findItemTarget(gridRef.current, index);
     if (renderedTarget) {
       renderedTarget.focus({ preventScroll: true });
@@ -208,7 +209,9 @@ function WindowedWeaponGrid(props: GridProps) {
     const metrics = metricsRef.current;
     const row = Math.floor(index / metrics.columns);
     pendingFocusIndexRef.current = index;
-    scrollRoot.scrollTo({ top: Math.max(0, metrics.gridTop + row * metrics.rowStride - 12) });
+    if (allowScroll) {
+      scrollRoot.scrollTo({ top: Math.max(0, metrics.gridTop + row * metrics.rowStride - 12) });
+    }
     scheduleWindowUpdate();
   }
 
@@ -218,7 +221,7 @@ function WindowedWeaponGrid(props: GridProps) {
     const nextIndex = getNextIndex(event, currentIndex, props.itemKeys.length, windowState.columns);
     if (nextIndex === null || nextIndex === currentIndex) return;
     event.preventDefault();
-    focusVirtualItem(nextIndex);
+    focusVirtualItem(nextIndex, true);
   }
 
   const visibleItemKeys = props.itemKeys.slice(windowState.startIndex, windowState.endIndex);

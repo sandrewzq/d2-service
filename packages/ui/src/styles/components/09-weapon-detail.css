@@ -57,6 +57,7 @@
 }
 
 .weapon-detail-identity-main > img,
+.weapon-detail-identity-icon,
 .weapon-detail-icon-placeholder {
   width: 64px;
   height: 64px;
@@ -64,6 +65,38 @@
   border-radius: var(--radius-control);
   background: var(--surface-recessed);
   object-fit: cover;
+}
+
+.weapon-detail-identity-icon {
+  position: relative;
+  display: block;
+  min-width: 64px;
+  overflow: hidden;
+}
+
+.weapon-detail-identity-icon > img,
+.weapon-detail-identity-icon .weapon-detail-icon-placeholder {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: cover;
+}
+
+.weapon-detail-identity-icon .weapon-detail-crafting-background,
+.weapon-detail-identity-icon .weapon-detail-crafting-overlay {
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.weapon-detail-identity-icon .weapon-detail-crafting-background {
+  z-index: 1;
+}
+
+.weapon-detail-identity-icon .weapon-detail-crafting-overlay {
+  z-index: 2;
 }
 
 .weapon-detail-section-heading > div > span {
@@ -140,6 +173,18 @@
   --weapon-detail-fact-border: color-mix(in srgb, var(--status-warning) 72%, var(--chip-border));
   --weapon-detail-fact-text: var(--status-warning);
   --weapon-detail-fact-bg: var(--status-warning-bg);
+}
+
+.weapon-detail-fact.crafting-crafted {
+  --weapon-detail-fact-border: color-mix(in srgb, var(--amber) 72%, var(--chip-border));
+  --weapon-detail-fact-text: var(--amber);
+  --weapon-detail-fact-bg: var(--amber-bg);
+}
+
+.weapon-detail-fact.crafting-craftable {
+  --weapon-detail-fact-border: color-mix(in srgb, var(--blue) 68%, var(--chip-border));
+  --weapon-detail-fact-text: var(--blue);
+  --weapon-detail-fact-bg: var(--blue-bg);
 }
 
 .weapon-detail-fact.ammo-primary {
@@ -617,8 +662,8 @@ button.weapon-detail-perk:hover { border-color: var(--state-selected-border); ba
     max-height: 100dvh;
   }
   .weapon-detail-identity { grid-template-columns: 62px minmax(0, 1fr); padding: 12px; }
-  .weapon-detail-identity-main > img,
-  .weapon-detail-icon-placeholder { width: 62px; height: 62px; }
+  .weapon-detail-identity-icon,
+  .weapon-detail-icon-placeholder { width: 62px; height: 62px; min-width: 62px; }
   .weapon-detail-identity h2 { font-size: 19px; }
   .weapon-detail-definition-details > div { grid-template-columns: 1fr; }
   .weapon-detail-nav { position: static; padding-inline: 10px; }

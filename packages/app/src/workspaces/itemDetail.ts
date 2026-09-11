@@ -5,6 +5,7 @@ import type {
   AccountItemPlugSummary,
   AccountItemSummary,
   AccountSummary,
+  AccountWeaponCraftingSummary,
   AmmoTypeKey,
   WeaponFrameSummary
 } from "@d2-tools/core/account/summary";
@@ -101,6 +102,8 @@ export type ItemSearchResultLike = {
   armor_set?: EquipableItemSetSummary;
   source: ItemSourceSummary;
   perks?: ItemPerkGroup[];
+  /** 定义层可确认的支持锻造（recipeItemHash 存在）。 */
+  craftable?: boolean;
 };
 
 export type SelectedItemDetail = ItemDefinitionDetailLike & {
@@ -124,6 +127,10 @@ export type SelectedItemDetail = ItemDefinitionDetailLike & {
   source_kind?: SelectedItemSourceKind;
   is_vault_item?: boolean;
   is_postmaster_item?: boolean;
+  /** 账号实例的锻造标记（含官方图层）；只有 crafted 才被展示。 */
+  crafting?: AccountWeaponCraftingSummary;
+  /** 定义层可确认的支持锻造。 */
+  craftable?: boolean;
   is_detail_loading?: boolean;
   detail_loading?: {
     definition: boolean;
@@ -231,6 +238,8 @@ export function createSelectedItemPreview(
     source_kind: source.source_kind,
     is_vault_item: source.is_vault_item,
     is_postmaster_item: source.is_postmaster_item,
+    crafting: "crafting" in item ? item.crafting : undefined,
+    craftable: "craftable" in item ? item.craftable : undefined,
     is_detail_loading: false,
     detail_loading: {
       definition: false,

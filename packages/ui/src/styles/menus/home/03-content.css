@@ -125,28 +125,23 @@
 }
 
 :where(.app-shell) .weekly-activity-grid {
-  grid-template-columns: minmax(280px, 0.85fr) repeat(2, minmax(0, 1.1fr));
+  grid-template-columns: minmax(0, 1.1fr) repeat(2, minmax(0, 1.05fr));
   gap: 8px;
-  align-items: start;
+  align-items: stretch;
+}
+
+/* 日落打击承载“标题 + 掉落池”两列内容，单独出现时占满整行，避免被挤进 1fr 窄列。 */
+:where(.app-shell) .weekly-activity-card.is-nightfall:only-child {
+  grid-column: 1 / -1;
 }
 
 :where(.app-shell) .weekly-activity-card {
   display: grid;
-  grid-template-rows: auto auto;
-  align-self: start;
-  min-width: 0;
-  height: max-content;
-  overflow: hidden;
-}
-
-:where(.app-shell) .weekly-activity-card.is-nightfall {
   grid-template-rows: auto minmax(0, 1fr);
   align-self: stretch;
+  min-width: 0;
   height: auto;
-}
-
-:where(.app-shell) .weekly-activity-card.is-nightfall .weekly-activity-list {
-  align-content: center;
+  overflow: hidden;
 }
 
 :where(.app-shell) .weekly-activity-card > header,
@@ -167,13 +162,14 @@
 
 :where(.app-shell) .weekly-activity-list {
   display: grid;
-  grid-auto-rows: 98px;
+  grid-auto-rows: minmax(98px, auto);
+  align-content: center;
   min-width: 0;
 }
 
 :where(.app-shell) .weekly-activity-entry {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.85fr);
+  grid-template-columns: minmax(0, 0.6fr) minmax(210px, 1.4fr);
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -190,7 +186,7 @@
 
 :where(.app-shell) .weekly-activity-card.is-raid .weekly-activity-entry,
 :where(.app-shell) .weekly-activity-card.is-dungeon .weekly-activity-entry {
-  padding-block: 5px;
+  padding-block: 7px;
 }
 
 :where(.app-shell) .weekly-activity-copy {
@@ -219,13 +215,14 @@
 }
 
 :where(.app-shell) .weekly-activity-reward-panel > span {
-  display: none;
+  display: block;
+  margin: 0 0 3px;
 }
 
 :where(.app-shell) .weekly-activity-reward-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-  gap: 3px;
+  gap: 6px 4px;
   min-width: 0;
 }
 
@@ -948,6 +945,14 @@
   :where(.app-shell) .weekly-activity-entry {
     height: auto;
     min-height: 98px;
+  }
+
+  :where(.app-shell) .weekly-activity-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.app-shell) .weekly-activity-card.is-nightfall {
+    grid-column: 1 / -1;
   }
 
   :where(.app-shell) .home-vendor-stock-grid {

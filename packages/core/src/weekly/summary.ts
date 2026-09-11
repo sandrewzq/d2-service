@@ -15,6 +15,7 @@ export type WeeklySummaryItem = {
   weeklyActivityKind?: WeeklyPriorityKind | "public_clue";
   related_hashes?: number[];
   rewards?: WeeklyActivityReward[];
+  loot_pool?: WeeklyActivityReward[];
   characters?: WeeklyActivityCharacterState[];
 };
 
@@ -98,6 +99,7 @@ export type WeeklyActivityEntry = {
   source?: string;
   related_hashes?: number[];
   rewards?: WeeklyActivityReward[];
+  loot_pool?: WeeklyActivityReward[];
   characters?: WeeklyActivityCharacterState[];
 };
 
@@ -233,6 +235,7 @@ function buildPriority(kind: WeeklyPriorityKind, items: WeeklySummaryItem[]): We
       source: candidate.source,
       related_hashes: candidate.related_hashes,
       rewards: candidate.rewards,
+      loot_pool: candidate.loot_pool,
       characters: candidate.characters
     }))
   };

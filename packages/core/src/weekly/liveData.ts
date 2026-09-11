@@ -834,11 +834,12 @@ function mapProfileActivities(
       items.push({
         title: activityName,
         subtitle: "先锋行动 · 宗师先锋警戒",
-        description: rewardDescription(rewards),
+        description: undefined,
         source: "Bungie 角色周挑战 + 当前资料库",
         weeklyActivityKind: "nightfall",
         related_hashes: [activityHash, ...challengeObjectives],
         rewards,
+        loot_pool: weaponRewards(rewards),
         characters: activityCharacterStates(characterIds, characterActivities, definitions.objectives, isGrandmasterVanguardAlertObjective)
       });
       continue;
@@ -850,7 +851,7 @@ function mapProfileActivities(
       items.push({
         title: activityName,
         subtitle: "周常突袭挑战",
-        description: rewardDescription(rewards),
+        description: undefined,
         source: "Bungie 角色周挑战 + 当前资料库",
         weeklyActivityKind: "rotating_raid",
         related_hashes: [activityHash, ...challengeObjectives],
@@ -866,7 +867,7 @@ function mapProfileActivities(
       items.push({
         title: activityName,
         subtitle: "周常地牢挑战",
-        description: rewardDescription(rewards),
+        description: undefined,
         source: "Bungie 角色周挑战 + 当前资料库",
         weeklyActivityKind: "rotating_dungeon",
         related_hashes: [activityHash, ...challengeObjectives],
@@ -1071,11 +1072,14 @@ function activityChallengeRewards(
     .filter((reward): reward is WeeklyActivityReward => Boolean(reward));
 }
 
-function rewardDescription(
-  rewards: WeeklyActivityReward[]
-): string | undefined {
-  if (!rewards.length) return undefined;
-  return `奖励：${rewards.map((reward) => reward.name).join(" / ")}`;
+/**
+ * 首页掉落池只展示武器；材料与其它非武器奖励保留在 `rewards` 中供光等路线等消费方使用。
+ */
+function weaponRewards(rewards: WeeklyActivityReward[]): WeeklyActivityReward[] {
+  return rewards.filter((reward) => (
+    reward.group_key === "weapons"
+    || /武器|步枪|手炮|弓|霰弹|狙击|榴弹|机枪|火箭|剑|融合|冲锋枪|手枪|偃月|weapon|rifle|hand cannon|bow|shotgun|sniper|launcher|machine gun|rocket|sword|fusion|submachine|sidearm|glaive/i.test(reward.item_type ?? "")
+  ));
 }
 
 function readableName(milestone: PublicMilestone): string | undefined {

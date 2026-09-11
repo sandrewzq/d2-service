@@ -73,6 +73,8 @@ export type ItemSearchResult = {
   armor_set?: EquipableItemSetSummary;
   definition_stats?: ItemDefinitionStat[];
   perks?: ItemPerkGroup[];
+  /** 定义层可确认的支持锻造（recipeItemHash 存在）；实例级“已锻造”状态不在此字段。 */
+  craftable?: boolean;
 };
 
 const bungieStaticBaseUrl = "https://www.bungie.net";
@@ -297,6 +299,10 @@ function toItemSearchResult(
     });
     if (perks.length > 0) {
       result.perks = perks;
+    }
+    if (typeof definition.inventory?.recipeItemHash === "number"
+      && definition.inventory.recipeItemHash > 0) {
+      result.craftable = true;
     }
   }
 

@@ -150,6 +150,20 @@ export function collectActivityLootItemHashes(
     .flatMap((match) => match.activity?.items.map((item) => item.item_hash) ?? []));
 }
 
+/**
+ * 按活动 Hash 查询受控掉落数据集的武器清单，供首页核心活动卡装配掉落池。
+ * 数据集未覆盖该活动时返回空数组，调用方回退到现有奖励展示。
+ */
+export function lootPoolItemHashesForActivity(
+  activityHash: number,
+  dataset: ActivityLootDatasetV1 = activityLootDatasetV1
+): number[] {
+  const activity = dataset.activities.find((candidate) => (
+    toUnsignedHash(candidate.activity_hash) === toUnsignedHash(activityHash)
+  ));
+  return activity ? activity.items.map((item) => toUnsignedHash(item.item_hash)) : [];
+}
+
 export function buildWeeklyFarmingCatalogResource(input: {
   request: WeeklyFarmingRequest;
   manifestVersion?: string;

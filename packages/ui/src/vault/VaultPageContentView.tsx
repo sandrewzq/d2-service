@@ -21,6 +21,7 @@ import {
   applyVisibleVaultSelection,
   buildVaultSelectionSummary,
   classFilterLabels,
+  craftingFilterLabels,
   damageFilterLabels,
   defaultVaultGroupTab,
   filterVaultItems,
@@ -38,6 +39,7 @@ import {
   type VaultArmorSetFilter,
   type VaultArmorStatRule,
   type VaultClassFilter,
+  type VaultCraftingFilter,
   type VaultDamageFilter,
   type VaultFrameFilter,
   type VaultGearTierFilter,
@@ -81,6 +83,7 @@ import {
   getVaultCommunityInstanceKey,
   vaultRecommendationPrimaryFilterLabel,
   type VaultRecommendationCompleteFilter,
+  type VaultRecommendationFilterFact,
   type VaultRecommendationFilterFactIndex,
   type VaultRecommendationMetricKey,
   type VaultRecommendationPrimaryFilter
@@ -96,6 +99,11 @@ import { VaultQueryIndex, type VaultIndexedQuery } from "./vaultQueryIndex.js";
 type VaultWorkspaceTab = "filters" | "duplicates" | "recommendations";
 type VaultRecommendationView = "weapons" | "targets";
 type VaultAccountResourceStatus = "unavailable" | "cached" | "stale" | "loading" | "refreshing" | "ready" | "error";
+type VaultRecommendationSourceSelection = {
+  sourceId: string;
+  primaryFilter: VaultRecommendationPrimaryFilter;
+  completeFilter: VaultRecommendationCompleteFilter;
+};
 
 const vaultWorkspaceTabs: Array<{ key: VaultWorkspaceTab; label: string }> = [
   { key: "filters", label: "1 浏览装备" },
@@ -171,9 +179,7 @@ export function VaultPageContentView(props: {
   const [group, setGroup] = useState<VaultGroupFilter>(defaultVaultGroupTab);
   const [sortKey, setSortKey] = useState<VaultSortKey>("name");
   const [tagFilter, setTagFilter] = useState<VaultTagFilter>("all");
-  const [recommendationSourceFilter, setRecommendationSourceFilter] = useState("");
-  const [recommendationPrimaryFilter, setRecommendationPrimaryFilter] = useState<VaultRecommendationPrimaryFilter>("all");
-  const [recommendationCompleteFilter, setRecommendationCompleteFilter] = useState<VaultRecommendationCompleteFilter>("all");
+  const [recommendationSourceSelections, setRecommendationSourceSelections] = useState<VaultRecommendationSourceSelection[]>([]);
   const [lockFilter, setLockFilter] = useState<VaultLockFilter>("all");
   const [slotFilter, setSlotFilter] = useState<VaultSlotFilter>("all");
   const [locationFilter, setLocationFilter] = useState<VaultLocationFilter>("vault");
@@ -183,6 +189,7 @@ export function VaultPageContentView(props: {
   const [gearTierFilter, setGearTierFilter] = useState<VaultGearTierFilter>("all");
   const [classFilter, setClassFilter] = useState<VaultClassFilter>("all");
   const [damageFilter, setDamageFilter] = useState<VaultDamageFilter>("all");
+  const [craftingFilter, setCraftingFilter] = useState<VaultCraftingFilter>("all");
   const [armorSetFilter, setArmorSetFilter] = useState<VaultArmorSetFilter>("all");
   const [armorStatRules, setArmorStatRules] = useState<VaultArmorStatRule[]>([]);
   const [frameFilters, setFrameFilters] = useState<VaultFrameFilter>([]);
@@ -303,9 +310,10 @@ export function VaultPageContentView(props: {
     gearTier: gearTierFilter,
     classType: classFilter,
     damageType: damageFilter,
+    crafting: craftingFilter,
     armorSet: armorSetFilter,
     frames: frameFilters
-  }), [ammoFilter, armorSetFilter, classFilter, damageFilter, frameFilters, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, rarityFilter, slotFilter]);
+  }), [ammoFilter, armorSetFilter, classFilter, craftingFilter, damageFilter, frameFilters, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, rarityFilter, slotFilter]);
   const queryIndexedItems = useCallback((
     overrides: Partial<VaultIndexedQuery> = {},
     allowedItemKeys?: ReadonlySet<string>
@@ -325,6 +333,7 @@ export function VaultPageContentView(props: {
         gearTier: gearTierFilter,
         classType: classFilter,
         damageType: damageFilter,
+        crafting: craftingFilter,
         armorSet: armorSetFilter,
         armorStatRules,
         frames: frameFilters,
@@ -359,66 +368,101 @@ export function VaultPageContentView(props: {
       count: contextualCounts.get(option.sourceId) ?? 0
     }));
   }, [availableRecommendationSources, filteredVaultItems, recommendationSummaryByInstance]);
-  const selectedRecommendationSource = recommendationSourceOptions.find((option) => (
-    option.sourceId === recommendationSourceFilter
-  ));
-  const selectedRecommendationSourceLabel = selectedRecommendationSource?.sourceLabel;
+  const selectedRecommendationSourceIds = recommendationSourceSelections.map((selection) => selection.sourceId);
+  const firstRecommendationSelection = recommendationSourceSelections[0];
+  const recommendationPrimaryFilter = firstRecommendationSelection?.primaryFilter ?? "all";
+  const recommendationCompleteFilter = firstRecommendationSelection?.completeFilter ?? "all";
+  const recommendationSourceIsDim = Boolean(
+    firstRecommendationSelection
+    && canonicalVaultRecommendationSourceId(firstRecommendationSelection.sourceId) === "dim_wishlist"
+  );
+
+  function toggleRecommendationSource(sourceId: string) {
+    setRecommendationSourceSelections((current) => {
+      if (current.some((selection) => selection.sourceId === sourceId)) {
+        return current.filter((selection) => selection.sourceId !== sourceId);
+      }
+      const nextSelection: VaultRecommendationSourceSelection = {
+        sourceId,
+        primaryFilter: "all",
+        completeFilter: "all"
+      };
+      if (canonicalVaultRecommendationSourceId(sourceId) === "dim_wishlist") return [nextSelection];
+      return [
+        ...current.filter((selection) => canonicalVaultRecommendationSourceId(selection.sourceId) !== "dim_wishlist"),
+        nextSelection
+      ];
+    });
+  }
+
+  function updateRecommendationSourceSelection(
+    sourceId: string,
+    patch: Partial<Pick<VaultRecommendationSourceSelection, "primaryFilter" | "completeFilter">>
+  ) {
+    setRecommendationSourceSelections((current) => current.map((selection) => (
+      selection.sourceId === sourceId ? { ...selection, ...patch } : selection
+    )));
+  }
 
   useEffect(() => {
-    if (!recommendationSourceFilter) return;
-    if (availableRecommendationSources.some((option) => option.sourceId === recommendationSourceFilter)) return;
-    setRecommendationSourceFilter("");
-    setRecommendationPrimaryFilter("all");
-    setRecommendationCompleteFilter("all");
-  }, [availableRecommendationSources, recommendationSourceFilter]);
+    if (!recommendationSourceSelections.length) return;
+    const available = new Set(availableRecommendationSources.map((option) => option.sourceId));
+    const next = recommendationSourceSelections.filter((selection) => available.has(selection.sourceId));
+    if (next.length === recommendationSourceSelections.length) return;
+    setRecommendationSourceSelections(next);
+  }, [availableRecommendationSources, recommendationSourceSelections]);
 
   const recommendationFilterState = useMemo(() => buildVaultRecommendationFilterState({
-    catalogItems: staticCatalogItems,
     contextualItems: filteredVaultItems,
     factIndex: recommendationFilterFactByInstance,
-    sourceId: recommendationSourceFilter,
-    primaryFilter: recommendationPrimaryFilter,
-    completeFilter: recommendationCompleteFilter,
+    selections: recommendationSourceSelections,
+    sourceIds: availableRecommendationSources.map((source) => source.sourceId),
     recommendationCardSummary: props.recommendationCardSummary,
     recommendationScanComplete: props.recommendationSourceState?.recommendationScan.phase === "complete"
-  }), [filteredVaultItems, props.recommendationCardSummary, props.recommendationSourceState?.recommendationScan.phase, recommendationCompleteFilter, recommendationFilterFactByInstance, recommendationPrimaryFilter, recommendationSourceFilter, staticCatalogItems]);
+  }), [availableRecommendationSources, filteredVaultItems, props.recommendationCardSummary, props.recommendationSourceState?.recommendationScan.phase, recommendationFilterFactByInstance, recommendationSourceSelections]);
   const recommendationAllowedItemKeys = useMemo(() => buildVaultRecommendationAllowedItemKeys({
     catalogItems: staticCatalogItems,
     factIndex: recommendationFilterFactByInstance,
-    sourceId: recommendationSourceFilter,
-    primaryFilter: recommendationPrimaryFilter,
-    completeFilter: recommendationCompleteFilter,
+    selections: recommendationSourceSelections,
     recommendationCardSummary: props.recommendationCardSummary,
     recommendationScanComplete: props.recommendationSourceState?.recommendationScan.phase === "complete"
-  }), [props.recommendationCardSummary, props.recommendationSourceState?.recommendationScan.phase, recommendationCompleteFilter, recommendationFilterFactByInstance, recommendationPrimaryFilter, recommendationSourceFilter, staticCatalogItems]);
+  }), [props.recommendationCardSummary, props.recommendationSourceState?.recommendationScan.phase, recommendationFilterFactByInstance, recommendationSourceSelections, staticCatalogItems]);
   const filteredItems = recommendationFilterState.items;
-  const recommendationPrimaryFilterOptions = recommendationFilterState.primaryOptions;
-  const recommendationCompleteFilterOptions = recommendationFilterState.completeOptions;
-  const directRecommendationPrimaryFilterOptions = recommendationPrimaryFilterOptions.filter((option) => (
-    option.key === "all" || isVaultRecommendationMetricKey(option.key)
-  ));
-  const otherRecommendationPrimaryFilterOptions = recommendationPrimaryFilterOptions.filter((option) => (
-    option.key !== "all" && !isVaultRecommendationMetricKey(option.key)
-  ));
-  const recommendationSourceIsDim = canonicalVaultRecommendationSourceId(recommendationSourceFilter) === "dim_wishlist";
-  const showRecommendationCompleteFilter = Boolean(
-    recommendationSourceFilter
-    && !recommendationSourceIsDim
-    && recommendationCompleteFilterOptions.length > 1
-  );
-
+  const recommendationSourceFilterStates = recommendationFilterState.sources;
   useEffect(() => {
-    if (recommendationPrimaryFilter === "all") return;
-    if (recommendationPrimaryFilterOptions.some((option) => option.key === recommendationPrimaryFilter)) return;
-    setRecommendationPrimaryFilter("all");
-    setRecommendationCompleteFilter("all");
-  }, [recommendationPrimaryFilter, recommendationPrimaryFilterOptions]);
-
-  useEffect(() => {
-    if (recommendationCompleteFilter === "all") return;
-    if (recommendationCompleteFilterOptions.some((option) => option.key === recommendationCompleteFilter)) return;
-    setRecommendationCompleteFilter("all");
-  }, [recommendationCompleteFilter, recommendationCompleteFilterOptions]);
+    setRecommendationSourceSelections((current) => {
+      let changed = false;
+      const next = current.map((selection) => {
+        const state = recommendationSourceFilterStates.find((item) => item.sourceId === selection.sourceId);
+        if (!state) return selection;
+        const primaryValid = selection.primaryFilter === "all"
+          || state.primaryOptions.some((option) => option.key === selection.primaryFilter);
+        const completeValid = selection.completeFilter === "all"
+          || state.completeOptions.some((option) => option.key === selection.completeFilter);
+        if (primaryValid && completeValid) return selection;
+        changed = true;
+        return {
+          ...selection,
+          primaryFilter: primaryValid ? selection.primaryFilter : "all",
+          completeFilter: completeValid && primaryValid ? selection.completeFilter : "all"
+        };
+      });
+      return changed ? next : current;
+    });
+  }, [recommendationSourceFilterStates]);
+  const recommendationSelectionLabels = useMemo(() => recommendationSourceSelections.flatMap((selection) => {
+    const source = recommendationSourceOptions.find((option) => option.sourceId === selection.sourceId);
+    const sourceState = recommendationSourceFilterStates.find((state) => state.sourceId === selection.sourceId);
+    if (!source || !sourceState) return [];
+    const labels = [`推荐来源：${source.sourceLabel}`];
+    if (selection.primaryFilter !== "all") {
+      labels.push(`${sourceState.isDim ? "最佳组合" : "核心 Perk"}：${vaultRecommendationPrimaryFilterLabel(selection.primaryFilter, sourceState.isDim)}`);
+    }
+    if (!sourceState.isDim && selection.completeFilter !== "all") {
+      labels.push(`完整命中：${selection.completeFilter}`);
+    }
+    return labels;
+  }), [recommendationSourceFilterStates, recommendationSourceOptions, recommendationSourceSelections]);
   const selectedItems = useMemo(
     () => props.items.filter((item) => selectedKeys.has(getVaultSelectionItemKey(item))),
     [props.items, selectedKeys]
@@ -546,18 +590,16 @@ export function VaultPageContentView(props: {
     gearTierFilter,
     ammoFilter,
     damageFilter,
+    craftingFilter,
     classFilter,
     armorSetFilter,
     armorSetLabel,
     lockFilter,
     tagFilter,
-    recommendationSourceLabel: selectedRecommendationSource?.sourceLabel,
-    recommendationPrimaryFilter,
-    recommendationCompleteFilter,
-    recommendationSourceIsDim,
+    recommendationSelectionLabels,
     frameFilterCount: frameFilters.length,
     armorRuleCount: armorStatRules.length
-  }), [ammoFilter, armorSetFilter, armorSetLabel, armorStatRules.length, classFilter, damageFilter, frameFilters.length, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, query, rarityFilter, recommendationCompleteFilter, recommendationPrimaryFilter, recommendationSourceIsDim, selectedRecommendationSource?.sourceLabel, slotFilter, sortKey, tagFilter]);
+  }), [ammoFilter, armorSetFilter, armorSetLabel, armorStatRules.length, classFilter, craftingFilter, damageFilter, frameFilters.length, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, query, rarityFilter, recommendationSelectionLabels, slotFilter, sortKey, tagFilter]);
   const contextFacts = useMemo(() => buildVaultContextFacts({
     group,
     query,
@@ -571,27 +613,22 @@ export function VaultPageContentView(props: {
     gearTierFilter,
     classFilter,
     damageFilter,
+    craftingFilter,
     armorSetFilter,
     armorSetLabel,
     frameFilters,
     armorStatRules,
     filteredCount: filteredVaultItems.length,
     totalCount: props.items.length
-  }), [ammoFilter, armorSetFilter, armorSetLabel, armorStatRules, classFilter, damageFilter, filteredVaultItems.length, frameFilters, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, props.items.length, query, rarityFilter, slotFilter, tagFilter]);
+  }), [ammoFilter, armorSetFilter, armorSetLabel, armorStatRules, classFilter, craftingFilter, damageFilter, filteredVaultItems.length, frameFilters, gearTierFilter, group, itemTypeFilter, locationFilter, lockFilter, props.items.length, query, rarityFilter, slotFilter, tagFilter]);
 
   useEffect(() => {
     props.onContextFactsChange?.([
       ...contextFacts,
-      ...(selectedRecommendationSourceLabel ? [`推荐来源：${selectedRecommendationSourceLabel}`] : []),
-      ...(!selectedRecommendationSourceLabel || recommendationPrimaryFilter === "all"
-        ? []
-        : [`${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}：${vaultRecommendationPrimaryFilterLabel(recommendationPrimaryFilter, recommendationSourceIsDim)}`]),
-      ...(!selectedRecommendationSourceLabel || recommendationCompleteFilter === "all" || recommendationSourceIsDim
-        ? []
-        : [`完整命中：${recommendationCompleteFilter}`]),
+      ...recommendationSelectionLabels,
       `当前结果：${filteredItems.length} 件`
     ]);
-  }, [contextFacts, filteredItems.length, props.onContextFactsChange, recommendationCompleteFilter, recommendationPrimaryFilter, recommendationSourceIsDim, selectedRecommendationSourceLabel]);
+  }, [contextFacts, filteredItems.length, props.onContextFactsChange, recommendationSelectionLabels]);
 
   function resetFilterState(
     resetQuery = true,
@@ -600,9 +637,7 @@ export function VaultPageContentView(props: {
     if (resetQuery) setQuery("");
     setSortKey("name");
     setTagFilter("all");
-    setRecommendationSourceFilter("");
-    setRecommendationPrimaryFilter("all");
-    setRecommendationCompleteFilter("all");
+    setRecommendationSourceSelections([]);
     setLockFilter("all");
     setSlotFilter("all");
     setLocationFilter(nextLocation);
@@ -612,6 +647,7 @@ export function VaultPageContentView(props: {
     setGearTierFilter("all");
     setClassFilter("all");
     setDamageFilter("all");
+    setCraftingFilter("all");
     setArmorSetFilter("all");
     setArmorStatRules([]);
     setFrameFilters([]);
@@ -623,12 +659,11 @@ export function VaultPageContentView(props: {
     setSlotFilter("all");
     setLocationFilter(nextGroup === "weapons" ? "vault" : "all");
     if (nextGroup !== "weapons") {
-      setRecommendationSourceFilter("");
-      setRecommendationPrimaryFilter("all");
-      setRecommendationCompleteFilter("all");
+      setRecommendationSourceSelections([]);
       setAmmoFilter("all");
       setItemTypeFilter("all");
       setDamageFilter("all");
+      setCraftingFilter("all");
       setFrameFilters([]);
     }
     if (nextGroup !== "armor") {
@@ -860,6 +895,7 @@ export function VaultPageContentView(props: {
               gearTierFilter={gearTierFilter}
               classFilter={classFilter}
               damageFilter={damageFilter}
+              craftingFilter={craftingFilter}
               armorSetFilter={armorSetFilter}
               frameFilters={frameFilters}
               group={group}
@@ -888,6 +924,7 @@ export function VaultPageContentView(props: {
               onGearTierFilterChange={setGearTierFilter}
               onClassFilterChange={setClassFilter}
               onDamageFilterChange={setDamageFilter}
+              onCraftingFilterChange={setCraftingFilter}
               onArmorSetFilterChange={setArmorSetFilter}
               onGroupChange={switchVaultFilterMode}
               onToggleFrameFilter={toggleFrameFilter}
@@ -896,83 +933,86 @@ export function VaultPageContentView(props: {
               <div className="vault-results-command-row">
                 {group === "weapons" ? (
                   <div className="vault-recommendation-filter" role="group" aria-label="按推荐来源筛选">
-                    <label className="vault-recommendation-source-filter">
-                      <select
-                        aria-label="推荐来源"
-                        value={recommendationSourceFilter}
-                        onChange={(event) => {
-                          setRecommendationSourceFilter(event.target.value);
-                          setRecommendationPrimaryFilter("all");
-                          setRecommendationCompleteFilter("all");
-                        }}
-                      >
-                        <option value="">选择推荐来源</option>
-                        {recommendationSourceOptions.map((option) => (
-                          <option key={option.sourceId} value={option.sourceId}>
-                            来源：{option.sourceLabel} · {option.count}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {recommendationSourceFilter ? (
-                      <div className="vault-recommendation-primary-filter" role="group" aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}命中筛选`}>
-                        <span>
-                          {directRecommendationPrimaryFilterOptions.map((option) => (
-                            <button
-                              type="button"
-                              key={option.key}
-                              disabled={option.count === 0}
-                              aria-pressed={recommendationPrimaryFilter === option.key}
-                              aria-label={option.key === "all"
-                                ? `${selectedRecommendationSource?.sourceLabel ?? "当前来源"}${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}全部，${option.count} 件`
-                                : `${selectedRecommendationSource?.sourceLabel ?? "当前来源"}${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}${formatVaultRecommendationMetricOptionLabel(option.key)}，${option.count} 件；分子为命中数，分母为要求数`}
-                              title={`${recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}：${formatVaultRecommendationMetricOptionLabel(option.key)}，${option.count} 件`}
-                              onClick={() => {
-                                setRecommendationPrimaryFilter(option.key);
-                                setRecommendationCompleteFilter("all");
-                              }}
-                            >
-                              <span>{formatVaultRecommendationMetricOptionLabel(option.key)}</span>
-                              <small className="vault-recommendation-option-count" aria-hidden="true">{option.count}</small>
-                            </button>
-                          ))}
-                        </span>
-                      </div>
-                    ) : null}
-                    {recommendationSourceFilter && otherRecommendationPrimaryFilterOptions.length ? (
-                      <label className="vault-recommendation-other-filter">
-                        <select
-                          aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}其他推荐状态`}
-                          value={recommendationPrimaryFilter === "all" || isVaultRecommendationMetricKey(recommendationPrimaryFilter) ? "" : recommendationPrimaryFilter}
-                          onChange={(event) => {
-                            setRecommendationPrimaryFilter((event.target.value || "all") as VaultRecommendationPrimaryFilter);
-                            setRecommendationCompleteFilter("all");
-                          }}
-                        >
-                          <option value="">其他状态</option>
-                          {otherRecommendationPrimaryFilterOptions.map((option) => (
-                            <option key={option.key} value={option.key} disabled={option.count === 0}>
-                              {option.label} · {option.count}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    {showRecommendationCompleteFilter ? (
-                      <label className="vault-recommendation-complete-filter">
-                        <select
-                          aria-label={`${selectedRecommendationSource?.sourceLabel ?? "当前来源"}完整命中筛选`}
-                          value={recommendationCompleteFilter}
-                          onChange={(event) => setRecommendationCompleteFilter(event.target.value as VaultRecommendationCompleteFilter)}
-                        >
-                          {recommendationCompleteFilterOptions.map((option) => (
-                            <option key={option.key} value={option.key} disabled={option.count === 0}>
-                              {option.key === "all" ? "完整：不限" : `完整 ${option.key}`} · {option.count}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
+                    <div className="vault-recommendation-source-list" role="group" aria-label="推荐来源多选">
+                      {recommendationSourceOptions.map((option) => {
+                        const selection = recommendationSourceSelections.find((item) => item.sourceId === option.sourceId);
+                        const sourceState = recommendationSourceFilterStates.find((state) => state.sourceId === option.sourceId);
+                        const active = Boolean(selection && sourceState);
+                        if (!sourceState) return null;
+                        const directOptions = sourceState.primaryOptions.filter((item) => item.key === "all" || isVaultRecommendationMetricKey(item.key));
+                        const otherOptions = sourceState.primaryOptions.filter((item) => item.key !== "all" && !isVaultRecommendationMetricKey(item.key));
+                        return (
+                          <div className={`vault-recommendation-source-row${active ? " is-active" : ""}`} key={option.sourceId}>
+                            <div className="vault-recommendation-source-head">
+                              <button
+                                type="button"
+                                className="vault-recommendation-source-toggle"
+                                aria-pressed={active}
+                                aria-expanded={active}
+                                aria-label={`${option.sourceLabel}，覆盖 ${option.count} 件${active ? "，已选中" : ""}`}
+                                title={`${option.sourceLabel} · 覆盖 ${option.count} 件`}
+                                onClick={() => toggleRecommendationSource(option.sourceId)}
+                              >
+                                <span className="vault-recommendation-source-check" aria-hidden="true">{active ? "✓" : ""}</span>
+                                <span>{option.sourceLabel}</span>
+                                <small className="vault-recommendation-option-count">{option.count}</small>
+                              </button>
+                            </div>
+                            {active && selection ? (
+                              <div className="vault-recommendation-source-conditions" role="group" aria-label={`${option.sourceLabel}${sourceState.isDim ? "最佳组合" : "核心 Perk"}筛选`}>
+                                <div className="vault-recommendation-primary-filter" role="group" aria-label={`${option.sourceLabel}${sourceState.isDim ? "最佳组合" : "核心 Perk"}命中筛选`}>
+                                  <span>
+                                    {directOptions.map((filterOption) => (
+                                      <button
+                                        type="button"
+                                        key={filterOption.key}
+                                        disabled={filterOption.count === 0}
+                                        aria-pressed={selection.primaryFilter === filterOption.key}
+                                        aria-label={`${option.sourceLabel}${sourceState.isDim ? "最佳组合" : "核心 Perk"}${formatVaultRecommendationMetricOptionLabel(filterOption.key, sourceState.isDim)}，${filterOption.count} 件`}
+                                        title={`${sourceState.isDim ? "最佳组合" : "核心 Perk"}：${formatVaultRecommendationMetricOptionLabel(filterOption.key, sourceState.isDim)}，${filterOption.count} 件`}
+                                        onClick={() => updateRecommendationSourceSelection(option.sourceId, { primaryFilter: filterOption.key, completeFilter: "all" })}
+                                      >
+                                        <span>{formatVaultRecommendationMetricOptionLabel(filterOption.key, sourceState.isDim)}</span>
+                                        <small className="vault-recommendation-option-count" aria-hidden="true">{filterOption.count}</small>
+                                      </button>
+                                    ))}
+                                  </span>
+                                </div>
+                                {otherOptions.length ? (
+                                  <label className="vault-recommendation-other-filter">
+                                    <span className="sr-only">{option.sourceLabel}其他推荐状态</span>
+                                    <select
+                                      aria-label={`${option.sourceLabel}其他推荐状态`}
+                                      value={selection.primaryFilter === "all" || isVaultRecommendationMetricKey(selection.primaryFilter) ? "" : selection.primaryFilter}
+                                      onChange={(event) => updateRecommendationSourceSelection(option.sourceId, { primaryFilter: (event.target.value || "all") as VaultRecommendationPrimaryFilter, completeFilter: "all" })}
+                                    >
+                                      <option value="">其他状态</option>
+                                      {otherOptions.map((filterOption) => (
+                                        <option key={filterOption.key} value={filterOption.key} disabled={filterOption.count === 0}>{filterOption.label} · {filterOption.count}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+                                {!sourceState.isDim && sourceState.completeOptions.length > 1 ? (
+                                  <label className="vault-recommendation-complete-filter">
+                                    <span className="sr-only">{option.sourceLabel}完整命中筛选</span>
+                                    <select
+                                      aria-label={`${option.sourceLabel}完整命中筛选`}
+                                      value={selection.completeFilter}
+                                      onChange={(event) => updateRecommendationSourceSelection(option.sourceId, { completeFilter: event.target.value as VaultRecommendationCompleteFilter })}
+                                    >
+                                      {sourceState.completeOptions.map((filterOption) => (
+                                        <option key={filterOption.key} value={filterOption.key} disabled={filterOption.count === 0}>{filterOption.key === "all" ? "完整：不限" : `完整 ${filterOption.key}`} · {filterOption.count}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ) : null}
                 <div className="vault-results-command-summary" aria-live="polite">
@@ -1023,7 +1063,7 @@ export function VaultPageContentView(props: {
                 highlightedItemKeys={props.highlightedItemKeys}
                 tags={props.tags}
                 recommendationSummaryByInstance={recommendationSummaryByInstance}
-                preferredRecommendationSourceId={recommendationSourceFilter || undefined}
+                preferredRecommendationSourceId={selectedRecommendationSourceIds[0] || undefined}
                 isOrganizing={isOrganizing}
                 isSearchActive={Boolean(query.trim())}
                 selectedKeys={selectedKeys}
@@ -1096,7 +1136,7 @@ export function VaultPageContentView(props: {
                 managedSources={managedRecommendationSources}
                 sourceOptions={availableRecommendationSources}
                 filterFactByInstance={recommendationFilterFactByInstance}
-                activeSourceId={recommendationSourceFilter}
+                activeSourceId={selectedRecommendationSourceIds[0] ?? ""}
                 activePrimaryFilter={recommendationPrimaryFilter}
                 activeCompleteFilter={recommendationCompleteFilter}
                 wishlistActions={props.wishlistActions}
@@ -1104,15 +1144,16 @@ export function VaultPageContentView(props: {
                 canOrganizeItem={(item) => duplicateGroupKeyByItemKey.has(getVaultSelectionItemKey(item))}
                 onCopyAuditReport={props.onCopyRecommendationAudit}
                 onActiveSourceChange={(sourceId) => {
-                  setRecommendationSourceFilter(sourceId);
-                  setRecommendationPrimaryFilter("all");
-                  setRecommendationCompleteFilter("all");
+                  setRecommendationSourceSelections(sourceId ? [{ sourceId, primaryFilter: "all", completeFilter: "all" }] : []);
                 }}
                 onActivePrimaryFilterChange={(filter) => {
-                  setRecommendationPrimaryFilter(filter);
-                  setRecommendationCompleteFilter("all");
+                  const sourceId = selectedRecommendationSourceIds[0];
+                  if (sourceId) updateRecommendationSourceSelection(sourceId, { primaryFilter: filter, completeFilter: "all" });
                 }}
-                onActiveCompleteFilterChange={setRecommendationCompleteFilter}
+                onActiveCompleteFilterChange={(filter) => {
+                  const sourceId = selectedRecommendationSourceIds[0];
+                  if (sourceId) updateRecommendationSourceSelection(sourceId, { completeFilter: filter });
+                }}
                 onOpenItem={props.onOpenItem}
                 onOrganizeItem={openDuplicateGroupForItem}
               />
@@ -1184,115 +1225,117 @@ type VaultRecommendationFilterOption<T extends string> = {
   count: number;
 };
 
+type VaultRecommendationSourceFilterState = {
+  sourceId: string;
+  isDim: boolean;
+  primaryOptions: Array<VaultRecommendationFilterOption<VaultRecommendationPrimaryFilter>>;
+  completeOptions: Array<VaultRecommendationFilterOption<VaultRecommendationCompleteFilter>>;
+};
+
 function buildVaultRecommendationFilterState(input: {
-  catalogItems: readonly AccountItemSummary[];
   contextualItems: readonly AccountItemSummary[];
   factIndex: VaultRecommendationFilterFactIndex;
-  sourceId: string;
-  primaryFilter: VaultRecommendationPrimaryFilter;
-  completeFilter: VaultRecommendationCompleteFilter;
+  selections: readonly VaultRecommendationSourceSelection[];
+  sourceIds: readonly string[];
   recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>;
   recommendationScanComplete: boolean;
 }): {
   items: AccountItemSummary[];
-  primaryOptions: Array<VaultRecommendationFilterOption<VaultRecommendationPrimaryFilter>>;
-  completeOptions: Array<VaultRecommendationFilterOption<VaultRecommendationCompleteFilter>>;
+  sources: VaultRecommendationSourceFilterState[];
 } {
-  if (!input.sourceId) {
+  const sourceIds = input.sourceIds.length
+    ? input.sourceIds
+    : input.selections.map((selection) => selection.sourceId);
+  if (!sourceIds.length) return { items: [...input.contextualItems], sources: [] };
+  const sourceStates = sourceIds.map((sourceId) => {
+    const selection = input.selections.find((item) => item.sourceId === sourceId) ?? { sourceId, primaryFilter: "all", completeFilter: "all" };
+    const isDim = canonicalVaultRecommendationSourceId(sourceId) === "dim_wishlist";
+    const candidates = input.contextualItems.filter((item) => input.selections.every((other) => (
+      other.sourceId === sourceId || matchesSourceSelection(item, other, input)
+    )));
+    const primaryCounts = new Map<Exclude<VaultRecommendationPrimaryFilter, "all">, number>();
+    const completeCounts = new Map<VaultRecommendationMetricKey, number>();
+    const metricKeys = new Set<VaultRecommendationMetricKey>();
+    const completeKeys = new Set<VaultRecommendationMetricKey>();
+    for (const item of candidates) {
+      const fact = getSourceFact(item, sourceId, input);
+      if (!fact) continue;
+      primaryCounts.set(fact.primaryKey, (primaryCounts.get(fact.primaryKey) ?? 0) + 1);
+      if (isVaultRecommendationMetricKey(fact.primaryKey)) metricKeys.add(fact.primaryKey);
+      if (!isDim && fact.completeKey) completeKeys.add(fact.completeKey);
+    }
+    const primaryOptions: Array<VaultRecommendationFilterOption<VaultRecommendationPrimaryFilter>> = [
+      { key: "all", label: "全部", count: candidates.filter((item) => hasSourceRecord(item, sourceId, input.factIndex)).length },
+      ...[...metricKeys].sort(compareVaultRecommendationMetricKeys).map((key) => ({ key, label: key, count: primaryCounts.get(key) ?? 0 })),
+      ...(["unrequired", "uncheckable", "uncovered"] as const).map((key) => ({ key, label: vaultRecommendationPrimaryFilterLabel(key, isDim), count: primaryCounts.get(key) ?? 0 }))
+    ];
+    const completeBase = candidates.filter((item) => {
+      const fact = getSourceFact(item, sourceId, input);
+      return selection.primaryFilter === "all"
+        ? hasSourceRecord(item, sourceId, input.factIndex)
+        : Boolean(fact && fact.primaryKey === selection.primaryFilter);
+    });
+    for (const item of completeBase) {
+      const completeKey = getSourceFact(item, sourceId, input)?.completeKey;
+      if (completeKey) completeCounts.set(completeKey, (completeCounts.get(completeKey) ?? 0) + 1);
+    }
     return {
-      items: [...input.contextualItems],
-      primaryOptions: [],
-      completeOptions: []
+      sourceId,
+      isDim,
+      primaryOptions,
+      completeOptions: [
+        { key: "all", label: "不限", count: completeBase.length },
+        ...[...completeKeys].sort(compareVaultRecommendationMetricKeys).map((key) => ({ key, label: key, count: completeCounts.get(key) ?? 0 }))
+      ]
     };
-  }
+  });
+  const items = input.contextualItems.filter((item) => input.selections.every((selection) => matchesSourceSelection(item, selection, input)));
+  return { items, sources: sourceStates };
+}
 
-  const isDim = canonicalVaultRecommendationSourceId(input.sourceId) === "dim_wishlist";
-  const availablePrimaryMetrics = new Set<VaultRecommendationMetricKey>();
-  const availableCompleteMetrics = new Set<VaultRecommendationMetricKey>();
-  for (const item of input.catalogItems) {
-    if (item.group_key !== "weapons") continue;
-    const fact = getVaultRecommendationFilterFact(input.factIndex, getVaultCommunityInstanceKey(item), input.sourceId);
-    if (!fact) continue;
-    if (isVaultRecommendationMetricKey(fact.primaryKey)) availablePrimaryMetrics.add(fact.primaryKey);
-    if (!isDim
-      && (input.primaryFilter === "all" || fact.primaryKey === input.primaryFilter)
-      && fact.completeKey) {
-      availableCompleteMetrics.add(fact.completeKey);
-    }
+function getSourceFact(item: AccountItemSummary, sourceId: string, input: {
+  factIndex: VaultRecommendationFilterFactIndex;
+  recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>;
+  recommendationScanComplete: boolean;
+}): VaultRecommendationFilterFact | undefined {
+  const fact = getVaultRecommendationFilterFact(input.factIndex, getVaultCommunityInstanceKey(item), sourceId);
+  if (fact) return fact;
+  if (input.recommendationScanComplete || input.recommendationCardSummary?.has(getVaultCommunityInstanceKey(item))) {
+    return { kind: canonicalVaultRecommendationSourceId(sourceId) === "dim_wishlist" ? "dim" : "curated", primaryKey: "uncovered" };
   }
+  return undefined;
+}
 
-  const primaryCounts = new Map<Exclude<VaultRecommendationPrimaryFilter, "all">, number>();
-  const completeCounts = new Map<VaultRecommendationMetricKey, number>();
-  const items: AccountItemSummary[] = [];
-  let completeAllCount = 0;
-  for (const item of input.contextualItems) {
-    const instanceKey = getVaultCommunityInstanceKey(item);
-    const fact = getVaultRecommendationFilterFact(input.factIndex, instanceKey, input.sourceId);
-    const primaryKey = fact?.primaryKey ?? (input.recommendationScanComplete || input.recommendationCardSummary?.has(instanceKey)
-      ? "uncovered"
-      : undefined);
-    if (primaryKey) primaryCounts.set(primaryKey, (primaryCounts.get(primaryKey) ?? 0) + 1);
-    const primaryMatches = input.primaryFilter === "all" || primaryKey === input.primaryFilter;
-    if (primaryMatches) {
-      completeAllCount += 1;
-      if (fact?.completeKey) {
-        completeCounts.set(fact.completeKey, (completeCounts.get(fact.completeKey) ?? 0) + 1);
-      }
-    }
-    if (primaryMatches && (input.completeFilter === "all" || fact?.completeKey === input.completeFilter)) {
-      items.push(item);
-    }
-  }
+function hasSourceRecord(item: AccountItemSummary, sourceId: string, factIndex: VaultRecommendationFilterFactIndex): boolean {
+  return Boolean(getVaultRecommendationFilterFact(factIndex, getVaultCommunityInstanceKey(item), sourceId));
+}
 
-  const primaryMetricOptions = [...availablePrimaryMetrics]
-    .sort(compareVaultRecommendationMetricKeys)
-    .map((key) => ({ key, label: key, count: primaryCounts.get(key) ?? 0 }));
-  const primarySpecialKeys: Array<Exclude<VaultRecommendationPrimaryFilter, "all" | VaultRecommendationMetricKey>> = [
-    "unrequired",
-    "uncheckable",
-    "uncovered"
-  ];
-  const primaryOptions: Array<VaultRecommendationFilterOption<VaultRecommendationPrimaryFilter>> = [
-    { key: "all", label: "全部", count: input.contextualItems.length },
-    ...primaryMetricOptions,
-    ...primarySpecialKeys.map((key) => ({
-      key,
-      label: vaultRecommendationPrimaryFilterLabel(key, isDim),
-      count: primaryCounts.get(key) ?? 0
-    }))
-  ];
-  const completeOptions: Array<VaultRecommendationFilterOption<VaultRecommendationCompleteFilter>> = [
-    { key: "all", label: "不限", count: completeAllCount },
-    ...[...availableCompleteMetrics]
-      .sort(compareVaultRecommendationMetricKeys)
-      .map((key) => ({ key, label: key, count: completeCounts.get(key) ?? 0 }))
-  ];
-  return { items, primaryOptions, completeOptions };
+function matchesSourceSelection(item: AccountItemSummary, selection: VaultRecommendationSourceSelection, input: {
+  factIndex: VaultRecommendationFilterFactIndex;
+  recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>;
+  recommendationScanComplete: boolean;
+}): boolean {
+  const fact = getSourceFact(item, selection.sourceId, input);
+  if (!fact) return false;
+  return (selection.primaryFilter === "all"
+    ? hasSourceRecord(item, selection.sourceId, input.factIndex)
+    : fact.primaryKey === selection.primaryFilter)
+    && (selection.completeFilter === "all" || fact.completeKey === selection.completeFilter);
 }
 
 function buildVaultRecommendationAllowedItemKeys(input: {
   catalogItems: readonly AccountItemSummary[];
   factIndex: VaultRecommendationFilterFactIndex;
-  sourceId: string;
-  primaryFilter: VaultRecommendationPrimaryFilter;
-  completeFilter: VaultRecommendationCompleteFilter;
+  selections: readonly VaultRecommendationSourceSelection[];
   recommendationCardSummary?: ReadonlyMap<string, RecommendationCardSummary>;
   recommendationScanComplete: boolean;
 }): ReadonlySet<string> | undefined {
-  if (!input.sourceId || (input.primaryFilter === "all" && input.completeFilter === "all")) {
+  if (!input.selections.length) {
     return undefined;
   }
   const allowed = new Set<string>();
   for (const item of input.catalogItems) {
-    if (matchesVaultRecommendationFilters(
-      item,
-      input.factIndex,
-      input.sourceId,
-      input.primaryFilter,
-      input.completeFilter,
-      input.recommendationCardSummary,
-      input.recommendationScanComplete
-    )) {
+    if (input.selections.every((selection) => matchesSourceSelection(item, selection, input))) {
       allowed.add(getVaultSelectionItemKey(item));
     }
   }
@@ -1340,10 +1383,11 @@ function sameStringList(previous: readonly string[], next: readonly string[]): b
 }
 
 function formatVaultRecommendationMetricOptionLabel(
-  key: VaultRecommendationPrimaryFilter
+  key: VaultRecommendationPrimaryFilter,
+  isDim = false
 ): string {
   if (key === "all") return "全部";
-  if (!isVaultRecommendationMetricKey(key)) return vaultRecommendationPrimaryFilterLabel(key, false);
+  if (!isVaultRecommendationMetricKey(key)) return vaultRecommendationPrimaryFilterLabel(key, isDim);
   const [matched, required] = key.split("/").map(Number);
   if (matched === required) return `全中 ${key}`;
   if (matched === 0) return `未命中 ${key}`;
@@ -1361,15 +1405,13 @@ function buildActiveFilterLabels(input: {
   gearTierFilter: VaultGearTierFilter;
   ammoFilter: VaultAmmoFilter;
   damageFilter: VaultDamageFilter;
+  craftingFilter: VaultCraftingFilter;
   classFilter: VaultClassFilter;
   armorSetFilter: VaultArmorSetFilter;
   armorSetLabel?: string;
   lockFilter: VaultLockFilter;
   tagFilter: VaultTagFilter;
-  recommendationSourceLabel?: string;
-  recommendationPrimaryFilter: VaultRecommendationPrimaryFilter;
-  recommendationCompleteFilter: VaultRecommendationCompleteFilter;
-  recommendationSourceIsDim: boolean;
+  recommendationSelectionLabels: readonly string[];
   frameFilterCount: number;
   armorRuleCount: number;
 }): string[] {
@@ -1385,39 +1427,15 @@ function buildActiveFilterLabels(input: {
     input.gearTierFilter !== "all" ? `阶级：${gearTierFilterLabels[input.gearTierFilter]}` : "",
     input.ammoFilter !== "all" ? `弹药：${ammoFilterLabels[input.ammoFilter]}` : "",
     input.damageFilter !== "all" ? `属性：${damageFilterLabels[input.damageFilter]}` : "",
+    input.craftingFilter !== "all" ? `锻造状态：${craftingFilterLabels[input.craftingFilter]}` : "",
     input.classFilter !== "all" ? `职业：${classFilterLabels[input.classFilter]}` : "",
     input.armorSetFilter !== "all" ? `护甲套装：${input.armorSetLabel ?? input.armorSetFilter}` : "",
     input.lockFilter !== "all" ? lockFilterLabels[input.lockFilter] : "",
     input.tagFilter !== "all" ? `整理状态：${input.tagFilter === "untagged" ? input.group === "weapons" ? "未整理" : "未标记" : tagLabels[input.tagFilter]}` : "",
-    input.recommendationSourceLabel ? `推荐来源：${input.recommendationSourceLabel}` : "",
-    input.recommendationSourceLabel && input.recommendationPrimaryFilter !== "all"
-      ? `${input.recommendationSourceIsDim ? "最佳组合" : "核心 Perk"}：${vaultRecommendationPrimaryFilterLabel(input.recommendationPrimaryFilter, input.recommendationSourceIsDim)}`
-      : "",
-    input.recommendationSourceLabel && !input.recommendationSourceIsDim && input.recommendationCompleteFilter !== "all"
-      ? `完整命中：${input.recommendationCompleteFilter}`
-      : "",
+    ...input.recommendationSelectionLabels,
     input.frameFilterCount ? `武器框架：${input.frameFilterCount} 项` : "",
     input.armorRuleCount ? `护甲属性：${input.armorRuleCount} 条` : ""
   ].filter(Boolean);
-}
-
-function matchesVaultRecommendationFilters(
-  item: AccountItemSummary,
-  factIndex: VaultRecommendationFilterFactIndex,
-  sourceId: string,
-  primaryFilter: VaultRecommendationPrimaryFilter,
-  completeFilter: VaultRecommendationCompleteFilter,
-  recommendationCardSummary: ReadonlyMap<string, RecommendationCardSummary> | undefined,
-  recommendationScanComplete: boolean
-): boolean {
-  if (!sourceId || (primaryFilter === "all" && completeFilter === "all")) return true;
-  const instanceKey = getVaultCommunityInstanceKey(item);
-  const fact = getVaultRecommendationFilterFact(factIndex, instanceKey, sourceId);
-  const primaryKey = fact?.primaryKey ?? (recommendationScanComplete || recommendationCardSummary?.has(instanceKey)
-    ? "uncovered"
-    : undefined);
-  if (primaryFilter !== "all" && primaryKey !== primaryFilter) return false;
-  return completeFilter === "all" || fact?.completeKey === completeFilter;
 }
 
 function sameManagedRecommendationSources(

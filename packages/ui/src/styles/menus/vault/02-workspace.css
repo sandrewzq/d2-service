@@ -62,35 +62,104 @@
 }
 
 :where(.app-shell) .vault-recommendation-filter {
-  display: flex;
-  gap: 6px;
-  min-width: 0;
-  align-items: center;
-}
-
-:where(.app-shell) .vault-recommendation-filter > label,
-:where(.app-shell) .vault-recommendation-filter > div {
   display: block;
   min-width: 0;
 }
 
-:where(.app-shell) .vault-recommendation-source-filter {
-  flex: 0 1 190px;
+:where(.app-shell) .vault-recommendation-source-list {
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--border-control);
+  background: var(--surface-recessed);
+}
+
+:where(.app-shell) .vault-recommendation-source-row {
+  display: grid;
+  grid-template-columns: minmax(170px, auto) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+:where(.app-shell) .vault-recommendation-source-row:last-child {
+  border-bottom: 0;
+}
+
+:where(.app-shell) .vault-recommendation-source-head,
+:where(.app-shell) .vault-recommendation-source-conditions {
+  min-width: 0;
+}
+
+:where(.app-shell) .vault-recommendation-source-toggle {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 33px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--border-subtle);
+  border-radius: 0;
+  color: var(--text-body);
+  background: transparent;
+  font-size: var(--font-caption);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+:where(.app-shell) .vault-recommendation-source-toggle:hover {
+  color: var(--text-title);
+  background: var(--surface-interactive);
+}
+
+:where(.app-shell) .vault-recommendation-source-toggle[aria-pressed="true"] {
+  color: var(--selected-fg);
+  background: var(--state-selected-bg);
+  box-shadow: inset 3px 0 0 var(--state-selected-border);
+  font-weight: 700;
+}
+
+:where(.app-shell) .vault-recommendation-source-check {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  font-size: var(--font-micro);
+  line-height: 1;
+}
+
+:where(.app-shell) .vault-recommendation-source-toggle[aria-pressed="true"] .vault-recommendation-source-check {
+  border-color: var(--state-selected-border);
+  background: var(--surface-interactive-strong);
+}
+
+:where(.app-shell) .vault-recommendation-source-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 4px;
 }
 
 :where(.app-shell) .vault-recommendation-primary-filter {
-  flex: 1 1 220px;
+  flex: 1 1 320px;
+  min-width: min(100%, 260px);
 }
 
 :where(.app-shell) .vault-recommendation-other-filter {
   flex: 0 1 120px;
-  margin-left: 4px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border-subtle);
+  min-width: 112px;
 }
 
 :where(.app-shell) .vault-recommendation-complete-filter {
   flex: 0 1 126px;
+  min-width: 118px;
 }
 
 :where(.app-shell) .vault-recommendation-filter select {
@@ -109,17 +178,17 @@
   min-width: 0;
 }
 
-:where(.app-shell) .vault-recommendation-filter > div > span {
+:where(.app-shell) .vault-recommendation-primary-filter > span {
   display: flex;
+  flex-wrap: wrap;
   width: 100%;
   min-width: 0;
-  overflow-x: auto;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
   background: var(--surface-recessed);
 }
 
-:where(.app-shell) .vault-recommendation-filter button {
+:where(.app-shell) .vault-recommendation-primary-filter button {
   display: inline-flex;
   flex: 0 0 auto;
   min-height: 31px;
@@ -136,16 +205,16 @@
   white-space: nowrap;
 }
 
-:where(.app-shell) .vault-recommendation-filter button:last-child {
+:where(.app-shell) .vault-recommendation-primary-filter button:last-child {
   border-right: 0;
 }
 
-:where(.app-shell) .vault-recommendation-filter button:hover:not(:disabled) {
+:where(.app-shell) .vault-recommendation-primary-filter button:hover:not(:disabled) {
   color: var(--text-title);
   background: var(--surface-interactive);
 }
 
-:where(.app-shell) .vault-recommendation-filter button[aria-pressed="true"] {
+:where(.app-shell) .vault-recommendation-primary-filter button[aria-pressed="true"] {
   color: var(--selected-fg);
   background: var(--state-selected-bg);
   box-shadow: inset 0 0 0 1px var(--state-selected-border);
@@ -2439,14 +2508,8 @@
     flex-direction: column;
   }
 
-  :where(.app-shell) .vault-recommendation-filter > label,
-  :where(.app-shell) .vault-recommendation-filter > div {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   :where(.app-shell) .vault-recommendation-filter select,
-  :where(.app-shell) .vault-recommendation-filter > div > span {
+  :where(.app-shell) .vault-recommendation-primary-filter > span {
     width: 100%;
   }
 
@@ -3115,6 +3178,8 @@
   min-height: 0;
   height: 100%;
   overflow-y: auto;
+  /* 快捷取出移除卡片时保持 scrollTop 不变，阻止浏览器滚动锚定自动补偿。 */
+  overflow-anchor: none;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   background: var(--surface-panel);
@@ -4678,21 +4743,23 @@
 
   :where(.app-shell) .vault-recommendation-filter {
     grid-column: 1 / -1;
-    flex-wrap: wrap;
   }
 
-  :where(.app-shell) .vault-recommendation-source-filter {
-    flex-basis: 150px;
+  :where(.app-shell) .vault-recommendation-source-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  :where(.app-shell) .vault-recommendation-primary-filter {
-    flex-basis: 210px;
+  :where(.app-shell) .vault-recommendation-source-toggle {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  :where(.app-shell) .vault-recommendation-source-conditions {
+    padding: 4px;
   }
 
   :where(.app-shell) .vault-recommendation-other-filter {
-    margin-left: 0;
-    padding-left: 0;
-    border-left: 0;
+    flex: 1 1 140px;
   }
 
   :where(.app-shell) .vault-results-command-summary {
