@@ -92,11 +92,11 @@
 }
 
 .weapon-detail-identity-icon .weapon-detail-crafting-background {
-  z-index: 1;
+  z-index: var(--layer-base);
 }
 
 .weapon-detail-identity-icon .weapon-detail-crafting-overlay {
-  z-index: 2;
+  z-index: var(--layer-popover);
 }
 
 .weapon-detail-section-heading > div > span {
@@ -368,6 +368,7 @@
 button.weapon-detail-perk { cursor: pointer; }
 button.weapon-detail-perk:hover { border-color: var(--state-selected-border); background: var(--item-bg-hover); }
 .weapon-detail-perk > img { width: 38px; height: 38px; border-radius: var(--radius-control); }
+.weapon-detail-perk > span { grid-column: 2; min-width: 0; }
 .weapon-detail-perk > small { grid-column: 1 / -1; margin: -8px -8px 0; padding: 4px 7px; color: var(--body); background: var(--section-bg); font-size: 12px; font-weight: 700; }
 .weapon-detail-perk strong { color: var(--text-title); font-size: var(--font-content); }
 .weapon-detail-perk p { margin-top: 2px; font-size: var(--font-meta); }

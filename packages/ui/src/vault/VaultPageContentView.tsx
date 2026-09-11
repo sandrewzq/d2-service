@@ -387,11 +387,7 @@ export function VaultPageContentView(props: {
         primaryFilter: "all",
         completeFilter: "all"
       };
-      if (canonicalVaultRecommendationSourceId(sourceId) === "dim_wishlist") return [nextSelection];
-      return [
-        ...current.filter((selection) => canonicalVaultRecommendationSourceId(selection.sourceId) !== "dim_wishlist"),
-        nextSelection
-      ];
+      return [...current, nextSelection];
     });
   }
 
@@ -959,7 +955,7 @@ export function VaultPageContentView(props: {
                               </button>
                             </div>
                             {active && selection ? (
-                              <div className="vault-recommendation-source-conditions" role="group" aria-label={`${option.sourceLabel}${sourceState.isDim ? "最佳组合" : "核心 Perk"}筛选`}>
+                              <div className={`vault-recommendation-source-conditions${sourceState.isDim ? " is-dim" : ""}`} role="group" aria-label={`${option.sourceLabel}${sourceState.isDim ? "最佳组合" : "核心 Perk"}筛选`}>
                                 <div className="vault-recommendation-primary-filter" role="group" aria-label={`${option.sourceLabel}${sourceState.isDim ? "最佳组合" : "核心 Perk"}命中筛选`}>
                                   <span>
                                     {directOptions.map((filterOption) => (
@@ -1247,7 +1243,7 @@ function buildVaultRecommendationFilterState(input: {
     ? input.sourceIds
     : input.selections.map((selection) => selection.sourceId);
   if (!sourceIds.length) return { items: [...input.contextualItems], sources: [] };
-  const sourceStates = sourceIds.map((sourceId) => {
+  const sourceStates: VaultRecommendationSourceFilterState[] = sourceIds.map((sourceId) => {
     const selection = input.selections.find((item) => item.sourceId === sourceId) ?? { sourceId, primaryFilter: "all", completeFilter: "all" };
     const isDim = canonicalVaultRecommendationSourceId(sourceId) === "dim_wishlist";
     const candidates = input.contextualItems.filter((item) => input.selections.every((other) => (

@@ -61,6 +61,27 @@
   background: var(--surface-toolbar);
 }
 
+/* 推荐来源是多行容器时独占一行，结果摘要和批量操作放在下方，避免右侧出现整块空白。 */
+:where(.app-shell) .vault-results-command-row:has(.vault-recommendation-filter) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "recommendation recommendation"
+    "summary batch";
+  align-items: center;
+}
+
+:where(.app-shell) .vault-results-command-row:has(.vault-recommendation-filter) .vault-recommendation-filter {
+  grid-area: recommendation;
+}
+
+:where(.app-shell) .vault-results-command-row:has(.vault-recommendation-filter) .vault-results-command-summary {
+  grid-area: summary;
+}
+
+:where(.app-shell) .vault-results-command-row:has(.vault-recommendation-filter) .vault-batch-toggle {
+  grid-area: batch;
+}
+
 :where(.app-shell) .vault-recommendation-filter {
   display: block;
   min-width: 0;
@@ -75,7 +96,7 @@
 
 :where(.app-shell) .vault-recommendation-source-row {
   display: grid;
-  grid-template-columns: minmax(170px, auto) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   min-width: 0;
   min-height: 34px;
   align-items: center;
@@ -140,26 +161,44 @@
 }
 
 :where(.app-shell) .vault-recommendation-source-conditions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 122px) minmax(118px, 128px);
   gap: 4px;
-  align-items: center;
+  align-items: start;
   padding: 2px 4px;
 }
 
+:where(.app-shell) .vault-recommendation-source-conditions.is-dim {
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 122px);
+}
+
 :where(.app-shell) .vault-recommendation-primary-filter {
-  flex: 1 1 320px;
-  min-width: min(100%, 260px);
+  min-width: 0;
 }
 
 :where(.app-shell) .vault-recommendation-other-filter {
-  flex: 0 1 120px;
-  min-width: 112px;
+  min-width: 0;
 }
 
 :where(.app-shell) .vault-recommendation-complete-filter {
-  flex: 0 1 126px;
-  min-width: 118px;
+  min-width: 0;
+}
+
+:where(.app-shell) .vault-recommendation-other-filter,
+:where(.app-shell) .vault-recommendation-complete-filter {
+  display: block;
+}
+
+:where(.app-shell) .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 :where(.app-shell) .vault-recommendation-filter select {
@@ -4755,7 +4794,21 @@
   }
 
   :where(.app-shell) .vault-recommendation-source-conditions {
+    grid-template-columns: minmax(0, 1fr) minmax(132px, 1fr);
     padding: 4px;
+  }
+
+  :where(.app-shell) .vault-recommendation-source-conditions.is-dim {
+    grid-template-columns: minmax(0, 1fr) minmax(132px, 1fr);
+  }
+
+  :where(.app-shell) .vault-recommendation-primary-filter {
+    grid-column: 1 / -1;
+  }
+
+  :where(.app-shell) .vault-recommendation-other-filter,
+  :where(.app-shell) .vault-recommendation-complete-filter {
+    min-width: 0;
   }
 
   :where(.app-shell) .vault-recommendation-other-filter {
@@ -5041,10 +5094,6 @@
   background: transparent;
   content: "";
   transform: rotate(45deg);
-}
-
-:where(.app-shell) .vault-results-column .vault-item-weapons .vault-weapon-crafting[data-crafting-kind="enhanced"]::before {
-  background: currentColor;
 }
 
 :where(.app-shell) .vault-results-column .vault-item-weapons .vault-weapon-unmarked {

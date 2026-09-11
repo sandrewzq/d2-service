@@ -37,7 +37,7 @@ export function VaultListItem(props: VaultListItemProps) {
   const isArmor = props.item.group_key === "armor";
   const detailAvailable = props.item.group_key === "weapons" || props.item.group_key === "armor";
   const gearTierOverlay = props.item.instance?.gear_tier_overlay ?? gearTierOverlayUrl(gearTier);
-  const crafting = isWeapon ? props.item.crafting : undefined;
+  const crafting = isWeapon && props.item.crafting?.kind === "crafted" ? props.item.crafting : undefined;
   const visual = (
     <div
       className="vault-card-visual"
@@ -424,8 +424,7 @@ function displayGearTier(value: number | null | undefined): number {
 }
 
 function craftingLabel(kind: NonNullable<AccountItemSummary["crafting"]>["kind"], full = false): string {
-  if (kind === "crafted") return full ? "锻造武器" : "锻造";
-  return full ? "强化武器" : "强化";
+  return kind === "crafted" ? full ? "锻造武器" : "锻造" : "";
 }
 
 function formatVaultCardTitle(

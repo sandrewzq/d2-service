@@ -569,7 +569,7 @@ export function buildWeaponStatTracks(input: {
 export function perkGroupsToPoolColumns(groups: readonly ItemPerkGroup[]): WeaponPerkPoolColumn[] {
   const columns = groups.flatMap((group) => {
     const visiblePlugs = collapseEnhancedWeaponPlugs(
-      group.plugs.filter((plug) => !isWeaponSystemPlug(plug))
+      group.plugs.filter((plug) => !plug.is_socket_placeholder && !isWeaponSystemPlug(plug))
     );
     const role = classifyWeaponSocketPlugs(visiblePlugs);
     if (!role) return [];

@@ -511,11 +511,11 @@ export function useDesktopProductShell(props: {
         accountSummary ? (
           <>
             <ControlButton variant="secondary" disabled={accountWorkspace.isLoggingIn} onClick={() => void accountWorkspace.loginBungie()}>重新登录 Bungie</ControlButton>
-            <RefreshControlButton variant="primary" refreshing={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步装备数据</RefreshControlButton>
+            <RefreshControlButton variant="primary" refreshing={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步账号数据</RefreshControlButton>
           </>
         ) : null
       ) : activePage === "vault" ? (
-        accountSummary ? <RefreshControlButton variant="primary" refreshing={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步装备数据</RefreshControlButton> : null
+        accountSummary ? <RefreshControlButton variant="primary" refreshing={isLoadingAccount} onClick={() => void refreshAccountManually()}>同步账号数据</RefreshControlButton> : null
       ) : activePage === "library" ? (
         <>
           <ControlButton onClick={() => void diagnostics.refreshManifestStatus()}>重新检查资料库</ControlButton>
@@ -636,7 +636,7 @@ function formatAccountShellStatus(
       ? `同步中 · ${accountWriteSyncActivity.pendingCount}`
       : "同步中";
   }
-  if (isLoadingAccount) return accountSummary ? "正在同步装备数据" : "正在读取装备数据";
+  if (isLoadingAccount) return accountSummary ? "正在同步账号数据" : "正在读取账号数据";
   if (accountWarning && accountSummary) return "增强数据异常";
   if (accountSummary) {
     const loadedAt = formatTime(lastAccountLoadedAt);

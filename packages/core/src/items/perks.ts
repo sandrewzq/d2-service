@@ -9,6 +9,8 @@ export type ItemPlugSummary = {
   trait_ids?: string[];
   source_description?: string;
   item_type?: string;
+  /** Bungie placeholder for an unselected/unlocked socket, not a real perk candidate. */
+  is_socket_placeholder?: boolean;
 };
 
 export type ItemPlugSourceKind = "initial" | "reusable_item" | "reusable_set" | "randomized_set";
@@ -97,10 +99,12 @@ function toPlugSummary(
     return null;
   }
 
+  const description = definition.displayProperties?.description ?? "";
+  const socketPlaceholder = isSocketPlaceholder(name, description, definition);
   return {
     hash,
     name,
-    description: definition.displayProperties?.description ?? "",
+    description,
     icon: normalizeBungieAssetUrl(definition.displayProperties?.icon),
     ...(definition.plug?.plugCategoryIdentifier
       ? { category_identifier: definition.plug.plugCategoryIdentifier }
@@ -109,8 +113,14 @@ function toPlugSummary(
     ...(definition.sourceData?.sourceString
       ? { source_description: definition.sourceData.sourceString }
       : {}),
-    ...(definition.itemTypeDisplayName ? { item_type: definition.itemTypeDisplayName } : {})
+    ...(definition.itemTypeDisplayName ? { item_type: definition.itemTypeDisplayName } : {}),
+    ...(socketPlaceholder ? { is_socket_placeholder: true } : {})
   };
+}
+
+function isSocketPlaceholder(name: string, description: string, definition: DefinitionRecord): boolean {
+  const text = `${name} ${description} ${definition.itemTypeDisplayName ?? ""} ${definition.plug?.plugCategoryIdentifier ?? ""}`;
+  return /empty\s+(?:trait\s+)?socket|空(?:的)?(?:特征|原始)?插槽|未选择特性|未选择插槽/i.test(text);
 }
 
 function uniqueNumbers(values: number[]): number[] {

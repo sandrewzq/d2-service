@@ -1,6 +1,6 @@
 {
   "name": "@d2-tools/core",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "license": "MIT",
   "private": true,
   "type": "module",

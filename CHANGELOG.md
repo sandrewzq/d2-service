@@ -2,6 +2,34 @@
 
 这个项目使用面向玩家的更新日志。这里优先记录”玩家能感知到什么变化”，而不是逐条展开内部实现细节。
 
+## 0.0.25 - 2026-09-11
+
+### 中文
+
+#### 改进
+
+- 仓库推荐来源支持人工来源与 DIM 同时选择，并按各来源条件叠加筛选；推荐来源区域在宽屏和窄屏下保持稳定布局。
+- 仓库武器卡片保留锻造状态展示，普通武器不显示额外状态；强化状态暂不纳入本版本。
+- 账号任务、光等提升路线和本周刷取页面继续使用真实账号数据，并补齐状态、来源和失败边界。
+
+#### 修复
+
+- 修复推荐筛选条件拥挤时的换行和右侧无效留白。
+- 修复武器详情锻造图层使用非语义层级值的问题。
+
+### English
+
+#### Improved
+
+- Vault recommendation filters now allow curated sources and DIM to be selected together, combining each source's conditions while keeping the source panel responsive.
+- Vault weapon cards retain crafted-state display while ordinary weapons remain unmarked; enhanced-state display is deferred for a later release.
+- Account pursuits, power progression, and weekly farming views continue to use real account data with clearer status, source, and failure boundaries.
+
+#### Fixed
+
+- Fixed cramped recommendation filter wrapping and unused space beside the source list.
+- Fixed non-semantic layer values used by weapon detail crafting overlays.
+
 ## 0.0.24 - 2026-09-09
 
 ### 中文

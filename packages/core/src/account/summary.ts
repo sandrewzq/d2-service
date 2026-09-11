@@ -67,7 +67,7 @@ export type AccountItemSummary = {
 };
 
 export type AccountWeaponCraftingSummary = {
-  kind: "crafted" | "enhanced";
+  kind: "crafted";
   overlay?: string;
   background?: string;
 };
@@ -1421,21 +1421,17 @@ function summarizeWeaponCrafting(
   definition: DefinitionRecord | undefined,
   inventoryItemConstantsDefinitions: DefinitionComponentData
 ): AccountWeaponCraftingSummary | undefined {
-  // DestinyItemState.Crafted = 8. Bungie also applies this flag to enhanced
-  // weapons, matching DIM's first-stage detection.
+  // DestinyItemState.Crafted = 8. 强化掉落暂不纳入本轮仓库状态展示。
   if (typeof itemState !== "number" || (itemState & 8) !== 8) return undefined;
-  const kind: AccountWeaponCraftingSummary["kind"] = typeof definition?.inventory?.recipeItemHash === "number"
-    && definition.inventory.recipeItemHash > 0
-    ? "crafted"
-    : "enhanced";
+  if (typeof definition?.inventory?.recipeItemHash !== "number" || definition.inventory.recipeItemHash <= 0) {
+    return undefined;
+  }
   const constants = inventoryItemConstantsDefinitions["1"] as DefinitionRecord | undefined
     ?? Object.values(inventoryItemConstantsDefinitions)[0];
-  const overlay = normalizeBungieAssetUrl(kind === "crafted"
-    ? constants?.craftedOverlayPath
-    : constants?.enhancedItemOverlayPath);
+  const overlay = normalizeBungieAssetUrl(constants?.craftedOverlayPath);
   const background = normalizeBungieAssetUrl(constants?.craftedBackgroundPath);
   return {
-    kind,
+    kind: "crafted",
     ...(overlay ? { overlay } : {}),
     ...(background ? { background } : {})
   };
